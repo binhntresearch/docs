@@ -1,7 +1,7 @@
 ---
 title: "Cài đặt Claude Code trên mọi hệ điều hành"
 sidebarTitle: "Cài Đặt"
-description: "Hướng dẫn cài đặt Claude Code trên macOS, Linux và Windows với native install, Homebrew, WinGet và npm."
+description: "Hướng dẫn cài đặt Claude Code trên macOS, Linux và Windows qua native install, Homebrew, WinGet và npm — kèm xác minh và cập nhật."
 ---
 
 Claude Code là công cụ lập trình AI chạy trực tiếp trong terminal của bạn, hỗ trợ đầy đủ trên macOS, Linux và Windows. Trang này hướng dẫn bạn từng bước cài đặt, xác minh, cập nhật và gỡ cài đặt Claude Code theo phương thức phù hợp nhất với hệ điều hành của mình.
@@ -68,25 +68,6 @@ Chọn tab tương ứng với hệ điều hành của bạn để xem hướng
       ```
     </CodeGroup>
 
-    ### Cài đặt qua apt (Debian / Ubuntu)
-
-    Để quản lý Claude Code bằng trình quản lý gói hệ thống, hãy thêm kho lưu trữ apt của Anthropic:
-
-    ```bash
-    # Thêm khóa GPG của Anthropic
-    curl -fsSL https://packages.anthropic.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/anthropic.gpg
-
-    # Thêm kho lưu trữ apt
-    echo "deb [signed-by=/usr/share/keyrings/anthropic.gpg] https://packages.anthropic.com/apt stable main" \
-      | sudo tee /etc/apt/sources.list.d/anthropic.list
-
-    # Cài đặt Claude Code
-    sudo apt update && sudo apt install claude-code
-    ```
-
-    <Note>
-      Phương thức apt phù hợp cho môi trường máy chủ hoặc khi bạn cần kiểm soát phiên bản chặt chẽ trong pipeline CI/CD.
-    </Note>
   </Tab>
 
   <Tab title="Windows">
@@ -156,11 +137,6 @@ Nếu thấy số phiên bản hiển thị (ví dụ: `claude 1.x.x`), bạn đ
   **npm:**
   ```bash
   npm update -g @anthropic-ai/claude-code
-  ```
-
-  **apt (Debian/Ubuntu):**
-  ```bash
-  sudo apt update && sudo apt upgrade claude-code
   ```
 </Accordion>
 

@@ -1,7 +1,7 @@
 ---
-title: "Biến môi trường cấu hình Claude Code"
+title: "Environment Variables cấu hình Claude Code đầy đủ"
 sidebarTitle: "Env Variables"
-description: "Danh sách đầy đủ environment variables để cấu hình Claude Code: API keys, proxy, Bedrock, Vertex AI và telemetry."
+description: "Danh sách đầy đủ environment variables để cấu hình Claude Code: API keys, custom endpoint, proxy, Bedrock, Vertex AI và telemetry."
 ---
 
 Environment variables là cách linh hoạt nhất để cấu hình Claude Code — đặc biệt hữu ích trong môi trường CI/CD, Docker container, hoặc khi bạn không muốn lưu thông tin nhạy cảm như API key vào file. Vì environment variables có thứ tự ưu tiên cao nhất, chúng ghi đè mọi cấu hình trong `settings.json`.
@@ -61,13 +61,11 @@ export AWS_REGION="us-east-1"
 | `ANTHROPIC_VERTEX` | Đặt là `"true"` để bật Vertex AI |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Đường dẫn đến file credentials JSON |
 | `GCLOUD_PROJECT` | ID của Google Cloud project |
-| `CLOUDE_VERTEX_REGION` | Region của Vertex AI (ví dụ: `us-central1`) |
 
 ```bash
 export ANTHROPIC_VERTEX=true
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 export GCLOUD_PROJECT="my-gcp-project-id"
-export CLOUDE_VERTEX_REGION="us-central1"
 ```
 
 ## Proxy và mạng

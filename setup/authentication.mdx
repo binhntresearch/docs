@@ -1,7 +1,7 @@
 ---
 title: "Xác thực tài khoản và cấu hình API key Claude Code"
 sidebarTitle: "Xác Thực"
-description: "Cách đăng nhập Claude Code với tài khoản Claude.ai, API key Anthropic Console, Amazon Bedrock và Google Vertex AI."
+description: "Cách đăng nhập Claude Code với tài khoản Claude.ai, API key Anthropic Console, Amazon Bedrock, Google Vertex AI và provider tùy chỉnh."
 ---
 
 Claude Code hỗ trợ nhiều phương thức xác thực, từ đăng nhập trình duyệt đơn giản cho người dùng cá nhân đến tích hợp cloud doanh nghiệp với AWS Bedrock và Google Vertex AI. Chọn phương thức phù hợp với nhu cầu của bạn và làm theo hướng dẫn bên dưới để bắt đầu sử dụng.
@@ -104,7 +104,7 @@ Claude Code hỗ trợ nhiều phương thức xác thực, từ đăng nhập t
       ```bash Thiết lập thủ công qua biến môi trường
       export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
       export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-      export AWS_DEFAULT_REGION=us-east-1
+      export AWS_REGION=us-east-1
       ```
     </CodeGroup>
 
@@ -137,7 +137,7 @@ Claude Code hỗ trợ nhiều phương thức xác thực, từ đăng nhập t
 
       ```bash Dùng Service Account Key
       export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-      export GOOGLE_CLOUD_PROJECT=your-project-id
+      export GCLOUD_PROJECT=your-project-id
       ```
     </CodeGroup>
 
