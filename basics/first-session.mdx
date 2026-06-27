@@ -1,0 +1,161 @@
+---
+title: "Session đầu tiên với Claude Code: hướng dẫn từng bước"
+sidebarTitle: "Session Đầu Tiên"
+description: "Cách bắt đầu session Claude Code, giao tiếp hiệu quả và điều hướng giữa các tác vụ lập trình khác nhau."
+---
+
+Lần đầu tiên mở Claude Code, bạn sẽ thấy một giao diện dòng lệnh đơn giản — nhưng đằng sau đó là một trợ lý lập trình có khả năng đọc toàn bộ codebase, chạy lệnh, sửa lỗi và viết code theo yêu cầu của bạn. Hướng dẫn này sẽ đưa bạn qua từng bước từ lúc khởi động cho đến khi hoàn thành tác vụ đầu tiên.
+
+## Khởi động session
+
+Trước tiên, hãy điều hướng đến thư mục dự án của bạn rồi gọi Claude Code:
+
+<Steps>
+  <Step title="Di chuyển vào thư mục dự án">
+    Mở terminal và `cd` vào thư mục chứa code của bạn. Claude Code sẽ tự động đọc ngữ cảnh từ thư mục hiện tại.
+
+    ```bash
+    cd your-project
+    ```
+  </Step>
+
+  <Step title="Khởi động Claude Code">
+    Gõ `claude` để mở giao diện interactive, hoặc truyền thẳng một tác vụ ngay trên dòng lệnh:
+
+    <CodeGroup>
+      ```bash Chế độ interactive
+      claude
+      ```
+
+      ```bash Kèm tác vụ ngay lập tức
+      claude "explain this codebase"
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Chờ Claude phân tích dự án">
+    Khi khởi động, Claude Code sẽ quét cấu trúc thư mục và đọc các file quan trọng như `CLAUDE.md`, `package.json`, hay `README.md`. Quá trình này thường diễn ra trong vài giây.
+  </Step>
+</Steps>
+
+## Các mẫu prompt cơ bản
+
+Cách bạn đặt câu hỏi ảnh hưởng trực tiếp đến chất lượng phản hồi. Dưới đây là năm nhóm prompt phổ biến nhất, mỗi nhóm kèm ví dụ cụ thể:
+
+<CardGroup cols={2}>
+  <Card title="Khám phá codebase" icon="magnifying-glass">
+    Dùng khi bạn mới tiếp cận một dự án và cần hiểu tổng thể kiến trúc trước khi bắt tay vào code.
+
+    ```
+    "I'm new to this codebase, explain the architecture"
+    "What does the auth module do?"
+    ```
+  </Card>
+
+  <Card title="Sửa lỗi" icon="bug">
+    Cung cấp thông báo lỗi hoặc mô tả triệu chứng để Claude xác định và sửa vấn đề.
+
+    ```
+    "Fix the bug in login.ts line 45"
+    ```
+  </Card>
+
+  <Card title="Xây dựng tính năng" icon="hammer">
+    Mô tả tính năng bạn muốn thêm. Claude sẽ đề xuất cách triển khai và viết code.
+
+    ```
+    "Add a dark mode toggle to settings"
+    ```
+  </Card>
+
+  <Card title="Viết test" icon="flask">
+    Yêu cầu Claude tạo test case, chạy thử và tự sửa lỗi nếu test thất bại.
+
+    ```
+    "Write tests for the payment module"
+    ```
+  </Card>
+</CardGroup>
+
+## Ví dụ session thực tế
+
+Dưới đây là một session mẫu từ lúc khởi động đến khi kết thúc tác vụ:
+
+<Steps>
+  <Step title="Khám phá dự án lạ">
+    Bắt đầu bằng cách yêu cầu Claude giải thích kiến trúc tổng thể:
+
+    ```
+    > I'm new to this codebase, explain the architecture
+    ```
+
+    Claude sẽ đọc cấu trúc thư mục, các file cấu hình và cho bạn một bản tóm tắt rõ ràng.
+  </Step>
+
+  <Step title="Đào sâu vào một module cụ thể">
+    Sau khi hiểu tổng thể, hỏi về phần bạn cần làm việc:
+
+    ```
+    > What does the auth module do?
+    ```
+  </Step>
+
+  <Step title="Thực hiện thay đổi">
+    Đưa ra yêu cầu cụ thể để Claude viết code hoặc sửa lỗi:
+
+    ```
+    > Fix the bug in login.ts line 45
+    ```
+  </Step>
+
+  <Step title="Xem xét và xác nhận">
+    Claude sẽ hiển thị diff trước khi áp dụng thay đổi. Bạn xem xét và gõ `yes` để xác nhận hoặc `no` để từ chối.
+  </Step>
+</Steps>
+
+## Ngắt và thoát
+
+<Note>
+  Biết cách dừng Claude kịp thời giúp bạn tránh những thay đổi ngoài ý muốn, đặc biệt khi Claude đang chạy lệnh hoặc chỉnh sửa nhiều file.
+</Note>
+
+| Hành động | Phím tắt | Khi nào dùng |
+|-----------|----------|--------------|
+| Ngắt tác vụ đang chạy | `Ctrl+C` | Claude đang xử lý và bạn muốn dừng lại |
+| Thoát khỏi Claude Code | `Escape` | Kết thúc session hoàn toàn |
+
+<Tip>
+  Nhấn `Ctrl+C` một lần để ngắt tác vụ hiện tại. Claude sẽ hỏi bạn muốn làm gì tiếp theo — bạn có thể điều chỉnh yêu cầu và thử lại thay vì phải bắt đầu lại từ đầu.
+</Tip>
+
+## Mẹo cho session hiệu quả
+
+<Accordion title="Cung cấp ngữ cảnh cụ thể">
+  Thay vì nói "fix the bug", hãy cung cấp thông báo lỗi đầy đủ, tên file và số dòng nếu biết. Càng nhiều ngữ cảnh, Claude càng giải quyết chính xác hơn.
+
+  ```
+  # Ít ngữ cảnh — kém hiệu quả
+  "fix the bug"
+
+  # Nhiều ngữ cảnh — tốt hơn nhiều
+  "Fix TypeError: Cannot read property 'id' of undefined at UserService.ts:23"
+  ```
+</Accordion>
+
+<Accordion title="Đặt câu hỏi tuần tự">
+  Claude nhớ toàn bộ lịch sử hội thoại trong session. Bạn không cần lặp lại ngữ cảnh ở mỗi prompt — chỉ cần tiếp tục từ nơi bạn dừng lại.
+
+  ```
+  > Explain the UserService class
+  > Now write unit tests for it
+  > Run the tests and fix any failures
+  ```
+</Accordion>
+
+<Accordion title="Kiểm tra trước khi xác nhận">
+  Khi Claude đề xuất thay đổi file, hãy đọc kỹ diff được hiển thị. Bạn có thể yêu cầu Claude giải thích lý do của từng thay đổi trước khi đồng ý.
+</Accordion>
+
+<Warning>
+  Tránh chạy Claude Code với flag `--dangerously-skip-permissions` trong môi trường production hoặc trên các dự án có dữ liệu nhạy cảm. Chế độ này bỏ qua tất cả xác nhận an toàn.
+</Warning>

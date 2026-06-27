@@ -1,0 +1,231 @@
+---
+title: "Cấu hình permissions và quyền truy cập Claude Code"
+sidebarTitle: "Permissions"
+description: "Kiểm soát những gì Claude Code được phép làm với permission modes, allow/deny rules và pattern syntax cho tools."
+---
+
+Hệ thống permissions của Claude Code cho phép bạn kiểm soát chính xác những hành động nào Claude được tự động thực hiện và những hành động nào cần xác nhận của bạn. Việc cấu hình đúng permissions giúp bạn làm việc hiệu quả hơn mà vẫn đảm bảo an toàn cho hệ thống.
+
+## Ba chế độ permission
+
+Claude Code có ba chế độ hoạt động, bạn có thể chuyển đổi bằng phím **Shift+Tab** trong phiên tương tác hoặc đặt trong `settings.json`.
+
+| Chế độ | Giá trị | Hành vi |
+|--------|---------|---------|
+| Mặc định | `"default"` | Hỏi trước các thao tác có rủi ro (ghi file ngoài project, lệnh nguy hiểm) |
+| Tự động | `"auto"` | Chạy tự động, chỉ áp dụng allow/deny rules đã định nghĩa |
+| Bỏ qua | `"bypass"` | Bỏ qua toàn bộ kiểm tra quyền |
+
+<Warning>
+Chế độ `bypass` bỏ qua mọi xác nhận an toàn. Chỉ dùng trong môi trường sandbox hoàn toàn cô lập (container, CI/CD) — không bao giờ dùng trên máy cá nhân hoặc môi trường có dữ liệu nhạy cảm.
+</Warning>
+
+### Đặt permission mode trong settings.json
+
+```json
+{
+  "permissionMode": "auto"
+}
+```
+
+### Chuyển chế độ trong phiên tương tác
+
+Nhấn **Shift+Tab** để cycle qua ba chế độ: `default` → `auto` → `bypass` → `default`.
+
+## Allow và Deny Rules
+
+Thay vì phải xác nhận từng lệnh, bạn có thể định nghĩa trước những gì luôn được phép và những gì luôn bị từ chối trong `settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "bash(npm run *)",
+      "bash(git *)",
+      "write_file(src/**)"
+    ],
+    "deny": [
+      "bash(rm -rf *)",
+      "bash(curl * | bash)",
+      "write_file(/etc/**)"
+    ]
+  }
+}
+```
+
+<Note>
+Quy tắc `deny` luôn được ưu tiên hơn `allow`. Nếu một lệnh khớp với cả hai, nó sẽ bị từ chối.
+</Note>
+
+## Pattern Syntax
+
+Claude Code dùng glob-style patterns để khớp với các tool calls.
+
+### Cú pháp cơ bản
+
+| Pattern | Ý nghĩa |
+|---------|---------|
+| `bash(npm *)` | Lệnh bash bắt đầu bằng `npm` |
+| `bash(git *)` | Lệnh bash bắt đầu bằng `git` |
+| `write_file(src/**)` | Ghi file trong thư mục `src/` và mọi thư mục con |
+| `read_file(**/secret*)` | Đọc bất kỳ file nào có từ `secret` trong tên |
+| `web_search(*)` | Mọi tìm kiếm web |
+
+### Ký tự đặc biệt
+
+| Ký tự | Khớp với |
+|-------|---------|
+| `*` | Bất kỳ chuỗi nào (không bao gồm `/`) |
+| `**` | Bất kỳ chuỗi nào (bao gồm cả `/`) |
+| `?` | Đúng một ký tự bất kỳ |
+
+## Tools có thể kiểm soát
+
+Bạn có thể áp dụng allow/deny rules cho các tool sau:
+
+| Tool | Mô tả |
+|------|-------|
+| `bash` | Thực thi lệnh shell |
+| `write_file` | Tạo hoặc chỉnh sửa file |
+| `read_file` | Đọc nội dung file |
+| `web_search` | Tìm kiếm trên internet |
+| `web_fetch` | Tải nội dung từ URL |
+
+## Ví dụ cấu hình thực tế
+
+<Accordion title="Cấu hình cho dự án web frontend">
+Cho phép các lệnh phát triển thông thường, chặn các lệnh nguy hiểm:
+
+```json
+{
+  "permissionMode": "auto",
+  "permissions": {
+    "allow": [
+      "bash(npm run *)",
+      "bash(npm install *)",
+      "bash(git status)",
+      "bash(git diff *)",
+      "bash(git add *)",
+      "bash(git commit *)",
+      "write_file(src/**)",
+      "write_file(public/**)",
+      "write_file(tests/**)"
+    ],
+    "deny": [
+      "bash(rm -rf *)",
+      "bash(sudo *)",
+      "bash(curl * | bash)",
+      "bash(wget * | sh)",
+      "write_file(/etc/**)",
+      "write_file(~/.ssh/**)"
+    ]
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Cấu hình cho môi trường CI/CD">
+Trong CI/CD, bạn thường muốn tự động hoàn toàn với quyền hạn chế:
+
+```json
+{
+  "permissionMode": "auto",
+  "permissions": {
+    "allow": [
+      "bash(npm run test)",
+      "bash(npm run build)",
+      "bash(npm run lint)",
+      "bash(git *)",
+      "write_file(dist/**)",
+      "write_file(coverage/**)"
+    ],
+    "deny": [
+      "bash(npm publish *)",
+      "bash(rm -rf *)",
+      "web_fetch(*)"
+    ]
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Cấu hình chỉ đọc (read-only)">
+Khi bạn chỉ muốn Claude phân tích code mà không thay đổi gì:
+
+```json
+{
+  "permissionMode": "auto",
+  "permissions": {
+    "allow": [
+      "read_file(**)",
+      "bash(git log *)",
+      "bash(git diff *)",
+      "bash(git status)"
+    ],
+    "deny": [
+      "write_file(**)",
+      "bash(git commit *)",
+      "bash(git push *)",
+      "bash(npm *)",
+      "web_fetch(*)"
+    ]
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Cấu hình cho sandbox hoàn toàn tự động">
+Khi chạy trong container cô lập và muốn Claude làm việc hoàn toàn tự động:
+
+```json
+{
+  "permissionMode": "bypass"
+}
+```
+
+Hoặc qua command line:
+
+```bash
+claude --dangerously-skip-permissions "Chạy toàn bộ test suite và sửa mọi failure"
+```
+</Accordion>
+
+## Cấu hình theo cấp độ
+
+Bạn có thể kết hợp cấu hình ở nhiều cấp độ:
+
+<CodeGroup>
+
+```json ~/.claude/settings.json (User - mặc định an toàn)
+{
+  "permissionMode": "default",
+  "permissions": {
+    "deny": [
+      "bash(sudo *)",
+      "bash(rm -rf /)",
+      "write_file(/etc/**)"
+    ]
+  }
+}
+```
+
+```json .claude/settings.json (Project - thoải mái hơn)
+{
+  "permissionMode": "auto",
+  "permissions": {
+    "allow": [
+      "bash(npm run *)",
+      "bash(yarn *)",
+      "bash(git *)",
+      "write_file(src/**)",
+      "write_file(tests/**)"
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+<Tip>
+Bắt đầu với `permissionMode: "default"` để hiểu những hành động nào Claude thường thực hiện trong dự án của bạn. Sau khi quen thuộc, hãy chuyển sang `"auto"` và thêm dần allow/deny rules phù hợp.
+</Tip>

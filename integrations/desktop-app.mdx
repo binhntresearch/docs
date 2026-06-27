@@ -1,0 +1,223 @@
+---
+title: "Claude Code Desktop: quản lý nhiều session song song"
+sidebarTitle: "Desktop App"
+description: "Cài đặt và sử dụng Claude Code Desktop để chạy nhiều session song song, xem diff trực quan, lên lịch tác vụ tự động và điều khiển từ xa qua điện thoại."
+---
+
+Claude Code Desktop là ứng dụng độc lập cho phép bạn chạy Claude Code bên ngoài terminal và IDE. Với Desktop app, bạn có thể quản lý nhiều session song song, xem diff trực quan, lên lịch tác vụ tự động và thậm chí điều khiển session từ điện thoại — tất cả trong một giao diện đồ họa trực quan.
+
+<Note>
+  Claude Code Desktop yêu cầu gói đăng ký Claude có trả phí (Pro, Max 5x hoặc Max 20x). Xem [Quản lý chi phí](/tips/cost-management) để so sánh các gói.
+</Note>
+
+## Tải xuống và cài đặt
+
+<Tabs>
+  <Tab title="macOS">
+    Tải về và chạy file `.dmg`:
+
+    ```bash
+    # Tải trực tiếp từ trang chính thức:
+    # https://claude.ai/download/desktop/mac
+    # Hỗ trợ cả Intel và Apple Silicon
+    ```
+
+    1. Mở file `.dmg` vừa tải
+    2. Kéo biểu tượng Claude vào thư mục Applications
+    3. Mở Claude từ Applications hoặc Spotlight
+    4. Đăng nhập với tài khoản Claude.ai
+    5. Nhấn tab **Code** để bắt đầu lập trình
+  </Tab>
+  <Tab title="Windows">
+    Tải về file cài đặt phù hợp với máy của bạn:
+
+    ```
+    # Windows x64 (phổ biến nhất):
+    # https://claude.ai/download/desktop/windows
+
+    # Windows ARM64 (Surface, Snapdragon):
+    # https://claude.ai/download/desktop/windows-arm64
+    ```
+
+    1. Chạy file `.exe` vừa tải
+    2. Làm theo hướng dẫn cài đặt
+    3. Mở Claude từ Start Menu
+    4. Đăng nhập với tài khoản Claude.ai
+    5. Nhấn tab **Code** để bắt đầu
+  </Tab>
+</Tabs>
+
+## Tính năng nổi bật
+
+<CardGroup cols={2}>
+  <Card title="Session song song" icon="clone">
+    Chạy nhiều session Claude Code cùng lúc, mỗi session được cách ly trong git worktree riêng để tránh xung đột.
+  </Card>
+  <Card title="Visual diff review" icon="code-compare">
+    Xem và phê duyệt các thay đổi file bằng giao diện diff trực quan, dễ đọc hơn so với terminal.
+  </Card>
+  <Card title="Lên lịch tác vụ" icon="calendar">
+    Tự động chạy Claude theo lịch: review PR hàng ngày, kiểm tra dependency hàng tuần, báo cáo buổi sáng.
+  </Card>
+  <Card title="Remote control" icon="mobile">
+    Tiếp tục session đang chạy từ điện thoại hoặc trình duyệt bất kỳ qua claude.ai/code.
+  </Card>
+</CardGroup>
+
+## Chạy nhiều session song song
+
+Tính năng mạnh nhất của Desktop app là khả năng chạy nhiều Claude Code session cùng lúc mà không bị xung đột.
+
+<Steps>
+  <Step title="Tạo session mới">
+    Nhấn nút **New Session** trong Desktop app. Mỗi session có thể làm việc trên một task khác nhau.
+  </Step>
+  <Step title="Cấu hình worktree">
+    Desktop app tự động tạo git worktree riêng cho mỗi session, đảm bảo các thay đổi không đụng nhau.
+  </Step>
+  <Step title="Quản lý từ một màn hình">
+    Xem tất cả session đang chạy, trạng thái và output ngay trong một giao diện. Nhấn vào session nào để xem chi tiết.
+  </Step>
+  <Step title="Merge kết quả">
+    Sau khi mỗi session hoàn thành, review diff và merge vào branch chính của bạn.
+  </Step>
+</Steps>
+
+Ví dụ workflow song song hiệu quả:
+
+```bash
+# Session 1: viết tính năng mới
+"Implement user profile settings page with avatar upload"
+
+# Session 2 (đồng thời): viết tests cho module khác
+"Write comprehensive tests for the payment service"
+
+# Session 3 (đồng thời): sửa bugs từ bug tracker
+"Fix the 3 open bugs in the authentication module"
+```
+
+## Lên lịch tác vụ tự động
+
+Desktop app cho phép bạn lên lịch để Claude Code tự động chạy vào những thời điểm nhất định.
+
+<Steps>
+  <Step title="Mở Scheduled Tasks">
+    Vào **Settings** → **Scheduled Tasks** → **New Task**.
+  </Step>
+  <Step title="Chọn lịch chạy">
+    Chọn tần suất: mỗi ngày, mỗi tuần, hoặc cài cron expression tùy chỉnh.
+  </Step>
+  <Step title="Nhập prompt">
+    Viết prompt cho tác vụ. Ví dụ:
+
+    ```
+    Review all open PRs in this repository. For each PR:
+    1. Check for logic errors and potential bugs
+    2. Verify test coverage
+    3. Post a review comment with findings
+    ```
+  </Step>
+  <Step title="Lưu và kích hoạt">
+    Lưu task. Desktop app sẽ tự động chạy theo lịch khi ứng dụng đang mở.
+  </Step>
+</Steps>
+
+Ví dụ các tác vụ lên lịch hữu ích:
+
+<Accordion title="Review PR hàng ngày lúc 9 giờ sáng">
+  ```
+  Lịch: 0 9 * * 1-5 (thứ Hai đến thứ Sáu, 9:00 AM)
+  
+  Prompt: "Review all pull requests opened in the last 24 hours.
+  For each PR, check for bugs, security issues, and suggest improvements.
+  Post your review as a PR comment."
+  ```
+</Accordion>
+
+<Accordion title="Kiểm tra dependency hàng tuần">
+  ```
+  Lịch: 0 10 * * 1 (thứ Hai, 10:00 AM)
+  
+  Prompt: "Check all npm dependencies for:
+  1. Available updates (especially security patches)
+  2. Known vulnerabilities (run npm audit)
+  3. Deprecated packages
+  Create a GitHub issue summarizing findings."
+  ```
+</Accordion>
+
+<Accordion title="Báo cáo code quality hàng ngày">
+  ```
+  Lịch: 0 8 * * * (hàng ngày, 8:00 AM)
+  
+  Prompt: "Run linting and type checking on the entire codebase.
+  If there are errors, create a summary report and open a GitHub issue."
+  ```
+</Accordion>
+
+## Điều khiển từ xa (Remote Control)
+
+Bạn có thể tiếp tục session Desktop đang chạy từ điện thoại hoặc bất kỳ trình duyệt nào.
+
+<Steps>
+  <Step title="Bật Remote Control">
+    Trong Desktop app, nhấn **Enable Remote Control** cho session muốn truy cập từ xa.
+  </Step>
+  <Step title="Truy cập từ điện thoại">
+    Mở [claude.ai/code](https://claude.ai/code) trên điện thoại hoặc trình duyệt khác. Session của bạn sẽ hiện trong danh sách.
+  </Step>
+  <Step title="Tiếp tục làm việc">
+    Bạn có thể xem tiến trình, gửi thêm hướng dẫn, hoặc phê duyệt các hành động đang chờ.
+  </Step>
+</Steps>
+
+<Tip>
+  Remote Control đặc biệt hữu ích khi bạn đang chạy một tác vụ dài. Bắt đầu từ máy tính, sau đó theo dõi và điều hướng từ điện thoại trong khi di chuyển.
+</Tip>
+
+## Computer Use
+
+Desktop app hỗ trợ **Computer Use** — Claude có thể mở ứng dụng, điều hướng trình duyệt và tương tác với giao diện đồ họa trên macOS.
+
+```bash
+# Ví dụ: Claude mở trình duyệt để kiểm tra giao diện
+"Open the app in Chrome and test the new dark mode toggle.
+Take screenshots of the before and after states."
+```
+
+<Warning>
+  Computer Use cho phép Claude kiểm soát máy tính của bạn. Chỉ dùng với các tác vụ bạn tin tưởng. Luôn giám sát khi Claude đang dùng Computer Use.
+</Warning>
+
+## App Preview
+
+Khi Claude xây dựng web app, Desktop app có thể hiển thị preview trực tiếp trong giao diện:
+
+```bash
+"Build a simple React dashboard with charts showing monthly sales data.
+Use mock data and make sure it looks good."
+# Claude xây dựng app và Desktop hiển thị preview ngay bên cạnh
+```
+
+## Cấu hình Enterprise
+
+Nếu tổ chức của bạn có managed settings, Desktop app tự động nhận cấu hình từ server khi đăng nhập. Điều này đảm bảo toàn bộ team dùng cùng cấu hình mà không cần thiết lập thủ công.
+
+Liên hệ admin của tổ chức để biết thêm về managed settings.
+
+## Các bước tiếp theo
+
+<CardGroup cols={2}>
+  <Card title="Agents & Subagents" icon="sitemap" href="/advanced/agents-subagents">
+    Học cách chạy nhiều tác vụ song song với subagents từ CLI.
+  </Card>
+  <Card title="GitHub Actions" icon="github" href="/integrations/github-actions">
+    Tích hợp Claude Code vào pipeline CI/CD của bạn.
+  </Card>
+  <Card title="Best Practices" icon="star" href="/tips/best-practices">
+    Mẹo và kỹ thuật để dùng Claude Code hiệu quả hơn.
+  </Card>
+  <Card title="Lên lịch trên web" icon="globe" href="/integrations/github-actions">
+    Dùng Routines để lên lịch tác vụ chạy trên cloud.
+  </Card>
+</CardGroup>

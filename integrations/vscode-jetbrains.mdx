@@ -1,0 +1,121 @@
+---
+title: "Dùng Claude Code trong VS Code và JetBrains IDE"
+sidebarTitle: "VS Code & JetBrains"
+description: "Cài đặt extension Claude Code cho VS Code, Cursor và JetBrains IDEs để có inline diffs, @-mentions và plan review ngay trong editor."
+---
+
+Claude Code tích hợp trực tiếp vào các IDE phổ biến như VS Code, Cursor và toàn bộ hệ sinh thái JetBrains, giúp bạn trò chuyện với AI, xem diff nội tuyến và tham chiếu file hay symbol mà không cần rời khỏi editor. Trước khi cài đặt, hãy đảm bảo bạn đã cài Claude Code CLI trên máy.
+
+## VS Code và Cursor
+
+VS Code là editor được hỗ trợ đầy đủ nhất. Extension cũng hoạt động hoàn hảo trên **Cursor** — một fork của VS Code — mà không cần cấu hình thêm.
+
+<Steps>
+  <Step title="Cài đặt extension">
+    Mở VS Code, nhấn <kbd>Cmd+Shift+X</kbd> (macOS) hoặc <kbd>Ctrl+Shift+X</kbd> (Windows/Linux) để mở bảng Extensions. Tìm **Claude Code** và nhấn **Install**.
+
+    Hoặc cài trực tiếp từ VS Code Marketplace:
+
+    ```
+    https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code
+    ```
+  </Step>
+
+  <Step title="Mở Claude Code">
+    Sau khi cài xong, mở Command Palette bằng <kbd>Cmd+Shift+P</kbd> (macOS) hoặc <kbd>Ctrl+Shift+P</kbd> (Windows/Linux), gõ **Claude Code** rồi chọn **Open in New Tab**.
+  </Step>
+
+  <Step title="Bắt đầu sử dụng">
+    Panel Claude Code sẽ hiện ra dưới dạng tab. Bạn có thể gõ yêu cầu, xem plan trước khi thực thi và duyệt diff ngay bên trong editor.
+  </Step>
+</Steps>
+
+<Note>
+  Nếu bạn dùng **Cursor**, extension Claude Code hoạt động giống hệt VS Code — cài từ marketplace và mở qua Command Palette theo cách tương tự.
+</Note>
+
+## Tính năng nổi bật trong VS Code
+
+<CardGroup cols={2}>
+  <Card title="Inline Diffs" icon="code-compare">
+    Xem các thay đổi do Claude đề xuất trực tiếp trong file, chấp nhận hoặc từ chối từng đoạn chỉ với một cú nhấp.
+  </Card>
+  <Card title="@-mentions" icon="at">
+    Gõ `@` để tham chiếu file, function hoặc symbol cụ thể trong dự án, giúp Claude hiểu ngữ cảnh chính xác hơn.
+  </Card>
+  <Card title="Plan Review" icon="list-check">
+    Claude trình bày kế hoạch thực hiện trước khi viết code. Bạn có thể chỉnh sửa, phê duyệt hoặc hủy bỏ trước khi bất kỳ thay đổi nào được áp dụng.
+  </Card>
+  <Card title="Conversation History" icon="clock-rotate-left">
+    Lịch sử hội thoại được lưu lại theo phiên, giúp bạn tiếp tục công việc từ điểm dừng mà không mất ngữ cảnh.
+  </Card>
+</CardGroup>
+
+### Dùng @-mentions
+
+Khi gõ yêu cầu trong panel Claude Code, nhập ký tự `@` để mở danh sách gợi ý:
+
+<Tabs>
+  <Tab title="Tham chiếu file">
+    ```
+    @src/utils/auth.ts hàm này có lỗ hổng bảo mật nào không?
+    ```
+  </Tab>
+  <Tab title="Tham chiếu function">
+    ```
+    @calculateDiscount hãy thêm unit test cho hàm này
+    ```
+  </Tab>
+  <Tab title="Tham chiếu symbol">
+    ```
+    @UserProfile interface này cần thêm field nào để hỗ trợ OAuth?
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Kết hợp nhiều `@-mentions` trong một tin nhắn để cung cấp ngữ cảnh đầy đủ hơn cho Claude, ví dụ: `@auth.ts và @user.ts hãy refactor để tránh lặp code`.
+</Tip>
+
+---
+
+## JetBrains IDEs
+
+Plugin Claude Code hỗ trợ toàn bộ dòng sản phẩm JetBrains, bao gồm:
+
+<CardGroup cols={3}>
+  <Card title="IntelliJ IDEA" icon="java" />
+  <Card title="PyCharm" icon="python" />
+  <Card title="WebStorm" icon="js" />
+  <Card title="GoLand" icon="golang" />
+  <Card title="CLion" icon="c" />
+  <Card title="RubyMine & Rider" icon="gem" />
+</CardGroup>
+
+<Steps>
+  <Step title="Cài đặt plugin">
+    Mở IDE, vào **Settings / Preferences → Plugins → Marketplace**, tìm **Claude Code** và nhấn **Install**.
+  </Step>
+
+  <Step title="Khởi động lại IDE">
+    Sau khi cài xong, khởi động lại IDE để plugin được kích hoạt đầy đủ.
+  </Step>
+
+  <Step title="Mở panel Claude Code">
+    Sau khi khởi động lại, bạn sẽ thấy biểu tượng **Claude Code** xuất hiện trên thanh side panel (thường ở phía bên phải hoặc dưới cùng). Nhấn vào để mở.
+  </Step>
+</Steps>
+
+<Warning>
+  Plugin JetBrains **yêu cầu Claude Code CLI phải được cài đặt trước** trên máy của bạn. Nếu CLI chưa được cài, plugin sẽ không thể kết nối. Hãy chạy `claude --version` trong terminal để kiểm tra.
+</Warning>
+
+### Tính năng đặc trưng trên JetBrains
+
+<Accordion title="Interactive Diff Viewing">
+  Plugin hiển thị diff theo dạng tương tác, cho phép bạn so sánh code gốc và code do Claude đề xuất ngay trong cửa sổ diff quen thuộc của JetBrains. Bạn có thể chấp nhận từng thay đổi riêng lẻ hoặc toàn bộ một lần.
+</Accordion>
+
+<Accordion title="Selection Context Sharing">
+  Bôi đen một đoạn code trong editor, sau đó hỏi Claude về đoạn code đó. Plugin tự động đưa selection vào ngữ cảnh hội thoại, giúp bạn không phải copy-paste thủ công.
+</Accordion>

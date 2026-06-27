@@ -1,0 +1,297 @@
+---
+title: "Xử lý lỗi thường gặp khi dùng Claude Code"
+sidebarTitle: "Xử Lý Lỗi"
+description: "Hướng dẫn xử lý 10 lỗi thường gặp với Claude Code: command not found, auth errors, high memory, MCP không kết nối và hooks không chạy."
+---
+
+Dù Claude Code được thiết kế để hoạt động mượt mà, bạn vẫn có thể gặp một số lỗi phổ biến — đặc biệt trong quá trình cài đặt, xác thực, hoặc khi làm việc với các tính năng nâng cao như MCP hay hooks. Dưới đây là hướng dẫn xử lý từng lỗi một cách nhanh chóng.
+
+## Danh sách lỗi thường gặp
+
+<Accordion title="1. command not found: claude">
+  Lỗi này xảy ra khi terminal không tìm thấy lệnh `claude` trong `PATH`, thường do cài đặt chưa hoàn chỉnh hoặc `PATH` chưa được cập nhật.
+
+  **Cách xử lý:**
+
+  <Steps>
+    <Step title="Thêm ~/.local/bin vào PATH">
+      Mở file cấu hình shell của bạn (`~/.bashrc`, `~/.zshrc`, hoặc `~/.profile`) và thêm dòng sau:
+
+      ```bash
+      export PATH="$HOME/.local/bin:$PATH"
+      ```
+
+      Sau đó reload shell:
+
+      ```bash
+      source ~/.zshrc  # hoặc source ~/.bashrc
+      ```
+    </Step>
+    <Step title="Chạy lại install script">
+      Nếu vẫn không tìm thấy, hãy chạy lại script cài đặt để đảm bảo binary được đặt đúng vị trí.
+    </Step>
+    <Step title="Xác nhận lại đường dẫn">
+      ```bash
+      which claude
+      ```
+      Lệnh này sẽ trả về đường dẫn đầy đủ nếu cài đặt thành công.
+    </Step>
+  </Steps>
+</Accordion>
+
+<Accordion title="2. Lỗi xác thực (Authentication errors)">
+  Lỗi xác thực thường xuất hiện khi token hết hạn, API key sai, hoặc chưa đăng nhập.
+
+  **Cách xử lý:**
+
+  <Steps>
+    <Step title="Đăng xuất và đăng nhập lại">
+      ```bash
+      claude logout && claude
+      ```
+      Claude sẽ mở trình duyệt để bạn xác thực lại.
+    </Step>
+    <Step title="Kiểm tra API key (nếu dùng API)">
+      ```bash
+      echo $ANTHROPIC_API_KEY
+      ```
+      Đảm bảo biến môi trường đã được set và key đúng định dạng.
+    </Step>
+    <Step title="Kiểm tra trạng thái xác thực">
+      ```bash
+      claude auth status
+      ```
+    </Step>
+  </Steps>
+
+  <Note>
+    Nếu bạn dùng API key, hãy đảm bảo key còn hiệu lực và chưa bị revoke trong Anthropic Console.
+  </Note>
+</Accordion>
+
+<Accordion title="3. Memory và CPU cao bất thường">
+  Session dài với nhiều file lớn trong context có thể khiến Claude Code tiêu tốn nhiều tài nguyên hệ thống.
+
+  **Cách xử lý:**
+
+  <Tabs>
+    <Tab title="Compact session hiện tại">
+      ```
+      /compact
+      ```
+      Nén lịch sử hội thoại để giảm kích thước context mà không mất thông tin quan trọng.
+    </Tab>
+    <Tab title="Bắt đầu session mới">
+      ```
+      /clear
+      ```
+      Xóa toàn bộ context và bắt đầu lại — phù hợp khi chuyển sang task hoàn toàn khác.
+    </Tab>
+    <Tab title="Giới hạn phạm vi làm việc">
+      Thay vì làm việc ở root project, hãy `cd` vào subdirectory cụ thể trước khi khởi động Claude:
+
+      ```bash
+      cd src/auth
+      claude
+      ```
+    </Tab>
+  </Tabs>
+</Accordion>
+
+<Accordion title="4. Claude không tìm thấy file">
+  Claude tìm file dựa trên thư mục làm việc hiện tại. Nếu bạn đang ở sai directory hoặc file bị ẩn bởi `.gitignore`, Claude sẽ không thấy được.
+
+  **Cách xử lý:**
+
+  <Steps>
+    <Step title="Kiểm tra thư mục hiện tại">
+      ```bash
+      pwd
+      ```
+      Đảm bảo bạn đang ở đúng root của project.
+    </Step>
+    <Step title="Kiểm tra .gitignore">
+      Xem liệu file bạn cần có đang bị `.gitignore` ẩn đi không:
+
+      ```bash
+      git check-ignore -v path/to/your/file
+      ```
+    </Step>
+    <Step title="Dùng đường dẫn tuyệt đối trong prompt">
+      ```
+      Look at src/services/payment/stripe.ts and explain the webhook handler
+      ```
+    </Step>
+  </Steps>
+</Accordion>
+
+<Accordion title="5. Response chậm bất thường">
+  Tốc độ phản hồi có thể bị ảnh hưởng bởi kết nối mạng, session quá dài, hoặc model đang chọn.
+
+  **Cách xử lý:**
+
+  - Kiểm tra kết nối mạng của bạn
+  - Chuyển sang Sonnet nếu đang dùng Opus:
+    ```
+    /model sonnet
+    ```
+  - Compact hoặc clear session dài để giảm payload mỗi lần gửi:
+    ```
+    /compact
+    ```
+
+  <Tip>
+    Sonnet nhanh hơn Opus đáng kể và đủ mạnh cho hầu hết tác vụ coding hàng ngày.
+  </Tip>
+</Accordion>
+
+<Accordion title="6. Git conflict khi chạy nhiều session song song">
+  Nếu bạn chạy nhiều Claude session cùng lúc trên cùng một working tree, các thay đổi có thể xung đột với nhau.
+
+  **Cách xử lý:**
+
+  Dùng `--worktree` flag để mỗi session làm việc trên branch riêng biệt:
+
+  ```bash
+  claude --worktree feature/auth
+  claude --worktree feature/payments
+  ```
+
+  Mỗi worktree có branch và working directory riêng, hoàn toàn độc lập nhau.
+
+  <Note>
+    Git worktrees cho phép bạn checkout nhiều branch cùng lúc mà không cần stash hay commit dở dang.
+  </Note>
+</Accordion>
+
+<Accordion title="7. CLAUDE.md không được đọc">
+  Claude Code chỉ tự động đọc `CLAUDE.md` nếu file này nằm ở đúng vị trí và được nhận diện khi khởi động session.
+
+  **Cách xử lý:**
+
+  <Steps>
+    <Step title="Chạy /doctor để chẩn đoán">
+      ```
+      /doctor
+      ```
+      Lệnh này kiểm tra toàn bộ cấu hình và báo cáo các vấn đề được phát hiện.
+    </Step>
+    <Step title="Kiểm tra vị trí file">
+      Đảm bảo `CLAUDE.md` nằm ở **root của project** — cùng cấp với `package.json`, `Cargo.toml`, hoặc file cấu hình project của bạn.
+    </Step>
+    <Step title="Xác nhận file đã được load">
+      ```
+      /context
+      ```
+      Kết quả sẽ liệt kê các file đang được load vào context. `CLAUDE.md` phải xuất hiện trong danh sách này.
+    </Step>
+  </Steps>
+</Accordion>
+
+<Accordion title="8. MCP server không kết nối được">
+  MCP (Model Context Protocol) server có thể không kết nối do lỗi cấu hình, server chưa cài đặt, hoặc lệnh khởi động sai.
+
+  **Cách xử lý:**
+
+  <Steps>
+    <Step title="Kiểm tra trạng thái MCP server">
+      ```
+      /mcp
+      ```
+      Lệnh này liệt kê tất cả MCP server đã cấu hình và trạng thái kết nối hiện tại.
+    </Step>
+    <Step title="Kiểm tra server đã được cài đặt chưa">
+      Xác nhận MCP server binary hoặc package đã được cài đặt và lệnh trong cấu hình là đúng.
+    </Step>
+    <Step title="Chạy /doctor">
+      ```
+      /doctor
+      ```
+      Claude sẽ tự động kiểm tra và gợi ý cách sửa các vấn đề cấu hình MCP.
+    </Step>
+  </Steps>
+
+  <Warning>
+    Nếu MCP server yêu cầu biến môi trường (API key, token), hãy đảm bảo các biến đó đã được set trước khi khởi động Claude Code.
+  </Warning>
+</Accordion>
+
+<Accordion title="9. Cài đặt thất bại với lỗi 403 hoặc curl error">
+  Lỗi này thường xảy ra trong môi trường corporate có firewall hoặc proxy chặn các request ra ngoài.
+
+  **Cách xử lý:**
+
+  Thay vì dùng install script mặc định, hãy cài đặt qua npm:
+
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  ```
+
+  <Tabs>
+    <Tab title="Nếu npm cũng bị chặn">
+      Liên hệ IT team để được cấp phép truy cập `registry.npmjs.org`, hoặc yêu cầu cài đặt qua internal mirror nếu công ty bạn có.
+    </Tab>
+    <Tab title="Nếu dùng proxy">
+      Cấu hình npm để dùng proxy của công ty:
+
+      ```bash
+      npm config set proxy http://proxy.company.com:8080
+      npm config set https-proxy http://proxy.company.com:8080
+      npm install -g @anthropic-ai/claude-code
+      ```
+    </Tab>
+  </Tabs>
+</Accordion>
+
+<Accordion title="10. Hooks không chạy">
+  Hooks trong Claude Code cho phép bạn tự động hóa các hành động trước/sau khi Claude thực hiện thao tác. Nếu hook không chạy, nguyên nhân thường là cấu hình sai.
+
+  **Cách xử lý:**
+
+  <Steps>
+    <Step title="Kiểm tra hooks đã được nhận diện chưa">
+      ```
+      /hooks
+      ```
+      Lệnh này liệt kê tất cả hooks đang active. Nếu hook của bạn không xuất hiện, cấu hình chưa được đọc đúng.
+    </Step>
+    <Step title="Kiểm tra JSON syntax trong settings.json">
+      Lỗi JSON syntax trong `settings.json` sẽ khiến toàn bộ cấu hình hooks bị bỏ qua. Dùng validator để kiểm tra:
+
+      ```bash
+      cat ~/.claude/settings.json | python3 -m json.tool
+      ```
+    </Step>
+    <Step title="Chạy thử lệnh hook thủ công">
+      Thực thi lệnh trong hook trực tiếp từ terminal để xác nhận lệnh hoạt động đúng trong môi trường của bạn:
+
+      ```bash
+      # Ví dụ: nếu hook chạy lệnh này
+      ./scripts/pre-commit-check.sh
+      ```
+    </Step>
+  </Steps>
+
+  <Tip>
+    Sau khi sửa `settings.json`, hãy khởi động lại Claude Code để các thay đổi có hiệu lực.
+  </Tip>
+</Accordion>
+
+---
+
+## Khi nào nên dùng /doctor?
+
+Lệnh `/doctor` là điểm khởi đầu tốt nhất khi bạn gặp bất kỳ vấn đề nào với cấu hình Claude Code. Nó tự động kiểm tra:
+
+- `CLAUDE.md` có được đọc không
+- MCP servers có kết nối được không
+- Hooks có được cấu hình đúng không
+- Các biến môi trường quan trọng có được set không
+
+```
+/doctor
+```
+
+<Note>
+  Nếu sau khi thử tất cả các bước trên mà vẫn gặp lỗi, hãy tham khảo [tài liệu chính thức của Anthropic](https://docs.anthropic.com/en/docs/claude-code) hoặc tìm kiếm trong cộng đồng Claude Code trên Discord.
+</Note>

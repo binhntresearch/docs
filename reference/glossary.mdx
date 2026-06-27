@@ -1,0 +1,91 @@
+---
+title: "Từ điển thuật ngữ Claude Code"
+sidebarTitle: "Glossary"
+description: "Giải thích các thuật ngữ quan trọng trong Claude Code: agentic loop, CLAUDE.md, MCP, subagents, hooks, skills và context window."
+---
+
+Khi làm việc với Claude Code, bạn sẽ gặp nhiều thuật ngữ kỹ thuật đặc thù. Trang này giải thích ngắn gọn từng khái niệm theo thứ tự bảng chữ cái để bạn tra cứu nhanh khi cần.
+
+---
+
+## A
+
+**Agentic loop** — Vòng lặp 3 pha mà Claude Code thực hiện khi xử lý tác vụ: (1) thu thập ngữ cảnh, (2) thực hiện hành động, (3) xác minh kết quả. Vòng lặp tiếp tục cho đến khi tác vụ hoàn thành hoặc gặp điều kiện dừng.
+
+**Artifact** — Trang chia sẻ trực tiếp được tạo ra từ output của phiên làm việc Claude Code. Artifact cho phép bạn chia sẻ kết quả với người khác mà không cần họ có Claude Code.
+
+**Auto memory** — Tính năng tự động lưu các thông tin học được vào file `~/.claude/MEMORY.md`. Claude Code sử dụng file này để ghi nhớ sở thích và ngữ cảnh qua các phiên làm việc khác nhau.
+
+---
+
+## C
+
+**Channel** — Cơ chế cho phép đẩy sự kiện bên ngoài (webhook, cảnh báo hệ thống, thông báo) vào một phiên Claude Code đang chạy, giúp Claude phản ứng với các sự kiện thực thời gian.
+
+**CLAUDE.md** — File Markdown đặt trong thư mục gốc dự án (hoặc `~/.claude/CLAUDE.md` cho phạm vi toàn user) chứa hướng dẫn đặc thù cho dự án. Claude Code đọc file này mỗi khi bắt đầu phiên mới trong dự án đó.
+
+**Compaction** — Quá trình tóm tắt lịch sử hội thoại để giải phóng không gian trong context window, cho phép phiên làm việc tiếp tục lâu hơn. Có thể kích hoạt thủ công bằng `/compact` hoặc tự động qua `autoCompact`.
+
+**Context window** — Tổng lượng thông tin (tính bằng token) mà Claude có thể xử lý trong một phiên làm việc. Bao gồm lịch sử hội thoại, nội dung file đã đọc, và output từ các lệnh đã chạy.
+
+---
+
+## D
+
+**Dynamic workflow** — Script hoặc chương trình điều phối nhiều subagent song song để xử lý các tác vụ lớn. Ví dụ: chạy 10 subagent đồng thời để review 10 module khác nhau trong codebase.
+
+---
+
+## H
+
+**Headless mode** — Chế độ chạy Claude Code không tương tác, kích hoạt bằng flag `--print`. Phù hợp cho tự động hoá, CI/CD, và scripting khi bạn cần output có thể xử lý tiếp.
+
+**Hooks** — Lệnh shell được cấu hình để chạy tự động tại các sự kiện cụ thể trong vòng đời của Claude Code, ví dụ: chạy Prettier sau mỗi lần Claude ghi file, hoặc chạy linter trước khi Claude dùng tool.
+
+---
+
+## M
+
+**MCP (Model Context Protocol)** — Giao thức chuẩn mở để kết nối AI model với các công cụ và nguồn dữ liệu bên ngoài. MCP server cung cấp thêm tools cho Claude, ví dụ: tích hợp GitHub, database, hay các API nội bộ.
+
+---
+
+## P
+
+**Permission mode** — Chế độ kiểm soát xem Claude Code có hỏi xác nhận trước khi thực hiện các hành động có rủi ro hay không. Có ba chế độ: `default` (hỏi khi cần), `auto` (tự động theo rules), và `bypass` (bỏ qua tất cả).
+
+**Plugins** — Gói phần mềm đóng gói bao gồm skills, agents, hooks, và MCP servers thành một đơn vị có thể cài đặt và chia sẻ. Plugin giúp bạn phân phối và tái sử dụng cấu hình Claude Code.
+
+---
+
+## R
+
+**Routine** — Tác vụ tự động được lập lịch chạy theo thời gian, triggered bởi API call, hoặc khi có sự kiện GitHub (như mở PR). Routine cho phép Claude Code hoạt động như một automation agent liên tục.
+
+---
+
+## S
+
+**Skills** — File hướng dẫn có thể tái sử dụng lưu trong `.claude/skills/`, mô tả cách thực hiện một tác vụ cụ thể. Skills giúp Claude nhất quán trong cách tiếp cận các tác vụ lặp lại.
+
+**Slash commands** — Lệnh bắt đầu bằng `/` dùng trong phiên tương tác (ví dụ: `/compact`, `/model`, `/clear`). Slash commands kiểm soát hành vi của phiên làm việc mà không ảnh hưởng đến ngữ cảnh hội thoại.
+
+**Subagent** — Instance Claude Code con được tạo ra để xử lý một tác vụ con được giao phó. Subagent hoạt động độc lập và song song với các subagent khác, giúp xử lý các tác vụ lớn hiệu quả hơn.
+
+---
+
+## T
+
+**Tool** — Khả năng Claude Code có thể dùng để tương tác với hệ thống: đọc/ghi file, chạy lệnh shell, tìm kiếm web, gọi API. Bạn kiểm soát tools qua permission rules.
+
+---
+
+## W
+
+**Worktree** — Git working tree cô lập cho phép bạn chạy nhiều phiên Claude Code song song trên các branch khác nhau mà không xung đột. Tạo bằng flag `--worktree`.
+
+---
+
+<Note>
+Danh sách này được cập nhật liên tục. Nếu bạn gặp thuật ngữ chưa có trong trang này, hãy tham khảo phần [CLI Reference](/reference/cli-reference) hoặc [Settings](/reference/settings) để biết thêm chi tiết.
+</Note>

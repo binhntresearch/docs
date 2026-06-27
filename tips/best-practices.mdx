@@ -1,0 +1,174 @@
+---
+title: "Best practices để dùng Claude Code hiệu quả nhất"
+sidebarTitle: "Best Practices"
+description: "14 best practice và prompt templates thực tế để tối ưu workflow hàng ngày với Claude Code, từ viết prompt đến quản lý session."
+---
+
+Sử dụng Claude Code đúng cách không chỉ giúp bạn tiết kiệm thời gian mà còn cho ra kết quả chính xác hơn, ít cần chỉnh sửa hơn. Dưới đây là 14 best practice được đúc kết từ thực tế, cùng với các prompt template sẵn dùng để bạn áp dụng ngay vào workflow hàng ngày.
+
+## 14 Best Practices
+
+<Steps>
+  <Step title="Viết prompt cụ thể, không mơ hồ">
+    Prompt càng cụ thể, Claude càng ít phải đoán — và kết quả càng sát với ý bạn.
+
+    <Tabs>
+      <Tab title="✅ Tốt">
+        ```
+        Fix the bug in src/auth/login.ts where users can't log in with Google OAuth
+        ```
+      </Tab>
+      <Tab title="❌ Không tốt">
+        ```
+        fix login bug
+        ```
+      </Tab>
+    </Tabs>
+
+    Luôn nêu rõ: file nào, hành vi kỳ vọng là gì, và lỗi đang xảy ra như thế nào.
+  </Step>
+
+  <Step title="Dùng CLAUDE.md để cung cấp context">
+    File `CLAUDE.md` ở root project là nơi bạn mô tả tech stack, coding conventions, và các lệnh phổ biến. Claude đọc file này mỗi khi khởi động session — đây là cách hiệu quả nhất để không phải giải thích lại context từ đầu.
+
+    <Tip>
+      Giữ `CLAUDE.md` súc tích và cập nhật. File này được cache, nên các chỉnh sửa giữa chừng sẽ chỉ có hiệu lực ở session tiếp theo.
+    </Tip>
+
+    Một `CLAUDE.md` tốt nên bao gồm:
+    - Tech stack (ngôn ngữ, framework, database)
+    - Coding conventions (naming, file structure)
+    - Các lệnh hay dùng (`npm run dev`, `./scripts/test.sh`, v.v.)
+    - Các module/pattern quan trọng cần biết
+  </Step>
+
+  <Step title="Chia nhỏ task lớn theo từng module">
+    Thay vì yêu cầu Claude "viết lại toàn bộ app", hãy chia thành các task nhỏ theo từng module. Cách này giúp bạn kiểm soát từng bước, dễ review và rollback khi cần.
+
+    <Note>
+      Mỗi task nên có phạm vi đủ nhỏ để hoàn thành trong một session. Nếu task quá lớn, context sẽ bị tràn và chất lượng đầu ra giảm dần.
+    </Note>
+  </Step>
+
+  <Step title="Dùng /compact thường xuyên">
+    Lệnh `/compact` nén lại lịch sử hội thoại, giảm token usage mà vẫn giữ được context quan trọng. Hãy chạy `/compact` trước khi bắt đầu một nhóm task mới trong cùng session.
+  </Step>
+
+  <Step title="Đặt /goal để Claude làm việc tự động">
+    Lệnh `/goal` cho phép bạn định nghĩa điều kiện hoàn thành, và Claude sẽ tự chạy cho đến khi đạt được mục tiêu đó — không cần bạn phải can thiệp từng bước.
+
+    ```
+    /goal All unit tests in src/auth pass without modifying test files
+    ```
+  </Step>
+
+  <Step title="Chọn permission mode phù hợp">
+    Claude Code có các chế độ phân quyền khác nhau:
+
+    <CardGroup cols={2}>
+      <Card title="Auto Mode" icon="bolt">
+        Dùng cho các task quen thuộc, ít rủi ro — Claude tự thực hiện không cần xác nhận từng bước.
+      </Card>
+      <Card title="Default Mode" icon="shield">
+        Dùng cho các thao tác nhạy cảm — Claude hỏi trước khi thực hiện mỗi hành động quan trọng.
+      </Card>
+    </CardGroup>
+  </Step>
+
+  <Step title="Luôn review diff trước khi commit">
+    Dù tin tưởng Claude đến đâu, hãy luôn đọc diff trước khi commit. Một đôi mắt người vẫn bắt được những thay đổi ngoài ý muốn mà tool không phát hiện ra.
+
+    ```bash
+    git diff --staged
+    ```
+  </Step>
+
+  <Step title="Commit thường xuyên với Git">
+    Claude tích hợp tốt với Git. Hãy commit sau mỗi task nhỏ để dễ rollback nếu cần. Bạn có thể yêu cầu Claude commit ngay sau khi hoàn thành một thay đổi.
+
+    ```
+    Commit the changes you just made with a descriptive message
+    ```
+  </Step>
+
+  <Step title="Paste full stack trace, không tóm tắt">
+    Khi báo lỗi, hãy paste toàn bộ stack trace — không tóm tắt hay diễn giải lại. Thông tin đầy đủ giúp Claude trace nguyên nhân gốc rễ nhanh hơn.
+
+    <Warning>
+      Tóm tắt lỗi có thể vô tình bỏ sót dòng quan trọng nhất trong stack trace, khiến Claude đi sai hướng.
+    </Warning>
+  </Step>
+
+  <Step title="Dùng @-mentions trong VS Code">
+    Trong VS Code extension, bạn có thể dùng `@filename` để tham chiếu trực tiếp đến file cụ thể. Cách này giúp Claude tập trung đúng vào file bạn muốn thay vì phải đọc cả project.
+
+    ```
+    @src/api/users.ts Add input validation for the createUser endpoint
+    ```
+  </Step>
+
+  <Step title="Chạy song song với Git worktrees">
+    Dùng `--worktree` flag để chạy nhiều Claude session song song trên các branch khác nhau mà không bị xung đột:
+
+    ```bash
+    claude --worktree feature/auth
+    claude --worktree feature/payments
+    ```
+  </Step>
+
+  <Step title="Theo dõi token usage với /usage">
+    Chạy `/usage` trong session để xem lượng token đã tiêu thụ. Thói quen này giúp bạn phát hiện sớm khi session đang "nặng" và cần compact hoặc clear.
+  </Step>
+
+  <Step title="Chọn model phù hợp với task">
+    <CardGroup cols={2}>
+      <Card title="Sonnet" icon="zap">
+        Dùng cho hầu hết các task hàng ngày — nhanh hơn, rẻ hơn, đủ mạnh cho code thông thường.
+      </Card>
+      <Card title="Opus" icon="brain">
+        Dùng cho các quyết định kiến trúc phức tạp hoặc khi cần lý luận sâu hơn.
+      </Card>
+    </CardGroup>
+
+    ```bash
+    claude --model sonnet   # Cho task thông thường
+    claude --model opus     # Cho architecture review
+    ```
+  </Step>
+
+  <Step title="Review code với /code-review trước khi merge">
+    Trước khi merge pull request quan trọng, hãy chạy `/code-review` để Claude thực hiện deep review theo kiểu multi-agent — xem xét security, performance, và logic một cách toàn diện.
+  </Step>
+</Steps>
+
+---
+
+## Prompt Templates thực tế
+
+Dưới đây là các prompt template đã được kiểm chứng — bạn chỉ cần thay thế phần trong ngoặc vuông và dùng ngay.
+
+<CodeGroup>
+```text Tìm hiểu codebase mới
+I'm new to this codebase. Walk me through the [module] architecture.
+```
+
+```text Debug và fix lỗi
+[Paste full error message here]. Trace the issue and fix it.
+```
+
+```text Viết và pass tests
+Write tests for [module], run them, fix failures until all pass.
+```
+
+```text Refactor an toàn
+Refactor [module] to use [pattern]. Keep all existing tests passing.
+```
+
+```text Review trước khi commit
+Review my changes and suggest improvements before I commit.
+```
+</CodeGroup>
+
+<Tip>
+  Bạn có thể lưu các template này vào `CLAUDE.md` dưới mục "Common workflows" để tham chiếu nhanh trong mọi session.
+</Tip>

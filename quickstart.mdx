@@ -1,47 +1,167 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Bắt đầu với Claude Code trong 5 phút"
+sidebarTitle: "Quickstart"
+description: "Cài đặt Claude Code, xác thực tài khoản và hoàn thành tác vụ lập trình đầu tiên của bạn chỉ trong vài phút."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+Claude Code là trợ lý lập trình AI chạy trực tiếp trong terminal, giúp bạn hiểu codebase, sửa lỗi, viết test và tạo pull request — tất cả chỉ bằng ngôn ngữ tự nhiên. Hướng dẫn này sẽ đưa bạn từ bước cài đặt đến hoàn thành tác vụ lập trình đầu tiên trong vòng 5 phút.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+<Note>
+  **Yêu cầu trước khi bắt đầu**
+  - **Node.js 18+** — kiểm tra bằng lệnh `node --version`
+  - **Tài khoản Claude** với gói subscription hoặc API key hợp lệ
+  - **Git** (khuyến nghị) — cần thiết cho các lệnh tạo commit và PR
+</Note>
 
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+## Các bước thực hiện
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+### Cài đặt Claude Code
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+Chọn phương thức cài đặt phù hợp với hệ điều hành của bạn:
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+<CodeGroup>
+
+```bash macOS / Linux / WSL
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+```powershell Windows PowerShell
+irm https://claude.ai/install.ps1 | iex
+```
+
+```bash Homebrew
+brew install --cask claude-code
+```
+
+```bash WinGet
+winget install Anthropic.ClaudeCode
+```
+
+```bash npm (thay thế)
+npm install -g @anthropic-ai/claude-code
+```
+
+</CodeGroup>
+
+Sau khi cài đặt xong, xác nhận bằng lệnh:
+
+```bash
+claude --version
+```
+
+### Khởi động Claude trong dự án của bạn
+
+Di chuyển vào thư mục dự án và khởi động Claude Code:
+
+```bash
+cd your-project
+claude
+```
+
+Lần đầu chạy, Claude Code sẽ mở trình duyệt để bạn đăng nhập vào tài khoản Claude. Hoàn tất xác thực, quay lại terminal — bạn sẽ thấy giao diện chat sẵn sàng nhận lệnh.
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  Nếu bạn dùng API key thay vì subscription, đặt biến môi trường trước khi chạy:
+  ```bash
+  export ANTHROPIC_API_KEY="sk-ant-..."
+  claude
+  ```
 </Tip>
+
+### Giao tác vụ đầu tiên cho Claude
+
+Gõ trực tiếp yêu cầu của bạn bằng tiếng Anh hoặc tiếng Việt. Claude Code sẽ đọc các file liên quan, đề xuất thay đổi và hỏi xác nhận trước khi thực thi các lệnh có thể ảnh hưởng đến hệ thống.
+
+Thử một vài ví dụ dưới đây để làm quen:
+
+<Tabs>
+  <Tab title="Khám phá codebase">
+    ```bash
+    claude "explain this codebase to me"
+    ```
+    Claude sẽ duyệt cấu trúc thư mục, đọc các file chính và trả lời tổng quan về kiến trúc, công nghệ sử dụng và luồng hoạt động của dự án.
+  </Tab>
+  <Tab title="Sửa lỗi">
+    ```bash
+    claude "fix the failing tests in the auth module"
+    ```
+    Claude tìm các test đang thất bại, phân tích nguyên nhân và đề xuất (hoặc áp dụng trực tiếp) bản sửa lỗi — kèm giải thích rõ ràng.
+  </Tab>
+  <Tab title="Viết test">
+    ```bash
+    claude "write tests for the payment service"
+    ```
+    Claude đọc code hiện tại của `payment service`, tạo bộ test coverage hợp lý và thêm vào đúng vị trí trong dự án.
+  </Tab>
+  <Tab title="Tạo Pull Request">
+    ```bash
+    claude "create a PR with my changes"
+    ```
+    Claude xem lại các thay đổi chưa commit, viết mô tả PR rõ ràng và chạy lệnh git để đẩy branch, tạo PR trên GitHub/GitLab.
+  </Tab>
+</Tabs>
+
+### Nắm vững các lệnh quan trọng
+
+Làm chủ các lệnh sau để làm việc hiệu quả hơn với Claude Code:
+
+| Lệnh | Chức năng |
+|---|---|
+| `/help` | Hiển thị toàn bộ lệnh có sẵn |
+| `/model` | Chuyển đổi model (ví dụ: Claude Sonnet, Opus) |
+| `/compact` | Nén lịch sử hội thoại để tiết kiệm context |
+| `/clear` | Xóa toàn bộ hội thoại, bắt đầu lại |
+| `Ctrl+C` | Ngắt Claude khi đang thực thi |
+| `Shift+Tab` | Chuyển đổi chế độ quyền (permission mode) |
+
+<Note>
+  **Chế độ quyền (Permission Modes)**
+
+  Claude Code có ba chế độ kiểm soát mức độ tự động:
+  - **Default** — Claude hỏi xác nhận trước khi chạy lệnh có thể gây ảnh hưởng
+  - **Auto** — Claude tự động thực thi, phù hợp cho môi trường sandbox/CI
+  - **Manual** — Claude luôn hỏi trước mọi hành động
+
+  Nhấn `Shift+Tab` để chuyển đổi giữa các chế độ ngay trong phiên làm việc.
+</Note>
+
+</Steps>
+
+## Tuỳ chỉnh Claude cho dự án của bạn
+
+Tạo file `CLAUDE.md` tại thư mục gốc của dự án để cung cấp ngữ cảnh riêng — quy ước đặt tên, công nghệ sử dụng, các lệnh thường dùng, hay bất kỳ hướng dẫn nào bạn muốn Claude luôn ghi nhớ:
+
+```markdown
+# My Project
+
+## Tech Stack
+- Backend: Node.js + Express
+- Database: PostgreSQL (ORM: Prisma)
+- Testing: Vitest
+
+## Conventions
+- Use Vietnamese for comments and commit messages
+- Always run `npm test` before suggesting a PR
+- Follow the existing folder structure under `src/modules/`
+```
+
+Claude Code tự động đọc file này mỗi khi bạn khởi động trong thư mục đó.
+
+## Bước tiếp theo
+
+<CardGroup cols={2}>
+  <Card title="Phiên làm việc đầu tiên" icon="play" href="/basics/first-session">
+    Tìm hiểu cách dẫn dắt hội thoại, xem lại thay đổi và chấp nhận hoặc từ chối đề xuất của Claude.
+  </Card>
+  <Card title="Xác thực & API Key" icon="key" href="/setup/authentication">
+    Cấu hình subscription hoặc API key, quản lý nhiều profile và xác thực trong môi trường CI/CD.
+  </Card>
+  <Card title="Quy trình làm việc phổ biến" icon="arrows-rotate" href="/basics/common-workflows">
+    Khám phá các workflow thực tế: review code, refactor, debug, viết tài liệu và nhiều hơn nữa.
+  </Card>
+  <Card title="Cấu hình môi trường" icon="gear" href="/setup/environments">
+    Thiết lập Claude Code cho Docker, WSL, remote server và tích hợp với editor yêu thích của bạn.
+  </Card>
+</CardGroup>

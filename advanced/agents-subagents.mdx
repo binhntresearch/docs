@@ -1,0 +1,171 @@
+---
+title: "Chạy song song với subagents và dynamic workflows"
+sidebarTitle: "Agents & Subagents"
+description: "Sử dụng subagents, agent view và dynamic workflows để xử lý nhiều tác vụ song song và tăng tốc độ phát triển."
+---
+
+Khi dự án phức tạp lên, việc xử lý tuần tự từng tác vụ trở nên chậm chạp và kém hiệu quả. Claude Code giải quyết vấn đề này bằng cơ chế **subagents** — cho phép Claude tự động tạo ra các agent con để phân chia công việc và chạy song song, giúp bạn rút ngắn đáng kể thời gian phát triển.
+
+## Subagents là gì?
+
+Subagents là các phiên Claude Code con được tạo ra bởi một agent cha để thực hiện một tác vụ cụ thể, độc lập. Agent cha phối hợp kết quả từ tất cả subagents rồi tổng hợp thành đầu ra cuối cùng.
+
+<CardGroup cols={3}>
+  <Card title="Chạy test song song" icon="flask">
+    Chạy nhiều bộ test cùng lúc trong khi agent khác tiếp tục viết code mới
+  </Card>
+  <Card title="Nghiên cứu đa chủ đề" icon="magnifying-glass">
+    Tra cứu nhiều chủ đề đồng thời thay vì lần lượt từng cái
+  </Card>
+  <Card title="Audit toàn bộ codebase" icon="shield-check">
+    Kiểm tra bảo mật từng module cùng một lúc, không phải tuần tự
+  </Card>
+</CardGroup>
+
+## Worktrees cho phiên song song
+
+Git worktrees cho phép nhiều subagents làm việc trên các nhánh khác nhau cùng lúc mà không xung đột. Dùng flag `--worktree` khi khởi chạy Claude Code để tạo một worktree riêng biệt:
+
+```bash
+claude --worktree
+```
+
+Mỗi worktree là một thư mục làm việc độc lập — subagents có thể đọc và ghi file mà không ảnh hưởng lẫn nhau.
+
+## Agent View — quản lý tất cả phiên từ một màn hình
+
+Khi bạn có nhiều subagents đang chạy, **Agent View** cho phép bạn theo dõi và quản lý tất cả phiên từ một nơi duy nhất.
+
+<Tabs>
+  <Tab title="Terminal">
+    ```bash
+    claude agent-view
+    ```
+    Mở giao diện Agent View ngay trong terminal, hiển thị danh sách tất cả phiên đang hoạt động cùng trạng thái và tiến độ của mỗi phiên.
+  </Tab>
+  <Tab title="Desktop App">
+    Mở ứng dụng Claude Code Desktop, chọn tab **Agents** ở thanh bên trái. Bạn sẽ thấy tất cả phiên đang chạy được hiển thị dạng thẻ, có thể click vào từng phiên để xem chi tiết hoặc gửi thêm hướng dẫn.
+  </Tab>
+</Tabs>
+
+<Tip>
+  Dùng Agent View để phát hiện sớm khi một subagent bị kẹt hoặc gặp lỗi — bạn có thể can thiệp mà không cần huỷ toàn bộ quá trình.
+</Tip>
+
+## Dynamic Workflows — tự động điều phối hàng trăm subagents
+
+Dynamic workflows cho phép bạn viết một prompt duy nhất để Claude tự động tạo ra và điều phối hàng chục, thậm chí hàng trăm subagents song song.
+
+### Ví dụ: Audit bảo mật toàn bộ codebase
+
+```bash
+claude "Audit every module in src/ for security vulnerabilities. Run analyses in parallel and compile a report."
+```
+
+Claude sẽ tự động:
+1. Liệt kê tất cả các module trong `src/`
+2. Tạo một subagent cho mỗi module
+3. Chạy phân tích bảo mật song song
+4. Tổng hợp kết quả thành một báo cáo duy nhất
+
+### Ví dụ: Chạy test và viết code cùng lúc
+
+<CodeGroup>
+  ```bash Audit song song
+  claude "Review all components in src/components/ for accessibility issues. 
+  Analyze each component independently and give me a consolidated report."
+  ```
+
+  ```bash Refactor song song
+  claude "Refactor all API handlers in src/api/ to use async/await. 
+  Handle each file in parallel, ensure tests still pass."
+  ```
+
+  ```bash Dịch tài liệu song song
+  claude "Translate all markdown files in docs/en/ to Vietnamese. 
+  Process files in parallel and save to docs/vi/."
+  ```
+</CodeGroup>
+
+<Note>
+  Dynamic workflows hoạt động hiệu quả nhất với các tác vụ có thể chia nhỏ thành phần độc lập. Nếu các tác vụ có phụ thuộc lẫn nhau (task B cần kết quả của task A), Claude sẽ tự động xử lý theo thứ tự phù hợp.
+</Note>
+
+## Goal-oriented Sessions — làm việc đến khi đạt mục tiêu
+
+Thay vì giao từng tác vụ nhỏ, bạn có thể đặt một **mục tiêu** và Claude sẽ tự lặp lại công việc cho đến khi điều kiện đó được thoả mãn.
+
+<Steps>
+  <Step title="Mở chế độ tương tác">
+    ```bash
+    claude
+    ```
+    Khởi chạy Claude Code ở chế độ interactive.
+  </Step>
+  <Step title="Đặt mục tiêu với lệnh /goal">
+    ```
+    /goal "All tests pass and no TypeScript errors"
+    ```
+    Claude bắt đầu làm việc để đạt được điều kiện này.
+  </Step>
+  <Step title="Theo dõi tiến độ">
+    Claude sẽ liên tục chạy `npm test` và `tsc --noEmit`, sửa lỗi, rồi chạy lại — lặp cho đến khi tất cả điều kiện đều xanh.
+  </Step>
+</Steps>
+
+<Tip>
+  Goal-oriented sessions đặc biệt hữu ích khi bạn cần đảm bảo một trạng thái nhất định trước khi merge PR — ví dụ: "coverage trên 80%" hoặc "không có lỗi lint nào".
+</Tip>
+
+## Ví dụ thực tế: Workflow hoàn chỉnh
+
+Dưới đây là một ví dụ minh hoạ cách kết hợp subagents, worktrees và goal-oriented sessions trong một luồng làm việc thực tế:
+
+<Steps>
+  <Step title="Tạo feature branch với worktree">
+    ```bash
+    claude --worktree
+    ```
+    Claude tạo một worktree mới từ nhánh `main`, sẵn sàng để làm việc độc lập.
+  </Step>
+  <Step title="Giao tác vụ song song">
+    ```
+    Implement the user authentication module. While writing the code,
+    run the existing test suite in parallel to catch regressions early.
+    ```
+    Một subagent viết code, subagent khác chạy test liên tục.
+  </Step>
+  <Step title="Đặt mục tiêu hoàn thành">
+    ```
+    /goal "Authentication module implemented, all tests pass, TypeScript compiles cleanly"
+    ```
+    Claude tự hoàn thiện đến khi đạt đủ điều kiện.
+  </Step>
+  <Step title="Theo dõi qua Agent View">
+    ```bash
+    claude agent-view
+    ```
+    Quan sát toàn bộ quá trình từ một màn hình, can thiệp nếu cần.
+  </Step>
+</Steps>
+
+<Warning>
+  Khi dùng dynamic workflows với nhiều subagents ghi file đồng thời, hãy đảm bảo mỗi subagent làm việc trên tập file riêng biệt để tránh xung đột. Claude thường tự xử lý điều này, nhưng với codebase lớn bạn nên chỉ rõ phạm vi trong prompt.
+</Warning>
+
+## Tổng kết
+
+<CardGroup cols={2}>
+  <Card title="Subagents & Worktrees" icon="code-branch">
+    Dùng `claude --worktree` để tạo phiên làm việc song song, tránh xung đột file
+  </Card>
+  <Card title="Agent View" icon="table-columns">
+    Dùng `claude agent-view` hoặc Desktop app để giám sát tất cả phiên từ một nơi
+  </Card>
+  <Card title="Dynamic Workflows" icon="bolt">
+    Viết một prompt mô tả công việc lớn — Claude tự tạo và điều phối subagents
+  </Card>
+  <Card title="Goal-oriented Sessions" icon="bullseye">
+    Dùng `/goal` để Claude tự lặp đến khi đạt điều kiện bạn đặt ra
+  </Card>
+</CardGroup>

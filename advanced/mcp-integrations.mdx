@@ -1,0 +1,225 @@
+---
+title: "Kết nối Claude Code với công cụ ngoài qua MCP"
+sidebarTitle: "MCP Integrations"
+description: "Cách cấu hình Model Context Protocol để kết nối Claude Code với database, GitHub, Slack và các dịch vụ bên ngoài khác."
+---
+
+Theo mặc định, Claude Code làm việc chủ yếu với file và terminal. Nhưng khi bạn cần Claude truy vấn database thật, tạo GitHub issue, hay gửi tin nhắn Slack — đó là lúc **Model Context Protocol (MCP)** phát huy tác dụng. MCP là chuẩn mở cho phép Claude kết nối trực tiếp với hầu hết mọi công cụ và dịch vụ bên ngoài.
+
+## MCP hoạt động như thế nào?
+
+MCP hoạt động theo mô hình client-server: Claude Code đóng vai trò **client**, còn các **MCP server** là cầu nối đến từng dịch vụ. Khi bạn cấu hình một MCP server, Claude có thể gọi các công cụ của server đó y hệt như dùng lệnh trong terminal.
+
+<CardGroup cols={2}>
+  <Card title="Databases" icon="database">
+    PostgreSQL, MySQL, SQLite — truy vấn và cập nhật dữ liệu trực tiếp
+  </Card>
+  <Card title="APIs & Dịch vụ" icon="plug">
+    GitHub, Jira, Slack, Linear — tạo issue, gửi tin nhắn, cập nhật task
+  </Card>
+  <Card title="File Systems & Cloud" icon="cloud">
+    Truy cập file từ S3, Google Drive, hoặc hệ thống file tuỳ chỉnh
+  </Card>
+  <Card title="Công cụ nội bộ" icon="building">
+    Kết nối với API nội bộ của công ty hoặc hệ thống legacy
+  </Card>
+</CardGroup>
+
+## Cài đặt MCP server
+
+Có hai cách để thêm MCP server vào Claude Code:
+
+<Tabs>
+  <Tab title="Lệnh tương tác">
+    Cách đơn giản nhất — chạy lệnh sau rồi làm theo hướng dẫn:
+    ```bash
+    claude mcp add
+    ```
+    Claude Code sẽ hỏi bạn tên server, lệnh khởi chạy, và các biến môi trường cần thiết, rồi tự động ghi vào file cấu hình.
+  </Tab>
+  <Tab title="Chỉnh sửa settings.json">
+    Với người dùng thích kiểm soát trực tiếp, mở file `~/.claude/settings.json` (cấu hình toàn hệ thống) hoặc `.claude/settings.json` trong thư mục dự án (cấu hình riêng cho project) và thêm khối `mcpServers`:
+
+    ```json
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-github"],
+          "env": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+          }
+        },
+        "postgres": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  File `.claude/settings.json` trong thư mục dự án sẽ ghi đè cấu hình toàn hệ thống cho riêng project đó. Điều này cho phép mỗi dự án dùng bộ MCP server khác nhau.
+</Note>
+
+## Các MCP server phổ biến
+
+<Accordion title="GitHub — tạo issue, quản lý PR, tìm kiếm code">
+  ```json
+  {
+    "mcpServers": {
+      "github": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here"
+        }
+      }
+    }
+  }
+  ```
+  Sau khi cấu hình, bạn có thể yêu cầu Claude: _"Tạo một GitHub issue cho bug này với label `priority:high`"_ hoặc _"Liệt kê tất cả PR đang mở trong repo này."_
+
+  Tạo Personal Access Token tại: **GitHub Settings → Developer settings → Personal access tokens**
+</Accordion>
+
+<Accordion title="PostgreSQL — truy vấn và phân tích dữ liệu">
+  ```json
+  {
+    "mcpServers": {
+      "postgres": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-postgres",
+          "postgresql://username:password@localhost:5432/mydb"
+        ]
+      }
+    }
+  }
+  ```
+  Claude có thể chạy câu truy vấn, mô tả schema, hay phân tích dữ liệu theo yêu cầu tự nhiên của bạn: _"Tìm 10 user đăng nhập nhiều nhất tuần này."_
+
+  <Warning>
+    Chỉ cấp quyền `READ` cho MCP server trong môi trường production. Dùng user database riêng với quyền hạn tối thiểu để tránh rủi ro.
+  </Warning>
+</Accordion>
+
+<Accordion title="Filesystem — truy cập file ngoài project">
+  ```json
+  {
+    "mcpServers": {
+      "filesystem": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/path/to/allowed/directory"
+        ]
+      }
+    }
+  }
+  ```
+  Hữu ích khi bạn cần Claude đọc file từ thư mục khác — ví dụ tài liệu design, file cấu hình dùng chung, hoặc asset ngoài project.
+</Accordion>
+
+<Accordion title="Slack — gửi tin nhắn và đọc kênh">
+  ```json
+  {
+    "mcpServers": {
+      "slack": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-slack"],
+        "env": {
+          "SLACK_BOT_TOKEN": "xoxb-...",
+          "SLACK_TEAM_ID": "T..."
+        }
+      }
+    }
+  }
+  ```
+  Cho phép Claude thông báo kết quả build, gửi báo cáo lỗi, hay cập nhật tiến độ vào kênh Slack phù hợp.
+</Accordion>
+
+<Accordion title="Brave Search — tìm kiếm web theo thời gian thực">
+  ```json
+  {
+    "mcpServers": {
+      "brave-search": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": {
+          "BRAVE_API_KEY": "BSA..."
+        }
+      }
+    }
+  }
+  ```
+  Cho phép Claude tìm kiếm thông tin mới nhất trên web — hữu ích khi bạn cần tra cứu tài liệu, lỗi lạ, hoặc thông tin thay đổi nhanh.
+</Accordion>
+
+## Kiểm tra trạng thái MCP
+
+Sau khi cấu hình, dùng các lệnh sau để kiểm tra:
+
+<Steps>
+  <Step title="Xem trạng thái tất cả server">
+    Trong phiên Claude Code đang chạy, gõ:
+    ```
+    /mcp
+    ```
+    Lệnh này hiển thị danh sách server, trạng thái kết nối, và các công cụ đang khả dụng.
+  </Step>
+  <Step title="Liệt kê server đã cấu hình">
+    ```bash
+    claude mcp list
+    ```
+    Chạy từ terminal để xem tất cả MCP server đã được đăng ký trong cấu hình.
+  </Step>
+  <Step title="Đăng nhập server yêu cầu xác thực">
+    ```bash
+    claude mcp login <server-name>
+    ```
+    Một số server (như GitHub OAuth app) yêu cầu xác thực qua trình duyệt. Lệnh này mở luồng đăng nhập tương ứng.
+  </Step>
+</Steps>
+
+## Ví dụ thực tế: Kết hợp nhiều MCP server
+
+Sau khi cấu hình đầy đủ, bạn có thể yêu cầu Claude thực hiện các tác vụ phức tạp liên quan nhiều dịch vụ cùng lúc:
+
+<CodeGroup>
+  ```text Phân tích và báo cáo
+  "Truy vấn database để lấy danh sách lỗi phát sinh hôm nay, 
+  tạo GitHub issue cho mỗi lỗi nghiêm trọng, 
+  rồi gửi tóm tắt vào kênh #engineering trên Slack."
+  ```
+
+  ```text Review code và tạo issue
+  "Đọc tất cả file trong src/api/, tìm các endpoint không có 
+  rate limiting, tạo GitHub issue với label security cho mỗi cái 
+  và gán cho team backend."
+  ```
+
+  ```text Đồng bộ dữ liệu
+  "Lấy danh sách task đã hoàn thành từ Linear tuần này, 
+  cập nhật trạng thái tương ứng trong database, 
+  rồi tạo summary report dưới dạng markdown."
+  ```
+</CodeGroup>
+
+<Tip>
+  Bắt đầu với một MCP server trước (thường là GitHub hoặc database), kiểm tra hoạt động tốt rồi mới thêm các server khác. Điều này giúp dễ debug khi có sự cố cấu hình.
+</Tip>
+
+## Bảng MCP server tham khảo
+
+| Package | Mục đích | Yêu cầu |
+|---|---|---|
+| `@modelcontextprotocol/server-github` | GitHub repos, issues, PR | Personal Access Token |
+| `@modelcontextprotocol/server-postgres` | PostgreSQL database | Connection string |
+| `@modelcontextprotocol/server-filesystem` | Truy cập file hệ thống | Đường dẫn thư mục |
+| `@modelcontextprotocol/server-slack` | Slack workspace | Bot Token + Team ID |
+| `@modelcontextprotocol/server-brave-search` | Tìm kiếm web | Brave API Key |

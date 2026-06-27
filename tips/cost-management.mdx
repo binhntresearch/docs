@@ -1,0 +1,145 @@
+---
+title: "Quản lý chi phí và token usage với Claude Code"
+sidebarTitle: "Quản Lý Chi Phí"
+description: "So sánh gói subscription, cách theo dõi token usage, đặt giới hạn chi tiêu và tối ưu chi phí sử dụng Claude Code hàng ngày."
+---
+
+Chi phí là một trong những yếu tố bạn cần nắm rõ khi dùng Claude Code theo kiểu chuyên nghiệp. Hiểu đúng các gói subscription, biết cách theo dõi token usage, và áp dụng một vài thói quen đơn giản có thể giúp bạn tiết kiệm đáng kể mà không giảm hiệu suất làm việc.
+
+## So sánh các gói subscription
+
+<CardGroup cols={2}>
+  <Card title="Pro — $20/tháng" icon="user">
+    **$17/tháng nếu trả năm**
+
+    Bao gồm Claude Code. Phù hợp cho developer dùng theo sprint hoặc dự án nhỏ, không cần dùng Claude Code liên tục mỗi ngày.
+  </Card>
+  <Card title="Max 5x — $100/tháng" icon="rocket">
+    Lý tưởng cho developer dùng Claude Code hàng ngày trên codebase lớn. Giới hạn sử dụng cao hơn Pro đáng kể.
+  </Card>
+  <Card title="Max 20x — $200/tháng" icon="crown">
+    Dành cho power user cần mức truy cập cao nhất — phù hợp khi bạn có nhiều session song song hoặc làm việc với project quy mô lớn.
+  </Card>
+  <Card title="API (Console)" icon="code">
+    Trả theo token thực tế sử dụng. Linh hoạt nhất cho team hoặc integration vào pipeline tự động.
+  </Card>
+</CardGroup>
+
+### Chi phí API chi tiết
+
+<Note>
+  Giá API tính theo triệu token (M tokens). Model `claude-sonnet-4-5` có mức giá cạnh tranh nhất cho workload hàng ngày.
+</Note>
+
+| Model | Input | Output |
+|-------|-------|--------|
+| `claude-sonnet-4-5` | ~$3 / 1M tokens | ~$15 / 1M tokens |
+
+**API với prompt caching** giúp tiết kiệm đáng kể khi bạn lặp lại cùng một context (ví dụ: `CLAUDE.md` hoặc system prompt dài) qua nhiều lần gọi API.
+
+---
+
+## Theo dõi token usage
+
+Biết mình đang dùng bao nhiêu token là bước đầu tiên để kiểm soát chi phí.
+
+<Tabs>
+  <Tab title="Subscription (Claude.ai)">
+    Truy cập **Claude.ai → Settings → Usage** để xem mức sử dụng trong tháng hiện tại và so sánh với giới hạn gói của bạn.
+  </Tab>
+  <Tab title="API (Console)">
+    Truy cập **Anthropic Console → Usage** để xem chi tiết token consumption theo ngày, theo model, và theo API key.
+  </Tab>
+  <Tab title="Trong session (/usage)">
+    Chạy lệnh `/usage` ngay trong session đang hoạt động để xem lượng token đã dùng trong hội thoại hiện tại:
+
+    ```
+    /usage
+    ```
+
+    Dùng lệnh này thường xuyên để phát hiện khi nào session đang trở nên "nặng".
+  </Tab>
+</Tabs>
+
+---
+
+## Đặt giới hạn chi tiêu (API users)
+
+Nếu bạn dùng API, hãy đặt spending limit để tránh hóa đơn bất ngờ cuối tháng.
+
+<Steps>
+  <Step title="Vào Anthropic Console">
+    Đăng nhập tại [console.anthropic.com](https://console.anthropic.com)
+  </Step>
+  <Step title="Mở trang Usage">
+    Chọn **Usage** trong menu điều hướng bên trái.
+  </Step>
+  <Step title="Thiết lập Spend Limits">
+    Chọn **Spend Limits** và đặt mức giới hạn chi tiêu hàng tháng. Anthropic sẽ thông báo khi bạn gần đến ngưỡng.
+  </Step>
+</Steps>
+
+<Warning>
+  Nếu không đặt spend limit, chi phí API có thể tăng nhanh trong các session dài hoặc khi chạy nhiều tác vụ tự động song song.
+</Warning>
+
+---
+
+## Tối ưu chi phí hàng ngày
+
+Một số thói quen nhỏ nhưng có tác động lớn đến tổng chi phí sử dụng:
+
+<Accordion title="Giữ CLAUDE.md súc tích">
+  File `CLAUDE.md` được load vào mọi session và tốn token mỗi lần. Hãy chỉ giữ lại những thông tin thực sự cần thiết — tech stack, conventions chính, và các lệnh hay dùng. Xóa phần nào không còn liên quan.
+</Accordion>
+
+<Accordion title="Dùng /compact trước khi bắt đầu task mới">
+  Lệnh `/compact` nén lịch sử hội thoại, giảm đáng kể số token cần gửi lên trong các lượt tiếp theo — trong khi vẫn giữ nguyên context quan trọng.
+
+  ```
+  /compact
+  ```
+</Accordion>
+
+<Accordion title="Dùng /clear để bắt đầu session mới">
+  Khi chuyển sang task hoàn toàn khác, hãy dùng `/clear` thay vì tiếp tục trong session cũ. Session mới = context nhỏ hơn = ít token hơn.
+
+  ```
+  /clear
+  ```
+</Accordion>
+
+<Accordion title="Dùng Sonnet cho task thông thường">
+  Opus mạnh hơn nhưng cũng tốn token nhiều hơn. Với phần lớn task coding hàng ngày, Sonnet là lựa chọn tốt hơn về cả tốc độ lẫn chi phí.
+
+  ```bash
+  claude --model sonnet
+  ```
+</Accordion>
+
+<Accordion title="Tránh đọc lại file lớn không cần thiết">
+  Mỗi lần bạn yêu cầu Claude đọc một file lớn, toàn bộ nội dung đó được đưa vào context. Hãy dùng prompt cụ thể chỉ đến đúng file hoặc đúng function bạn cần, thay vì "nhìn toàn bộ project".
+</Accordion>
+
+<Accordion title="Dùng prompt tập trung vào file cụ thể">
+  So sánh hai cách tiếp cận:
+
+  <Tabs>
+    <Tab title="✅ Tiết kiệm token">
+      ```
+      In src/auth/login.ts, fix the Google OAuth callback handler
+      ```
+    </Tab>
+    <Tab title="❌ Tốn token">
+      ```
+      Look at everything and fix the OAuth issue
+      ```
+    </Tab>
+  </Tabs>
+</Accordion>
+
+---
+
+<Tip>
+  **Mẹo tổng hợp:** Bắt đầu ngày làm việc với một session mới (`/clear`), compact khi chuyển sang nhóm task khác (`/compact`), và kiểm tra usage trước khi kết thúc ngày (`/usage`). Ba thói quen này là đủ để kiểm soát chi phí trong hầu hết trường hợp.
+</Tip>

@@ -1,0 +1,305 @@
+---
+title: "Thư viện prompt Claude Code theo từng tác vụ"
+sidebarTitle: "Prompt Library"
+description: "Tập hợp prompt hiệu quả cho Claude Code theo danh mục: khám phá codebase, sửa lỗi, viết test, refactor và quản lý git."
+---
+
+Viết prompt hiệu quả là kỹ năng quan trọng để khai thác tối đa Claude Code. Thư viện này tổng hợp các prompt đã được kiểm chứng cho các tác vụ phát triển phần mềm phổ biến — bạn có thể dùng trực tiếp hoặc tuỳ chỉnh cho dự án của mình. Mỗi prompt được thiết kế để Claude hiểu rõ ngữ cảnh và trả về kết quả có thể hành động ngay.
+
+<Tip>
+Các prompt hiệu quả nhất thường (1) nêu rõ ngữ cảnh, (2) xác định output mong muốn, và (3) chỉ định ràng buộc quan trọng (không thay đổi API, giữ nguyên tests, v.v.).
+</Tip>
+
+---
+
+<Accordion title="🔍 Khám phá codebase">
+Dùng các prompt này khi bạn mới vào một dự án hoặc cần hiểu nhanh một phần code chưa quen.
+
+```text Hiểu kiến trúc tổng thể
+Tôi mới vào dự án này. Hãy đọc cấu trúc thư mục, các file cấu hình chính và README, sau đó giải thích:
+1. Kiến trúc tổng thể của hệ thống
+2. Các module chính và chức năng của từng module
+3. Cách các module tương tác với nhau
+4. Công nghệ và framework đang được dùng
+```
+
+```text Tìm điểm authentication
+Tìm tất cả các điểm trong codebase này mà authentication và authorization được thực hiện. Liệt kê:
+- Các file liên quan
+- Cơ chế auth đang dùng (JWT, session, OAuth, v.v.)
+- Các middleware hoặc decorator bảo vệ routes
+- Bất kỳ lỗ hổng tiềm năng nào bạn nhận thấy
+```
+
+```text Vẽ sơ đồ dependency
+Phân tích dependency giữa các module trong thư mục src/. Tạo một sơ đồ dạng text (ASCII) hoặc mô tả dạng danh sách cây thể hiện:
+- Module nào phụ thuộc vào module nào
+- Circular dependency nếu có
+- Module nào có thể tách ra độc lập
+```
+
+```text Tìm hiểu data flow
+Trace data flow từ khi user gửi request [mô tả request] cho đến khi nhận response. Chỉ ra:
+- Request đi qua những layer nào
+- Data được transform như thế nào ở mỗi bước
+- Nơi data được persist hoặc cache
+- Potential bottleneck về performance
+```
+</Accordion>
+
+<Accordion title="🐛 Sửa lỗi">
+Khi gặp bug, hãy cung cấp càng nhiều ngữ cảnh càng tốt — error message, stack trace, và bước tái hiện lỗi.
+
+```text Sửa lỗi từ error message
+[Dán error message và stack trace vào đây]
+
+Hãy:
+1. Xác định nguyên nhân gốc rễ của lỗi này
+2. Tìm và sửa code gây ra lỗi
+3. Giải thích tại sao lỗi xảy ra và cách fix hoạt động
+4. Kiểm tra xem có chỗ nào khác trong codebase có thể gặp lỗi tương tự không
+```
+
+```text Sửa failing tests
+Chạy toàn bộ test suite, đọc kỹ output và sửa tất cả failing tests. Với mỗi test fail:
+1. Xác định test đang kiểm tra gì
+2. Tìm nguyên nhân fail (bug trong code hay test cần update)
+3. Sửa code nguồn (ưu tiên) hoặc update test nếu behavior thực sự cần thay đổi
+4. Chạy lại test để xác nhận pass
+
+Đừng xoá tests để "fix" failure.
+```
+
+```text Tìm memory leaks
+Phân tích module [tên module] để tìm memory leaks tiềm năng. Chú ý đến:
+- Event listeners không được remove
+- Closures giữ reference không cần thiết
+- Timers/intervals không được clear
+- Promises không được handle
+- Cache không có giới hạn kích thước
+
+Với mỗi vấn đề tìm được, đề xuất cách sửa cụ thể.
+```
+
+```text Debug performance issue
+Ứng dụng chạy chậm khi [mô tả tình huống]. Hãy:
+1. Profile và xác định bottleneck chính
+2. Phân tích nguyên nhân
+3. Đề xuất và implement các optimizations
+4. Đo lường cải thiện sau khi fix (nếu có benchmark)
+```
+</Accordion>
+
+<Accordion title="🧪 Viết test">
+Test tốt cần rõ ràng về what, why và how. Các prompt dưới đây giúp Claude viết tests thực sự hữu ích.
+
+```text Viết unit tests đầy đủ
+Viết unit tests toàn diện cho [tên class/function]. Bao gồm:
+- Happy path với các input hợp lệ tiêu biểu
+- Edge cases: null, undefined, empty array, chuỗi rỗng
+- Error cases: input không hợp lệ, exception handling
+- Boundary values nếu có logic điều kiện
+
+Sau khi viết xong, chạy tests và sửa bất kỳ failure nào cho đến khi tất cả pass.
+```
+
+```text Viết integration tests cho API
+Tạo integration tests cho API endpoint [endpoint]. Yêu cầu:
+- Mock tất cả external dependencies (database, third-party APIs)
+- Test các HTTP methods và status codes khác nhau
+- Validate response schema và data types
+- Test authentication/authorization nếu applicable
+- Test rate limiting và error handling
+
+Dùng [Jest/Vitest/Pytest — tuỳ dự án] và follow pattern hiện có trong codebase.
+```
+
+```text Tăng code coverage
+Phân tích code coverage hiện tại của module [tên]. Xác định các branch và edge case chưa được cover, sau đó viết thêm tests để đạt ít nhất 80% coverage. Chỉ viết tests có ý nghĩa — không viết tests "giả" chỉ để tăng số %.
+```
+
+```text Viết snapshot tests
+Tạo snapshot tests cho component [tên component]. Đảm bảo:
+- Snapshot bao gồm các state quan trọng (loading, error, empty, populated)
+- Snapshot dễ review khi có thay đổi hợp lệ
+- Add comments giải thích mỗi snapshot đang test trường hợp gì
+```
+</Accordion>
+
+<Accordion title="♻️ Refactor code">
+Refactor hiệu quả cần giữ nguyên behavior. Luôn chỉ rõ ràng buộc để Claude không vô tình thay đổi API hay behavior.
+
+```text Chuyển sang async/await
+Refactor module [tên module] để dùng async/await thay vì callbacks hoặc Promise chains phức tạp. Yêu cầu:
+- Giữ nguyên hoàn toàn behavior hiện tại
+- Giữ nguyên tất cả existing tests (không sửa tests, chỉ sửa implementation)
+- Xử lý error đúng cách với try/catch
+- Cải thiện readability rõ rệt
+
+Sau khi refactor, chạy toàn bộ test suite để xác nhận không có regression.
+```
+
+```text Tách business logic ra service layer
+Extract business logic từ [tên controller/file] ra một service layer riêng. Yêu cầu:
+- Không thay đổi API contracts (request/response shape giữ nguyên)
+- Controller chỉ handle HTTP concerns (parse request, format response)
+- Service chứa business rules và gọi repository/data layer
+- Viết thêm unit tests cho service layer mới
+```
+
+```text Giải quyết N+1 problem
+Tối ưu các database queries trong file này để giải quyết N+1 problem:
+
+[paste code]
+
+Dùng eager loading, batching, hoặc DataLoader pattern phù hợp với ORM đang dùng. Đảm bảo behavior của queries không thay đổi, chỉ cải thiện performance.
+```
+
+```text Áp dụng design pattern
+Phân tích [tên module] và xác định xem design pattern nào (Repository, Factory, Observer, Strategy, v.v.) phù hợp để giải quyết vấn đề hiện tại. Giải thích trade-offs trước khi implement, sau đó refactor với pattern đó.
+```
+</Accordion>
+
+<Accordion title="🌿 Git & PR workflow">
+Claude Code có thể giúp bạn duy trì git history sạch và PR quality cao.
+
+```text Commit theo conventional commits
+Review tất cả các thay đổi hiện tại, sau đó tạo các commits theo Conventional Commits format (feat, fix, refactor, docs, test, chore). Nhóm các thay đổi liên quan vào cùng một commit. Mỗi commit message cần ngắn gọn, rõ ràng và có body giải thích nếu cần.
+```
+
+```text Tạo PR description chi tiết
+Tạo PR description cho branch này với cấu trúc:
+
+**Motivation**: Tại sao cần thay đổi này?
+**Changes**: Những gì đã thay đổi (bullet points ngắn gọn)
+**Testing**: Cách đã test (unit test, manual test, screenshot nếu UI)
+**Breaking changes**: Có thay đổi nào breaking không?
+**Checklist**: [ ] Tests pass, [ ] Docs updated, [ ] No console.log
+
+Đọc git diff của branch hiện tại để viết description chính xác.
+```
+
+```text Review diff trước khi merge
+Review toàn bộ diff của branch này so với main. Chỉ ra:
+- Potential bugs hoặc logic errors
+- Missing error handling
+- Security concerns
+- Performance issues
+- Code style inconsistencies
+- Tests còn thiếu
+
+Đề xuất cải tiến cụ thể với code examples trước khi merge.
+```
+
+```text Interactive rebase để làm sạch history
+Phân tích git log của branch này. Đề xuất cách squash, reorder hoặc edit commits để có history sạch và dễ hiểu hơn trước khi merge. Tạo script interactive rebase với các lệnh cụ thể.
+```
+</Accordion>
+
+<Accordion title="⚙️ Tự động hoá">
+Claude Code đặc biệt mạnh trong việc viết scripts và automation workflows.
+
+```text Tự động cập nhật CHANGELOG
+Viết script Bash/Node.js để tự động cập nhật CHANGELOG.md từ git commits kể từ last tag. Script cần:
+- Nhóm commits theo type (feat, fix, chore, v.v.)
+- Format theo Keep a Changelog standard
+- Chèn version mới ở đầu file (không xoá history cũ)
+- Hỗ trợ chạy: `./scripts/changelog.sh [version]`
+```
+
+```text Tạo GitHub Action cho CI/CD
+Tạo GitHub Actions workflow để tự động chạy khi có PR vào main branch:
+1. Install dependencies
+2. Chạy linter và format check
+3. Chạy unit tests
+4. Chạy integration tests
+5. Build production bundle
+6. Upload coverage report
+
+Optimise để cache dependencies và chạy các bước độc lập song song.
+```
+
+```text Script kiểm tra môi trường
+Viết script setup-check.sh để kiểm tra môi trường development đã được cài đặt đúng chưa. Script cần verify: Node.js version, các dependencies, environment variables bắt buộc, database connection, và các services cần thiết. In kết quả rõ ràng với ✅ hoặc ❌ cho từng mục.
+```
+</Accordion>
+
+<Accordion title="👀 Review code">
+Dùng Claude để review code trước khi submit PR hoặc sau khi nhận review từ teammate.
+
+```text Review theo checklist
+Review file [tên file] theo checklist sau và cho điểm 1-10 mỗi hạng mục:
+- [ ] Correctness: Logic có đúng không?
+- [ ] Security: Có SQL injection, XSS, hay lỗ hổng nào không?
+- [ ] Performance: Có N+1, unnecessary re-renders, hay inefficient algorithms không?
+- [ ] Readability: Code có dễ hiểu không?
+- [ ] Maintainability: Có dễ thay đổi sau này không?
+- [ ] Test coverage: Có test cho các paths quan trọng không?
+
+Với mỗi vấn đề, đưa ra gợi ý cải thiện cụ thể với code example.
+```
+
+```text Review bảo mật chuyên sâu
+Thực hiện security review cho module [tên module]. Kiểm tra:
+- Input validation và sanitization
+- Authentication và authorization checks
+- Sensitive data exposure (logs, error messages, API responses)
+- Dependency vulnerabilities (kiểm tra package.json)
+- Race conditions và TOCTOU vulnerabilities
+- Injection vulnerabilities
+
+Phân loại mỗi issue theo mức độ nghiêm trọng: Critical, High, Medium, Low.
+```
+
+```text Multi-agent code review
+/code-review
+
+[Hoặc mô tả cụ thể phạm vi review nếu muốn focus vào module cụ thể]
+```
+</Accordion>
+
+<Accordion title="📝 Viết tài liệu">
+Tài liệu tốt tiết kiệm thời gian của cả team. Claude giúp bạn viết docs nhanh hơn và nhất quán hơn.
+
+```text Viết README cho module
+Viết README.md cho module [tên] với cấu trúc:
+1. Mô tả ngắn (1-2 câu) module làm gì
+2. Installation / Prerequisites
+3. Quick start với code example chạy được
+4. API Reference (tất cả public functions/methods với params, return type, example)
+5. Configuration options
+6. Error handling
+7. Contributing guidelines
+
+Đọc source code để đảm bảo documentation chính xác và examples thực sự chạy được.
+```
+
+```text Thêm JSDoc cho tất cả public functions
+Thêm JSDoc comments cho tất cả public functions và methods trong file này. Mỗi JSDoc cần có:
+- @description mô tả rõ ràng function làm gì
+- @param với type và mô tả cho mỗi parameter
+- @returns với type và mô tả
+- @throws nếu function có thể throw exception
+- @example với ví dụ sử dụng thực tế
+
+Đảm bảo types chính xác với TypeScript types nếu applicable.
+```
+
+```text Viết Architecture Decision Record (ADR)
+Viết một Architecture Decision Record (ADR) cho quyết định kỹ thuật: [mô tả quyết định].
+
+Dùng format chuẩn:
+- Status: Accepted/Proposed/Deprecated
+- Context: Vấn đề cần giải quyết
+- Decision: Giải pháp được chọn
+- Consequences: Trade-offs và hậu quả
+
+Lưu vào docs/adr/[số]-[tên].md
+```
+</Accordion>
+
+---
+
+<Note>
+Muốn prompt hiệu quả hơn? Hãy thêm ngữ cảnh cụ thể: tên file, tên function, error message thực tế, hoặc constraint đặc thù của dự án bạn. Claude Code đọc toàn bộ codebase nên càng chỉ định rõ phạm vi, kết quả càng chính xác.
+</Note>

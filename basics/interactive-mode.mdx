@@ -1,0 +1,186 @@
+---
+title: "Làm chủ chế độ interactive trong Claude Code CLI"
+sidebarTitle: "Interactive Mode"
+description: "Tất cả phím tắt, slash commands và chế độ permission trong Claude Code interactive mode để làm việc nhanh hơn."
+---
+
+Chế độ interactive của Claude Code không chỉ là một cửa sổ chat — đây là một môi trường làm việc đầy đủ với phím tắt, lệnh nội bộ và các chế độ quyền hạn khác nhau. Nắm vững những công cụ này giúp bạn làm việc nhanh hơn, kiểm soát tốt hơn và tránh các thao tác thừa.
+
+## Phím tắt bàn phím
+
+Các phím tắt này hoạt động trong mọi thời điểm khi bạn đang ở trong session interactive:
+
+| Phím tắt | Chức năng | Ghi chú |
+|----------|-----------|---------|
+| `Ctrl+C` | Ngắt tác vụ đang chạy | Dừng Claude giữa chừng; có thể tiếp tục sau |
+| `Ctrl+L` | Xóa màn hình terminal | Lịch sử hội thoại vẫn được giữ nguyên |
+| `Shift+Enter` hoặc `\n` | Xuống dòng trong prompt | Dùng khi viết prompt nhiều dòng |
+| `↑` / `↓` | Điều hướng lịch sử prompt | Xem lại và tái sử dụng prompt cũ |
+| `Shift+Tab` | Chuyển đổi chế độ permission | Xoay vòng giữa các mức độ tự động hóa |
+| `Ctrl+R` | Tìm kiếm lịch sử lệnh | Tìm nhanh prompt đã dùng trước đó |
+
+<Tip>
+  Dùng `Shift+Enter` để viết prompt dài, nhiều dòng mà không vô tình gửi đi sớm. Đây đặc biệt hữu ích khi bạn cần cung cấp nhiều ngữ cảnh hoặc paste đoạn code.
+</Tip>
+
+## Slash Commands
+
+Gõ `/` ở đầu dòng để truy cập các lệnh quản lý session. Những lệnh này không gửi đến Claude mà được xử lý trực tiếp bởi CLI:
+
+| Lệnh | Chức năng | Khi nào dùng |
+|------|-----------|--------------|
+| `/help` | Hiển thị danh sách tất cả lệnh | Khi quên lệnh cần dùng |
+| `/model` | Chuyển đổi model AI | Chuyển giữa Sonnet, Opus và các model khác |
+| `/compact` | Nén lịch sử hội thoại | Khi context window gần đầy |
+| `/clear` | Xóa toàn bộ hội thoại | Bắt đầu session hoàn toàn mới |
+| `/resume` | Tiếp tục session trước | Quay lại công việc dang dở |
+| `/context` | Xem nội dung đang được load | Kiểm tra Claude đang "thấy" gì |
+| `/doctor` | Chẩn đoán vấn đề cấu hình | Khi gặp lỗi khó hiểu |
+| `/mcp` | Quản lý MCP servers | Thêm/xóa/kiểm tra kết nối MCP |
+| `/hooks` | Xem hooks đã cấu hình | Kiểm tra automation hooks |
+| `/usage` | Xem lượng token đã dùng | Theo dõi chi phí và context |
+| `/config` | Thay đổi cài đặt | Cấu hình bất kỳ setting nào |
+| `/goal` | Đặt điều kiện kết thúc | Định nghĩa khi nào tác vụ hoàn thành |
+| `/cd <dir>` | Thay đổi thư mục làm việc | Chuyển ngữ cảnh sang thư mục khác |
+
+### Các lệnh quan trọng nhất
+
+<Tabs>
+  <Tab title="/compact">
+    Khi làm việc lâu trong một session, context window có thể trở nên quá lớn và ảnh hưởng đến hiệu suất. Lệnh `/compact` nén lịch sử hội thoại thành bản tóm tắt ngắn gọn mà vẫn giữ thông tin quan trọng.
+
+    ```
+    /compact
+    ```
+
+    <Note>
+      Dùng `/compact` khi Claude bắt đầu phản hồi chậm hơn hoặc bạn thấy cảnh báo về context gần đầy. Sau khi compact, Claude vẫn nhớ những quyết định và thay đổi đã thực hiện.
+    </Note>
+  </Tab>
+
+  <Tab title="/model">
+    Chuyển đổi giữa các model AI khác nhau trong cùng một session mà không cần khởi động lại:
+
+    ```
+    /model
+    ```
+
+    Sau khi gõ lệnh, một menu xuất hiện để bạn chọn model phù hợp:
+    - **Claude Sonnet** — cân bằng tốc độ và chất lượng, dùng cho hầu hết tác vụ
+    - **Claude Opus** — mạnh nhất, dùng cho tác vụ phức tạp đòi hỏi suy luận sâu
+  </Tab>
+
+  <Tab title="/resume">
+    Tiếp tục một session đã bắt đầu trước đó mà không mất ngữ cảnh:
+
+    ```
+    /resume
+    ```
+
+    Claude sẽ hiển thị danh sách các session gần đây. Chọn session bạn muốn tiếp tục và toàn bộ lịch sử hội thoại sẽ được khôi phục.
+
+    <Tip>
+      Dùng `/resume` khi bạn cần ngắt giữa chừng và quay lại sau. Không cần giải thích lại ngữ cảnh cho Claude.
+    </Tip>
+  </Tab>
+
+  <Tab title="/context">
+    Xem những gì Claude đang "nhìn thấy" trong context window hiện tại:
+
+    ```
+    /context
+    ```
+
+    Lệnh này hiển thị danh sách các file đã được load, nội dung `CLAUDE.md`, và các thông tin khác đang chiếm không gian context. Dùng để kiểm tra Claude có nhận được đúng thông tin bạn muốn không.
+  </Tab>
+</Tabs>
+
+## Chế độ Permission
+
+Permission mode kiểm soát mức độ Claude tự động thực hiện các thao tác mà không hỏi xác nhận. Dùng `Shift+Tab` để xoay vòng giữa các chế độ:
+
+<Tabs>
+  <Tab title="Chế độ mặc định">
+    Claude hỏi xác nhận trước khi thực hiện các thao tác có rủi ro: ghi file, chạy lệnh, xóa dữ liệu. Đây là chế độ an toàn nhất và được khuyến nghị cho hầu hết tình huống.
+
+    ```
+    # Claude sẽ hiển thị:
+    # "I'd like to modify auth.ts. Proceed? [yes/no]"
+    ```
+
+    **Phù hợp khi:**
+    - Làm việc trên codebase production
+    - Muốn kiểm soát từng thay đổi
+    - Làm việc với dữ liệu nhạy cảm
+  </Tab>
+
+  <Tab title="Auto mode">
+    Claude chạy hoàn toàn tự động, không hỏi xác nhận cho các thao tác thông thường. Thích hợp khi bạn tin tưởng Claude với tác vụ đang thực hiện và muốn tốc độ cao hơn.
+
+    Bật bằng `Shift+Tab` hoặc flag khi khởi động:
+
+    ```bash
+    claude --auto-approve
+    ```
+
+    **Phù hợp khi:**
+    - Môi trường development đã có version control
+    - Tác vụ lặp đi lặp lại bạn đã quen thuộc
+    - Đang chạy trong CI/CD pipeline
+  </Tab>
+
+  <Tab title="Bypass (không khuyến nghị)">
+    Bỏ qua toàn bộ hệ thống kiểm tra quyền hạn. Chỉ dùng trong môi trường sandbox hoàn toàn cô lập.
+
+    ```bash
+    claude --dangerously-skip-permissions
+    ```
+
+    <Warning>
+      Không dùng flag này trên máy development thực sự, môi trường có dữ liệu quan trọng, hoặc khi bạn chưa hiểu rõ tác vụ Claude sẽ thực hiện. Một lệnh sai có thể gây hậu quả không thể hoàn tác.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Nhập liệu bằng giọng nói
+
+Claude Code hỗ trợ nhập liệu bằng giọng nói trực tiếp trong CLI, giúp bạn đặt câu hỏi hay mô tả yêu cầu mà không cần gõ phím:
+
+- **Giữ để ghi âm** — nhấn và giữ phím định sẵn, nói, rồi thả ra để gửi
+- **Chạm để ghi âm** — nhấn một lần để bắt đầu, nhấn lần nữa để dừng và gửi
+
+<Note>
+  Tính năng giọng nói đặc biệt hữu ích khi mô tả các yêu cầu phức tạp hoặc khi bạn cần làm việc mà không muốn ngắt luồng suy nghĩ để gõ phím.
+</Note>
+
+## Mẹo sử dụng nâng cao
+
+<Accordion title="Kết hợp phím tắt để làm việc nhanh hơn">
+  Xây dựng thói quen dùng các phím tắt theo trình tự:
+
+  1. `↑` để lấy lại prompt trước → chỉnh sửa → Enter để gửi lại
+  2. `Ctrl+C` để dừng nếu Claude đang đi sai hướng → viết lại prompt cụ thể hơn
+  3. `Ctrl+L` để xóa màn hình khi quá nhiều output → dùng `/compact` để giảm context
+</Accordion>
+
+<Accordion title="Sử dụng /goal để định hướng tác vụ dài">
+  Với các tác vụ phức tạp, đặt điều kiện kết thúc giúp Claude biết khi nào thì dừng:
+
+  ```
+  /goal All tests pass and ESLint shows zero errors
+  ```
+
+  Claude sẽ tiếp tục làm việc cho đến khi đạt được điều kiện này, thay vì dừng lại và hỏi bạn.
+</Accordion>
+
+<Accordion title="Dùng /cd để chuyển ngữ cảnh">
+  Nếu dự án của bạn có nhiều subpackage, dùng `/cd` để chuyển Claude sang đúng thư mục cần làm việc:
+
+  ```
+  /cd packages/backend
+  > Fix the database connection issue
+
+  /cd packages/frontend
+  > Update the UI to handle the new API response format
+  ```
+</Accordion>

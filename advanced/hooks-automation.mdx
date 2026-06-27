@@ -1,0 +1,327 @@
+---
+title: "Tự động hoá workflow với hooks trong Claude Code"
+sidebarTitle: "Hooks & Automation"
+description: "Cấu hình hooks để tự động chạy lệnh khi Claude sửa file, hoàn thành tác vụ — format code, chạy test và gửi thông báo."
+---
+
+Mỗi lần Claude Code viết file, bạn phải tự nhớ chạy Prettier. Mỗi lần Claude xong việc, bạn không biết vì không có thông báo nào. **Hooks** giải quyết những vấn đề này bằng cách tự động kích hoạt lệnh shell tại các sự kiện cụ thể trong vòng đời làm việc của Claude — không cần bạn làm gì thêm.
+
+## Các sự kiện hook
+
+Claude Code hỗ trợ bốn loại sự kiện mà bạn có thể gắn hook vào:
+
+<CardGroup cols={2}>
+  <Card title="PreToolUse" icon="circle-play">
+    Chạy **trước** khi Claude dùng một công cụ. Có thể dùng để kiểm tra, ghi log, hoặc chặn thao tác nguy hiểm (exit code 2 = chặn).
+  </Card>
+  <Card title="PostToolUse" icon="circle-check">
+    Chạy **sau** khi Claude dùng xong một công cụ. Lý tưởng để format code, chạy linter, hoặc cập nhật index.
+  </Card>
+  <Card title="Stop" icon="flag-checkered">
+    Chạy khi Claude **hoàn thành** một tác vụ. Dùng để gửi thông báo, chạy test cuối, hoặc tạo báo cáo.
+  </Card>
+  <Card title="Notification" icon="bell">
+    Chạy khi Claude **gửi một thông báo** nội bộ. Cho phép bạn định tuyến thông báo đến hệ thống riêng.
+  </Card>
+</CardGroup>
+
+## Cấu trúc cấu hình hooks
+
+Hooks được khai báo trong file `settings.json`. Bạn có thể dùng một trong hai vị trí:
+
+- **`~/.claude/settings.json`** — áp dụng cho tất cả dự án trên máy
+- **`.claude/settings.json`** — chỉ áp dụng cho dự án hiện tại (nên commit vào repo)
+
+```json
+{
+  "hooks": {
+    "TÊN_SỰ_KIỆN": [
+      {
+        "matcher": { "tool_name": "tên_công_cụ" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "lệnh shell cần chạy"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Note>
+  Trường `matcher` là tuỳ chọn. Nếu bỏ qua, hook sẽ kích hoạt cho **mọi** lần sự kiện đó xảy ra. Nếu có `matcher`, hook chỉ chạy khi điều kiện khớp.
+</Note>
+
+## Ví dụ hooks thực tế
+
+### Tự động format code sau mỗi lần ghi file
+
+<CodeGroup>
+  ```json Prettier (JavaScript/TypeScript)
+  {
+    "hooks": {
+      "PostToolUse": [
+        {
+          "matcher": { "tool_name": "write_file" },
+          "hooks": [
+            {
+              "type": "command",
+              "command": "npx prettier --write {{file_path}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+
+  ```json Black (Python)
+  {
+    "hooks": {
+      "PostToolUse": [
+        {
+          "matcher": { "tool_name": "write_file" },
+          "hooks": [
+            {
+              "type": "command",
+              "command": "black {{file_path}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+
+  ```json gofmt (Go)
+  {
+    "hooks": {
+      "PostToolUse": [
+        {
+          "matcher": { "tool_name": "write_file" },
+          "hooks": [
+            {
+              "type": "command",
+              "command": "gofmt -w {{file_path}}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+</CodeGroup>
+
+### Gửi thông báo desktop khi Claude xong việc
+
+<Tabs>
+  <Tab title="macOS">
+    ```json
+    {
+      "hooks": {
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "osascript -e 'display notification \"Claude finished!\" with title \"Claude Code\"'"
+              }
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Linux (notify-send)">
+    ```json
+    {
+      "hooks": {
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "notify-send 'Claude Code' 'Tác vụ đã hoàn thành!'"
+              }
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```json
+    {
+      "hooks": {
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "powershell -Command \"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); [System.Windows.Forms.MessageBox]::Show('Claude finished!')\""
+              }
+            ]
+          }
+        ]
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Tự động chạy test sau khi sửa code
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": { "tool_name": "write_file" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm test -- --passWithNoTests --bail 2>&1 | tail -20"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Tip>
+  Thêm `--bail` để test dừng ngay khi có lỗi đầu tiên, tránh chạy toàn bộ test suite mỗi lần lưu file — giúp hook phản hồi nhanh hơn.
+</Tip>
+
+### Ghi log tất cả công cụ Claude dùng
+
+Hữu ích cho audit trail hoặc debug luồng làm việc phức tạp:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$(date '+%Y-%m-%d %H:%M:%S') | {{tool_name}} | {{file_path}}\" >> ~/.claude/tool-usage.log"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Chặn lệnh nguy hiểm với PreToolUse
+
+Exit code `2` từ hook `PreToolUse` sẽ **chặn** Claude thực thi thao tác và hiển thị lý do cho người dùng:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": { "tool_name": "run_command" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if echo \"{{command}}\" | grep -qE \"(rm -rf|DROP TABLE|truncate)\"; then echo \"Lệnh nguy hiểm bị chặn\"; exit 2; fi'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Warning>
+  Hook `PreToolUse` với exit code 2 chặn hoàn toàn thao tác của Claude. Hãy kiểm tra kỹ biểu thức regex trước khi dùng trong môi trường production — quá nghiêm ngặt có thể làm Claude không làm được gì.
+</Warning>
+
+## Cấu hình hooks đầy đủ — ví dụ tổng hợp
+
+Dưới đây là file cấu hình mẫu kết hợp nhiều hooks cho dự án Node.js/TypeScript:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": { "tool_name": "run_command" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'echo \"[$(date)] PRE: {{tool_name}}\" >> ~/.claude/audit.log'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": { "tool_name": "write_file" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write {{file_path}} --log-level silent"
+          },
+          {
+            "type": "command",
+            "command": "npx eslint {{file_path}} --fix --quiet"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm test -- --passWithNoTests 2>&1 | tail -5"
+          },
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"Claude finished!\" with title \"Claude Code\"'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Note>
+  Bạn có thể khai báo **nhiều hooks** trong cùng một sự kiện — chúng sẽ chạy lần lượt theo thứ tự khai báo. Nếu một hook thất bại (exit code khác 0, trừ code 2 ở PreToolUse), các hooks tiếp theo vẫn tiếp tục chạy.
+</Note>
+
+## Kiểm tra hooks đang hoạt động
+
+<Steps>
+  <Step title="Mở Claude Code ở chế độ tương tác">
+    ```bash
+    claude
+    ```
+  </Step>
+  <Step title="Chạy lệnh /hooks">
+    ```
+    /hooks
+    ```
+    Claude hiển thị danh sách tất cả hooks đã cấu hình, kèm trạng thái và sự kiện tương ứng.
+  </Step>
+  <Step title="Kiểm tra bằng cách thực hiện thao tác">
+    Yêu cầu Claude ghi một file nhỏ để xem hook `PostToolUse` có kích hoạt đúng không:
+    ```
+    Create a file called test-hook.txt with the content "hello"
+    ```
+    Quan sát terminal để xem Prettier (hoặc hook bạn đã cấu hình) có chạy không.
+  </Step>
+</Steps>
+
+<Tip>
+  Khi debug hook, thêm `echo "hook triggered" >> /tmp/claude-debug.log` vào lệnh hook để xác nhận hook có được gọi hay không — đơn giản mà hiệu quả.
+</Tip>

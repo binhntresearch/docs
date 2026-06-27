@@ -1,0 +1,189 @@
+---
+title: "Môi trường chạy Claude Code: Terminal, IDE và Web"
+sidebarTitle: "Môi Trường"
+description: "So sánh các môi trường chạy Claude Code — Terminal CLI, VS Code, JetBrains, Desktop app và web — để chọn phù hợp nhất."
+---
+
+Claude Code không giới hạn bạn trong một giao diện duy nhất — bạn có thể chạy nó trong terminal, tích hợp vào IDE yêu thích, dùng ứng dụng desktop độc lập, hoặc truy cập ngay trên trình duyệt mà không cần cài đặt gì thêm. Trang này giúp bạn so sánh từng môi trường và chọn cách làm việc phù hợp nhất.
+
+## So sánh các môi trường
+
+| Môi trường | Cần cài đặt | Toàn bộ tính năng | Nhiều phiên song song | Phù hợp cho |
+|---|---|---|---|---|
+| **Terminal CLI** | ✅ | ✅ | Qua worktree | Tất cả người dùng, scripting, CI/CD |
+| **VS Code** | ✅ | ✅ | ✅ | Nhà phát triển dùng VS Code |
+| **JetBrains IDE** | ✅ | ✅ | ✅ | Nhà phát triển dùng IntelliJ, PyCharm… |
+| **Desktop App** | ✅ | ✅ | ✅ (tích hợp sẵn) | Người dùng cần giao diện độc lập |
+| **Web (claude.ai/code)** | ❌ | Phần lớn | ❌ | Dùng nhanh, máy không cài được |
+
+## Terminal CLI
+
+Terminal là môi trường chính và đầy đủ tính năng nhất của Claude Code. Mọi tính năng đều khả dụng, và bạn có toàn quyền kiểm soát thông qua các cờ lệnh và biến môi trường.
+
+```bash
+# Khởi động phiên tương tác
+claude
+
+# Chạy lệnh một lần (không tương tác)
+claude -p "Giải thích file này làm gì" --file src/main.py
+
+# Chạy trong chế độ verbose để xem toàn bộ quá trình suy nghĩ
+claude --verbose
+```
+
+<Tip>
+  Terminal CLI là lựa chọn tốt nhất cho scripting, tích hợp CI/CD, và khi bạn cần ghép Claude Code vào pipeline tự động hóa. Dùng cờ `-p` (print mode) để nhận output không có giao diện tương tác.
+</Tip>
+
+## VS Code
+
+Extension Claude Code cho VS Code tích hợp trực tiếp vào editor, cho phép bạn chạy Claude Code trong terminal tích hợp sẵn của VS Code và nhận kết quả ngay trong giao diện làm việc quen thuộc.
+
+<Steps>
+  <Step title="Cài đặt extension">
+    Mở VS Code, vào **Extensions** (Ctrl+Shift+X), tìm kiếm **Claude Code** và nhấn **Install**.
+  </Step>
+  <Step title="Mở terminal tích hợp">
+    Nhấn **Ctrl+`** (hoặc **Cmd+`** trên macOS) để mở terminal tích hợp của VS Code.
+  </Step>
+  <Step title="Khởi động Claude Code">
+    ```bash
+    claude
+    ```
+    Claude Code sẽ nhận biết context của workspace đang mở trong VS Code.
+  </Step>
+</Steps>
+
+<Note>
+  Extension VS Code cho phép Claude Code đọc context từ file đang mở, vị trí con trỏ và các file trong workspace — giúp câu trả lời chính xác hơn so với chạy terminal độc lập ngoài VS Code.
+</Note>
+
+## JetBrains IDEs
+
+Claude Code hỗ trợ đầy đủ các IDE trong hệ sinh thái JetBrains, bao gồm IntelliJ IDEA, PyCharm, WebStorm, GoLand, Rider và các IDE khác.
+
+<Steps>
+  <Step title="Cài đặt plugin">
+    Vào **Settings → Plugins**, tìm kiếm **Claude Code** trên JetBrains Marketplace và cài đặt.
+  </Step>
+  <Step title="Khởi động lại IDE">
+    Khởi động lại IDE để plugin được kích hoạt hoàn toàn.
+  </Step>
+  <Step title="Mở terminal tích hợp">
+    Nhấn **Alt+F12** (hoặc **Option+F12** trên macOS) để mở terminal tích hợp, sau đó chạy `claude`.
+  </Step>
+</Steps>
+
+## Desktop App
+
+Desktop App là ứng dụng độc lập dành cho người dùng muốn tách biệt Claude Code khỏi terminal hay IDE. App hỗ trợ nhiều phiên song song, tác vụ lên lịch sẵn (scheduled tasks) và giao diện được tối ưu hóa riêng.
+
+**Tính năng nổi bật của Desktop App:**
+- Mở nhiều dự án song song trong các cửa sổ riêng biệt
+- Scheduled tasks — đặt lịch cho Claude Code chạy tác vụ tự động
+- Quản lý phiên và lịch sử hội thoại trực quan
+- Không yêu cầu terminal hay IDE
+
+<Tip>
+  Desktop App đặc biệt hữu ích khi bạn cần theo dõi nhiều dự án cùng lúc hoặc muốn dùng Claude Code mà không cần mở terminal.
+</Tip>
+
+## Web (claude.ai/code)
+
+Truy cập [claude.ai/code](https://claude.ai/code) để dùng Claude Code ngay trên trình duyệt mà không cần cài đặt bất kỳ phần mềm nào. Phiên làm việc chạy trên cloud, phù hợp khi bạn dùng máy không có quyền cài đặt hoặc chỉ cần thử nhanh.
+
+**Ưu điểm:**
+- Không cần cài đặt — chỉ cần trình duyệt và tài khoản Claude.ai
+- Luôn dùng phiên bản mới nhất tự động
+- Phù hợp cho đánh giá nhanh hoặc trình diễn
+
+**Hạn chế:**
+- Không có quyền truy cập file system cục bộ
+- Không hỗ trợ nhiều phiên song song
+- Một số tính năng nâng cao chỉ có trong bản cài đặt local
+
+## Dev Containers
+
+Để đảm bảo toàn bộ nhóm dùng cùng phiên bản và cấu hình Claude Code, hãy thêm vào file `devcontainer.json` của dự án:
+
+```json
+{
+  "name": "My Project",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/anthropics/claude-code/devcontainer-feature:latest": {}
+  },
+  "postCreateCommand": "claude --version"
+}
+```
+
+<Note>
+  Dev Containers hoạt động với VS Code Remote Containers, GitHub Codespaces và bất kỳ môi trường nào hỗ trợ Dev Container spec. Mọi thành viên trong nhóm sẽ có Claude Code sẵn sàng ngay khi mở container.
+</Note>
+
+## Worktrees — Chạy song song nhiều phiên
+
+Khi cần làm việc trên nhiều nhánh hoặc nhiệm vụ cùng lúc mà không ảnh hưởng lẫn nhau, hãy dùng Git worktrees kết hợp với cờ `--worktree`:
+
+```bash
+# Tạo worktree mới cho một nhánh
+git worktree add ../my-project-feature feature/new-api
+
+# Khởi động Claude Code trong worktree đó
+claude --worktree ../my-project-feature
+```
+
+Mỗi phiên worktree có môi trường làm việc độc lập — thay đổi file, lịch sử hội thoại và context đều tách biệt hoàn toàn.
+
+## Chạy trong Docker
+
+Để tạo môi trường hoàn toàn cô lập, bạn có thể chạy Claude Code bên trong Docker container:
+
+```dockerfile
+FROM node:18-alpine
+
+# Cài đặt Claude Code
+RUN npm install -g @anthropic-ai/claude-code
+
+# Thiết lập thư mục làm việc
+WORKDIR /workspace
+
+# Truyền API key vào container khi chạy
+# docker run -e ANTHROPIC_API_KEY=sk-ant-... -v $(pwd):/workspace my-image claude
+CMD ["claude"]
+```
+
+```bash
+# Build và chạy
+docker build -t claude-code-env .
+docker run -it \
+  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  -v $(pwd):/workspace \
+  claude-code-env
+```
+
+<Warning>
+  Không bao giờ nhúng API key trực tiếp vào Dockerfile. Hãy truyền key qua cờ `-e` khi chạy container hoặc dùng Docker secrets.
+</Warning>
+
+## Chọn môi trường phù hợp
+
+<Accordion title="Tôi mới bắt đầu với Claude Code, nên chọn gì?">
+  Bắt đầu với **Terminal CLI** — đây là môi trường đơn giản nhất để học cách dùng Claude Code. Sau khi quen, bạn có thể thêm extension VS Code hoặc JetBrains để tích hợp vào quy trình phát triển hàng ngày.
+</Accordion>
+
+<Accordion title="Tôi muốn dùng Claude Code trong nhóm với cấu hình thống nhất">
+  Dùng **Dev Containers** — mọi thành viên sẽ có cùng phiên bản và cấu hình Claude Code mà không cần thiết lập thủ công trên từng máy.
+</Accordion>
+
+<Accordion title="Tôi cần làm việc trên nhiều nhánh / nhiệm vụ cùng lúc">
+  Dùng **Git Worktrees** với cờ `--worktree` trong Terminal, hoặc mở nhiều cửa sổ trong **Desktop App**. Mỗi phiên sẽ hoàn toàn độc lập.
+</Accordion>
+
+<Accordion title="Tôi cần môi trường cô lập, không ảnh hưởng hệ thống chính">
+  Dùng **Docker** để chạy Claude Code trong container với quyền kiểm soát hoàn toàn về môi trường, dependencies và quyền truy cập file system.
+</Accordion>
+
+<Accordion title="Tôi đang dùng máy không thể cài phần mềm">
+  Truy cập **[claude.ai/code](https://claude.ai/code)** trực tiếp trên trình duyệt — không cần cài đặt gì, chỉ cần tài khoản Claude.ai.
+</Accordion>

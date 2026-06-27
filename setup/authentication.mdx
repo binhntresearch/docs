@@ -1,0 +1,209 @@
+---
+title: "Xác thực tài khoản và cấu hình API key Claude Code"
+sidebarTitle: "Xác Thực"
+description: "Cách đăng nhập Claude Code với tài khoản Claude.ai, API key Anthropic Console, Amazon Bedrock và Google Vertex AI."
+---
+
+Claude Code hỗ trợ nhiều phương thức xác thực, từ đăng nhập trình duyệt đơn giản cho người dùng cá nhân đến tích hợp cloud doanh nghiệp với AWS Bedrock và Google Vertex AI. Chọn phương thức phù hợp với nhu cầu của bạn và làm theo hướng dẫn bên dưới để bắt đầu sử dụng.
+
+## Các phương thức xác thực
+
+<Tabs>
+  <Tab title="Claude.ai (Subscription)">
+    ### Đăng nhập bằng tài khoản Claude.ai
+
+    Đây là phương thức đơn giản nhất — bạn chỉ cần có gói đăng ký Claude.ai và một trình duyệt web.
+
+    **Các gói hỗ trợ:**
+    - **Pro** — $20/tháng, phù hợp cho cá nhân và nhà phát triển độc lập
+    - **Max** — $100/tháng hoặc $200/tháng, phù hợp cho người dùng chuyên sâu cần giới hạn cao hơn
+
+    **Các bước đăng nhập:**
+
+    <Steps>
+      <Step title="Khởi động Claude Code">
+        Mở terminal và chạy lệnh:
+        ```bash
+        claude
+        ```
+      </Step>
+      <Step title="Trình duyệt tự động mở">
+        Claude Code sẽ tự động mở trình duyệt và chuyển đến trang đăng nhập tại `claude.ai`.
+      </Step>
+      <Step title="Đăng nhập tài khoản">
+        Nhập thông tin đăng nhập Claude.ai của bạn và cấp quyền cho Claude Code.
+      </Step>
+      <Step title="Quay lại terminal">
+        Sau khi xác thực thành công, terminal sẽ hiển thị thông báo đăng nhập hoàn tất và sẵn sàng sử dụng.
+      </Step>
+    </Steps>
+
+    <Tip>
+      Token xác thực sẽ được lưu cục bộ, vì vậy bạn không cần đăng nhập lại mỗi lần mở Claude Code.
+    </Tip>
+  </Tab>
+
+  <Tab title="Anthropic Console API Key">
+    ### Sử dụng API key từ Anthropic Console
+
+    Phương thức này phù hợp cho nhà phát triển muốn kiểm soát chi tiết về chi phí và giới hạn sử dụng thông qua Anthropic Console.
+
+    **Bước 1: Tạo API key**
+
+    Truy cập [console.anthropic.com](https://console.anthropic.com), điều hướng đến **API Keys** và tạo một khóa mới.
+
+    **Bước 2: Thiết lập biến môi trường**
+
+    <CodeGroup>
+      ```bash macOS / Linux (phiên hiện tại)
+      export ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxx
+      ```
+
+      ```bash macOS / Linux (lưu vĩnh viễn vào ~/.bashrc hoặc ~/.zshrc)
+      echo 'export ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxx' >> ~/.zshrc
+      source ~/.zshrc
+      ```
+
+      ```powershell Windows PowerShell (phiên hiện tại)
+      $env:ANTHROPIC_API_KEY = "sk-ant-xxxxxxxxxxxxxx"
+      ```
+
+      ```powershell Windows PowerShell (lưu vĩnh viễn)
+      [System.Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-xxxxxxxxxxxxxx", "User")
+      ```
+    </CodeGroup>
+
+    **Bước 3: Khởi động Claude Code**
+
+    ```bash
+    claude
+    ```
+
+    Claude Code sẽ tự động phát hiện biến `ANTHROPIC_API_KEY` và sử dụng API key để xác thực.
+
+    <Warning>
+      Không bao giờ commit API key vào repository. Hãy thêm file `.env` vào `.gitignore` và dùng công cụ quản lý secret như 1Password CLI hoặc AWS Secrets Manager trong môi trường CI/CD.
+    </Warning>
+  </Tab>
+
+  <Tab title="Amazon Bedrock">
+    ### Xác thực qua Amazon Bedrock
+
+    Nếu tổ chức của bạn đã sử dụng AWS, hãy chạy Claude Code thông qua Amazon Bedrock để tuân thủ chính sách bảo mật và thanh toán tập trung.
+
+    **Yêu cầu trước:** Kích hoạt model Claude trên AWS Bedrock Console và đảm bảo IAM role của bạn có quyền `bedrock:InvokeModel`.
+
+    **Thiết lập credentials AWS:**
+
+    <CodeGroup>
+      ```bash Dùng AWS CLI (khuyến nghị)
+      aws configure
+      # Nhập Access Key ID, Secret Access Key và region
+      ```
+
+      ```bash Thiết lập thủ công qua biến môi trường
+      export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+      export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+      export AWS_DEFAULT_REGION=us-east-1
+      ```
+    </CodeGroup>
+
+    **Kích hoạt Bedrock cho Claude Code:**
+
+    ```bash
+    export ANTHROPIC_BEDROCK=true
+    claude
+    ```
+
+    <Note>
+      Claude Code hỗ trợ tất cả các region AWS có cung cấp model Claude. Tham khảo [tài liệu AWS Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html) để biết danh sách region và model khả dụng.
+    </Note>
+  </Tab>
+
+  <Tab title="Google Vertex AI">
+    ### Xác thực qua Google Vertex AI
+
+    Sử dụng Claude Code với Google Cloud Platform thông qua Vertex AI — phù hợp cho các tổ chức đang vận hành hạ tầng trên GCP.
+
+    **Yêu cầu trước:** Kích hoạt Vertex AI API trên GCP project và cấp quyền `aiplatform.endpoints.predict` cho service account.
+
+    **Thiết lập credentials GCP:**
+
+    <CodeGroup>
+      ```bash Dùng gcloud CLI (khuyến nghị)
+      gcloud auth application-default login
+      gcloud config set project YOUR_PROJECT_ID
+      ```
+
+      ```bash Dùng Service Account Key
+      export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+      export GOOGLE_CLOUD_PROJECT=your-project-id
+      ```
+    </CodeGroup>
+
+    **Kích hoạt Vertex AI cho Claude Code:**
+
+    ```bash
+    export ANTHROPIC_VERTEX=true
+    claude
+    ```
+
+    <Tip>
+      Trong môi trường Cloud Run hoặc GKE, Workload Identity sẽ tự động cung cấp credentials mà không cần quản lý key thủ công.
+    </Tip>
+  </Tab>
+
+  <Tab title="Provider tùy chỉnh">
+    ### Kết nối provider bên thứ ba
+
+    Claude Code hỗ trợ kết nối với các proxy API hoặc provider tương thích Anthropic thông qua biến `ANTHROPIC_BASE_URL`.
+
+    ```bash
+    export ANTHROPIC_BASE_URL=https://your-proxy.example.com/v1
+    export ANTHROPIC_API_KEY=your-provider-key
+    claude
+    ```
+
+    <Note>
+      Provider bên thứ ba phải tương thích với Anthropic Messages API. Liên hệ nhà cung cấp để xác nhận khả năng tương thích trước khi triển khai.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Kiểm tra và quản lý trạng thái xác thực
+
+Sau khi thiết lập, bạn có thể kiểm tra trạng thái xác thực hiện tại bằng lệnh:
+
+```bash
+claude auth status
+```
+
+Lệnh này sẽ hiển thị phương thức xác thực đang dùng, thông tin tài khoản (nếu đăng nhập qua Claude.ai) và trạng thái kết nối.
+
+**Đăng xuất:**
+
+```bash
+claude logout
+```
+
+## Xử lý lỗi xác thực
+
+<Accordion title="Lỗi: ANTHROPIC_API_KEY không hợp lệ hoặc hết hạn">
+  Kiểm tra xem API key có đúng định dạng `sk-ant-...` không và còn hiệu lực trên [Anthropic Console](https://console.anthropic.com/settings/keys). Nếu key đã bị thu hồi, hãy tạo key mới và cập nhật biến môi trường.
+</Accordion>
+
+<Accordion title="Lỗi: Trình duyệt không mở khi chạy claude">
+  Một số môi trường terminal không hỗ trợ mở trình duyệt tự động. Trong trường hợp này, Claude Code sẽ hiển thị một URL — hãy sao chép và dán URL đó vào trình duyệt thủ công để hoàn tất đăng nhập.
+</Accordion>
+
+<Accordion title="Lỗi xác thực AWS Bedrock: AccessDeniedException">
+  Đảm bảo IAM user hoặc role của bạn có policy cho phép `bedrock:InvokeModel` và `bedrock:InvokeModelWithResponseStream`. Ngoài ra, xác nhận rằng model Claude đã được kích hoạt trong region bạn đang dùng trên Bedrock Console.
+</Accordion>
+
+<Accordion title="Lỗi xác thực Google Vertex AI: PERMISSION_DENIED">
+  Chạy `gcloud auth application-default print-access-token` để kiểm tra credentials. Nếu lệnh thất bại, hãy chạy lại `gcloud auth application-default login`. Đảm bảo project ID đúng và Vertex AI API đã được kích hoạt.
+</Accordion>
+
+<Accordion title="Biến môi trường đặt nhưng Claude Code vẫn yêu cầu đăng nhập">
+  Biến môi trường có thể chưa được nạp vào phiên terminal hiện tại. Hãy mở terminal mới hoặc chạy `source ~/.zshrc` (hoặc `~/.bashrc`) để nạp lại cấu hình. Dùng `echo $ANTHROPIC_API_KEY` để xác nhận biến đã được thiết lập đúng.
+</Accordion>

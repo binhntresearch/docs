@@ -1,0 +1,255 @@
+---
+title: "Cấu hình Claude Code với settings.json"
+sidebarTitle: "Settings"
+description: "Hướng dẫn cấu hình settings.json cho user và project level — model, theme, permission mode, MCP servers và hooks."
+---
+
+Claude Code cho phép bạn tuỳ chỉnh hành vi thông qua file `settings.json` ở hai cấp độ: user (áp dụng cho toàn bộ máy) và project (chỉ áp dụng cho dự án hiện tại). Hiểu rõ thứ tự ưu tiên và các trường cấu hình giúp bạn kiểm soát chính xác cách Claude Code hoạt động trong từng ngữ cảnh.
+
+## Thứ tự ưu tiên
+
+Khi có xung đột giữa các nguồn cấu hình, Claude Code áp dụng theo thứ tự ưu tiên từ cao xuống thấp:
+
+| Thứ tự | Nguồn cấu hình | Vị trí |
+|--------|---------------|--------|
+| 1 (cao nhất) | Environment variables | Biến môi trường hệ thống |
+| 2 | Command-line flags | Flag truyền vào lúc chạy |
+| 3 | Project settings | `.claude/settings.json` |
+| 4 (thấp nhất) | User settings | `~/.claude/settings.json` |
+
+<Note>
+Cấu hình cấp project luôn ghi đè cấu hình user, nhưng cả hai đều bị ghi đè bởi command-line flags và environment variables. Điều này cho phép bạn có cài đặt mặc định toàn cục nhưng ghi đè linh hoạt cho từng dự án.
+</Note>
+
+## Vị trí file
+
+- **User settings**: `~/.claude/settings.json` — áp dụng cho mọi dự án trên máy bạn
+- **Project settings**: `.claude/settings.json` trong thư mục gốc của dự án — nên commit vào git để chia sẻ với cả team
+
+## Các trường cấu hình
+
+### Cấu hình cơ bản
+
+| Trường | Kiểu | Giá trị | Mô tả |
+|--------|------|---------|-------|
+| `model` | string | `"claude-sonnet-4-5"`, `"claude-opus-4-5"` | Model mặc định |
+| `theme` | string | `"light"`, `"dark"`, `"system"` | Giao diện màu sắc |
+| `permissionMode` | string | `"default"`, `"auto"`, `"bypass"` | Chế độ kiểm soát quyền |
+| `autoCompact` | boolean | `true`, `false` | Tự động nén context khi đầy |
+
+### Cấu hình nâng cao
+
+| Trường | Kiểu | Mô tả |
+|--------|------|-------|
+| `mcpServers` | object | Cấu hình các MCP server |
+| `hooks` | object | Cấu hình hook tự động |
+| `permissions.allow` | array | Danh sách pattern luôn được phép |
+| `permissions.deny` | array | Danh sách pattern luôn bị từ chối |
+
+## Ví dụ settings.json đầy đủ
+
+<CodeGroup>
+
+```json settings.json cơ bản
+{
+  "model": "claude-sonnet-4-5",
+  "theme": "dark",
+  "permissionMode": "default",
+  "autoCompact": true
+}
+```
+
+```json settings.json với MCP server
+{
+  "model": "claude-sonnet-4-5",
+  "theme": "dark",
+  "permissionMode": "auto",
+  "autoCompact": true,
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+```json settings.json đầy đủ
+{
+  "model": "claude-sonnet-4-5",
+  "theme": "dark",
+  "permissionMode": "default",
+  "autoCompact": true,
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": { "tool_name": "write_file" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write {{file_path}}"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": ["bash(npm run *)", "bash(git *)"],
+    "deny": ["bash(rm -rf *)", "bash(sudo *)"]
+  }
+}
+```
+
+</CodeGroup>
+
+## Chi tiết từng trường
+
+<Accordion title="model — Chọn model mặc định">
+Trường `model` xác định model AI nào được dùng mặc định khi bạn không chỉ định qua flag `--model`. Bạn có thể ghi đè bất cứ lúc nào bằng cách dùng `/model` trong phiên tương tác.
+
+```json
+{
+  "model": "claude-sonnet-4-5"
+}
+```
+
+Các giá trị phổ biến:
+- `"claude-sonnet-4-5"` — cân bằng tốt giữa tốc độ và chất lượng (khuyến nghị)
+- `"claude-opus-4-5"` — mạnh nhất, phù hợp tác vụ phức tạp
+</Accordion>
+
+<Accordion title="theme — Tuỳ chỉnh giao diện">
+Trường `theme` điều chỉnh màu sắc giao diện terminal của Claude Code.
+
+```json
+{
+  "theme": "dark"
+}
+```
+
+- `"light"` — nền sáng
+- `"dark"` — nền tối
+- `"system"` — theo cài đặt hệ thống
+</Accordion>
+
+<Accordion title="permissionMode — Kiểm soát quyền">
+Trường `permissionMode` xác định mức độ tự động Claude Code thực hiện hành động.
+
+```json
+{
+  "permissionMode": "default"
+}
+```
+
+- `"default"` — hỏi trước các thao tác có rủi ro
+- `"auto"` — tự động chạy, áp dụng allow/deny rules
+- `"bypass"` — bỏ qua mọi kiểm tra quyền (chỉ dùng trong sandbox)
+
+Xem thêm tại trang [Permissions](/reference/permissions).
+</Accordion>
+
+<Accordion title="autoCompact — Tự động nén context">
+Khi `autoCompact` là `true`, Claude Code sẽ tự động nén lịch sử hội thoại khi context window gần đầy, giúp phiên làm việc dài hơn mà không cần bạn can thiệp thủ công.
+
+```json
+{
+  "autoCompact": true
+}
+```
+
+Bạn cũng có thể nén thủ công bất cứ lúc nào bằng lệnh `/compact` trong phiên tương tác.
+</Accordion>
+
+<Accordion title="mcpServers — Cấu hình MCP servers">
+Trường `mcpServers` cho phép bạn đăng ký các MCP server để Claude Code có thêm công cụ và khả năng tích hợp.
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    }
+  }
+}
+```
+
+Mỗi server cần có:
+- `command` — chương trình để chạy server
+- `args` — danh sách tham số
+- `env` (tuỳ chọn) — biến môi trường riêng cho server đó
+</Accordion>
+
+<Accordion title="hooks — Tự động hoá với hook">
+Trường `hooks` cho phép bạn chạy lệnh shell tự động tại các sự kiện cụ thể trong vòng đời của Claude Code.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": { "tool_name": "write_file" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write {{file_path}}"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Các sự kiện hook phổ biến:
+- `PostToolUse` — sau khi Claude dùng một tool
+- `PreToolUse` — trước khi Claude dùng một tool
+
+Placeholder `{{file_path}}` sẽ được thay bằng đường dẫn file thực tế.
+</Accordion>
+
+<Accordion title="permissions — Allow và deny rules">
+Trường `permissions` cho phép bạn định nghĩa các pattern lệnh luôn được phép hoặc luôn bị từ chối, không cần xác nhận mỗi lần.
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "bash(npm run *)",
+      "bash(git *)",
+      "write_file(src/**)"
+    ],
+    "deny": [
+      "bash(rm -rf *)",
+      "bash(curl * | bash)",
+      "write_file(/etc/**)"
+    ]
+  }
+}
+```
+
+Xem chi tiết pattern syntax tại trang [Permissions](/reference/permissions).
+</Accordion>
+
+<Tip>
+Hãy commit file `.claude/settings.json` vào git repository của dự án để toàn bộ team dùng chung cấu hình nhất quán — đặc biệt hữu ích cho việc cấu hình MCP servers và permission rules.
+</Tip>

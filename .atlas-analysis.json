@@ -1,30 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
+  "projectType": "saas",
+  "projectName": "Khoá Học Claude Code",
+  "projectDescription": "Khoá học toàn diện về Claude Code — công cụ AI lập trình của Anthropic giúp bạn xây dựng tính năng, sửa lỗi và tự động hoá công việc phát triển phần mềm trực tiếp từ terminal, IDE và trình duyệt.",
   "theme": "almond",
-  "name": "Khoá Học Claude Code",
-  "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
-  },
-  "favicon": "/favicon.svg",
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Claude Code",
-        "href": "https://claude.ai/code"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Bắt Đầu",
-      "href": "https://claude.ai/code"
-    }
-  },
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
   "navigation": {
     "tabs": [
       {
@@ -105,9 +86,28 @@
       }
     ]
   },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/AnthropicAI"
-    }
-  }
+  "keyFeatures": [
+    "Vòng lặp agentic tự động — lập kế hoạch, thực thi và kiểm tra kết quả",
+    "Đọc toàn bộ codebase và chỉnh sửa nhiều file cùng lúc",
+    "Chạy lệnh terminal, git, build tools trực tiếp",
+    "Tích hợp VS Code, JetBrains, Desktop app và Web",
+    "Model Context Protocol (MCP) kết nối công cụ ngoài",
+    "Subagents và dynamic workflows chạy song song",
+    "Skills & Plugins mở rộng khả năng",
+    "Hooks tự động hoá sau mỗi hành động",
+    "GitHub Actions và GitLab CI/CD tích hợp",
+    "CLAUDE.md lưu hướng dẫn dự án liên tục"
+  ],
+  "publicApiSurface": [
+    "claude (CLI command)",
+    "claude --model <model>",
+    "claude --continue / --resume",
+    "/compact, /clear, /model, /resume (slash commands)",
+    "CLAUDE.md (project memory file)",
+    "settings.json (global & project config)",
+    "hooks (PreToolUse, PostToolUse, Stop events)",
+    "MCP server configuration",
+    "Agent SDK (Python & TypeScript)",
+    "GitHub Actions: anthropic/claude-code-action"
+  ]
 }

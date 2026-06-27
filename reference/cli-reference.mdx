@@ -1,0 +1,148 @@
+---
+title: "CLI Reference: Tất cả lệnh và flag của Claude Code"
+sidebarTitle: "CLI Reference"
+description: "Tham khảo đầy đủ các lệnh claude, subcommands, slash commands và flag của Claude Code CLI để tra cứu nhanh."
+---
+
+Claude Code CLI cung cấp một hệ thống lệnh phong phú để bạn tương tác với AI ngay trong terminal — từ các phiên làm việc tương tác đến các tác vụ tự động hoá không cần giám sát. Trang này tổng hợp toàn bộ lệnh, subcommand, slash command và flag để bạn tra cứu nhanh khi cần.
+
+## Lệnh chính (`claude`)
+
+Khi bạn chạy `claude` không có tham số, Claude Code sẽ khởi động một phiên tương tác. Bạn cũng có thể truyền trực tiếp một prompt để thực hiện tác vụ không tương tác.
+
+| Lệnh | Mô tả |
+|------|-------|
+| `claude` | Khởi động phiên tương tác |
+| `claude "<prompt>"` | Chạy một tác vụ đơn lẻ không tương tác |
+| `claude --continue` | Tiếp tục phiên làm việc gần nhất |
+| `claude --resume` | Hiển thị danh sách phiên để chọn tiếp tục |
+| `claude --model <model>` | Chỉ định model (ví dụ: `sonnet`, `opus`) |
+| `claude --print` | Chế độ không tương tác, in kết quả ra stdout |
+| `claude --no-interactive` | Giống `--print` |
+| `claude --output-format json` | Xuất kết quả dưới dạng JSON |
+| `claude --dangerously-skip-permissions` | Bỏ qua tất cả xác nhận quyền (dùng cẩn thận) |
+| `claude --worktree` | Tạo phiên git worktree cô lập |
+| `claude --from-pr <url>` | Tiếp tục phiên từ một Pull Request |
+| `claude --version` | Hiển thị phiên bản hiện tại |
+| `claude --help` | Hiển thị trợ giúp |
+
+<Warning>
+Flag `--dangerously-skip-permissions` bỏ qua toàn bộ xác nhận quyền. Chỉ dùng trong môi trường sandbox hoặc CI/CD đã được kiểm soát — không bao giờ dùng trên máy cá nhân với dữ liệu quan trọng.
+</Warning>
+
+## Subcommands
+
+Các subcommand cung cấp chức năng quản lý xác thực, MCP servers, plugin và dự án.
+
+### Xác thực (`claude auth`)
+
+| Lệnh | Mô tả |
+|------|-------|
+| `claude auth login` | Đăng nhập và xác thực tài khoản |
+| `claude auth logout` | Đăng xuất |
+| `claude auth status` | Kiểm tra trạng thái xác thực hiện tại |
+
+### MCP Servers (`claude mcp`)
+
+| Lệnh | Mô tả |
+|------|-------|
+| `claude mcp add` | Thêm một MCP server mới |
+| `claude mcp list` | Liệt kê tất cả MCP servers đã cấu hình |
+| `claude mcp login <name>` | Xác thực với một MCP server cụ thể |
+
+### Plugin (`claude plugin`)
+
+| Lệnh | Mô tả |
+|------|-------|
+| `claude plugin install` | Cài đặt một plugin |
+| `claude plugin list` | Liệt kê tất cả plugin đã cài đặt |
+
+### Quản lý dự án
+
+| Lệnh | Mô tả |
+|------|-------|
+| `claude project purge` | Xoá toàn bộ trạng thái cục bộ của dự án |
+| `claude agent-view` | Mở giao diện xem agent |
+| `claude uninstall` | Gỡ cài đặt Claude Code |
+
+## Slash Commands (trong phiên tương tác)
+
+Khi đang trong phiên tương tác, bạn có thể dùng các slash command bằng cách gõ `/` theo sau là tên lệnh. Các lệnh này giúp bạn kiểm soát phiên làm việc mà không cần thoát ra ngoài.
+
+### Điều hướng và phiên làm việc
+
+| Lệnh | Mô tả |
+|------|-------|
+| `/help` | Liệt kê tất cả slash commands khả dụng |
+| `/resume` | Tiếp tục một phiên làm việc trước đó |
+| `/clear` | Xoá lịch sử hội thoại hiện tại |
+| `/rewind` | Hoàn tác về trước lần `/clear` gần nhất |
+| `/cd <dir>` | Đổi thư mục làm việc |
+| `/context` | Hiển thị nội dung context window hiện tại |
+
+### Model và cấu hình
+
+| Lệnh | Mô tả |
+|------|-------|
+| `/model` | Chuyển đổi model đang dùng |
+| `/config` | Đặt bất kỳ giá trị cấu hình nào |
+| `/compact` | Nén lịch sử hội thoại để giải phóng context |
+| `/usage` | Xem phân tích lượng token đã dùng |
+
+### Công cụ và tích hợp
+
+| Lệnh | Mô tả |
+|------|-------|
+| `/mcp` | Quản lý MCP servers trong phiên |
+| `/hooks` | Xem các hook đã cấu hình |
+| `/plugin list` | Liệt kê plugin đã cài đặt |
+| `/doctor` | Chẩn đoán vấn đề cấu hình |
+
+### Tác vụ nâng cao
+
+| Lệnh | Mô tả |
+|------|-------|
+| `/goal <điều_kiện>` | Đặt điều kiện hoàn thành cho tác vụ |
+| `/loop` | Chạy một prompt theo lịch hoặc lặp lại |
+| `/code-review` | Chạy quy trình review code đa agent |
+
+<Tip>
+Bạn có thể gõ `/help` bất cứ lúc nào trong phiên tương tác để xem danh sách đầy đủ các slash commands khả dụng, bao gồm cả các lệnh từ plugin đã cài đặt.
+</Tip>
+
+## Các flag phổ biến
+
+<CodeGroup>
+
+```bash Chạy không tương tác
+# In kết quả ra stdout
+claude --print "Tóm tắt file README.md này"
+
+# Xuất dạng JSON
+claude --output-format json "Phân tích cấu trúc thư mục src/"
+```
+
+```bash Quản lý phiên
+# Tiếp tục phiên gần nhất
+claude --continue
+
+# Chọn phiên để tiếp tục
+claude --resume
+
+# Dùng model cụ thể
+claude --model claude-opus-4-5 "Viết test cho module auth"
+```
+
+```bash Worktree và PR
+# Tạo worktree cô lập
+claude --worktree "Implement tính năng dark mode"
+
+# Tiếp tục từ PR
+claude --from-pr https://github.com/owner/repo/pull/42
+```
+
+</CodeGroup>
+
+<Note>
+Để xem tất cả flag và tuỳ chọn của một lệnh cụ thể, hãy thêm `--help` vào cuối, ví dụ: `claude auth --help` hoặc `claude mcp --help`.
+</Note>

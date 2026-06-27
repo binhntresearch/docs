@@ -1,0 +1,318 @@
+---
+title: "Quản lý bộ nhớ và context dự án với CLAUDE.md"
+sidebarTitle: "Memory & Context"
+description: "Sử dụng CLAUDE.md để lưu hướng dẫn dự án, cấu hình auto memory và quản lý context window hiệu quả."
+---
+
+Claude Code không nhớ thông tin giữa các session theo mặc định — mỗi lần khởi động là một trang trắng. File `CLAUDE.md` và cơ chế auto memory giải quyết vấn đề này: bạn viết hướng dẫn một lần, và Claude sẽ tuân theo mọi lúc mà không cần nhắc lại. Phần này hướng dẫn bạn thiết lập hệ thống bộ nhớ hoàn chỉnh cho dự án.
+
+## Cách CLAUDE.md hoạt động
+
+Khi khởi động, Claude Code tự động tìm và đọc tất cả file `CLAUDE.md` trong phạm vi liên quan. Bạn có thể đặt file này ở nhiều cấp độ khác nhau:
+
+<CardGroup cols={3}>
+  <Card title="Cấp dự án" icon="folder">
+    **`./CLAUDE.md`**
+
+    Commit vào git, chia sẻ với toàn team. Chứa quy ước coding, stack kỹ thuật và các lệnh thường dùng.
+  </Card>
+  <Card title="Cấp cá nhân" icon="user">
+    **`~/.claude/CLAUDE.md`**
+
+    Không commit, chỉ dành cho bạn. Chứa sở thích cá nhân như ngôn ngữ ưa dùng, phong cách code review.
+  </Card>
+  <Card title="Cấp thư mục con" icon="folder-tree">
+    **`./src/CLAUDE.md`**
+
+    Chỉ áp dụng khi Claude làm việc trong thư mục đó. Hữu ích cho các module có quy ước riêng.
+  </Card>
+</CardGroup>
+
+<Note>
+  Claude đọc tất cả các file `CLAUDE.md` phù hợp cùng lúc. Ví dụ khi làm việc trong `src/`, Claude đọc đồng thời `./CLAUDE.md`, `./src/CLAUDE.md` và `~/.claude/CLAUDE.md`.
+</Note>
+
+## Template CLAUDE.md hoàn chỉnh
+
+Dưới đây là template cho dự án API điển hình — bạn có thể copy và chỉnh sửa theo dự án của mình:
+
+```markdown
+# Project: E-commerce API
+
+## Stack
+- Node.js 20, TypeScript 5, Express 4
+- PostgreSQL 16 via Prisma ORM
+- Jest for testing
+
+## Conventions
+- Use async/await, never callbacks
+- All handlers must have try/catch
+- Run `npm test` before committing
+- Use conventional commits: feat:, fix:, chore:
+
+## Commands
+- `npm run dev` — start dev server
+- `npm test` — run tests
+- `npm run lint` — lint code
+```
+
+## Tạo và cấu hình CLAUDE.md
+
+<Steps>
+  <Step title="Tạo file CLAUDE.md tại thư mục gốc dự án">
+    ```bash
+    touch CLAUDE.md
+    ```
+
+    Hoặc yêu cầu Claude tạo file dựa trên codebase hiện có:
+
+    ```bash
+    claude "Create a CLAUDE.md file for this project based on the existing codebase, dependencies and code style"
+    ```
+  </Step>
+
+  <Step title="Điền thông tin về stack kỹ thuật">
+    Liệt kê ngôn ngữ, framework, database và các thư viện quan trọng. Claude dùng thông tin này để đề xuất code đúng phiên bản và pattern:
+
+    ```markdown
+    ## Stack
+    - Node.js 20, TypeScript 5
+    - React 18 với Vite
+    - PostgreSQL 15 via Prisma
+    - Vitest cho unit test, Playwright cho E2E
+    ```
+  </Step>
+
+  <Step title="Định nghĩa quy ước code">
+    Đây là phần quan trọng nhất — nơi bạn ghi lại các quyết định kiến trúc và phong cách code của team:
+
+    ```markdown
+    ## Conventions
+    - Dùng async/await, không dùng callbacks hay Promise chains
+    - Tất cả API handlers phải có try/catch và trả về lỗi theo format chuẩn
+    - Tên biến và hàm theo camelCase, tên component theo PascalCase
+    - Mỗi function không được dài quá 50 dòng
+    - Import tuyệt đối, không dùng relative path quá 2 cấp
+    ```
+  </Step>
+
+  <Step title="Ghi lại các lệnh quan trọng">
+    Claude sẽ tự động dùng đúng lệnh khi cần chạy dev server, test hay build:
+
+    ```markdown
+    ## Commands
+    - `npm run dev` — khởi động dev server (port 3000)
+    - `npm test` — chạy unit tests
+    - `npm run test:e2e` — chạy E2E tests
+    - `npm run lint` — kiểm tra lint
+    - `npm run build` — build production
+    - `npx prisma migrate dev` — chạy database migrations
+    ```
+  </Step>
+
+  <Step title="Commit vào git">
+    ```bash
+    git add CLAUDE.md
+    git commit -m "chore: add CLAUDE.md for AI assistant context"
+    ```
+
+    Từ đây, mọi thành viên trong team đều hưởng lợi từ file này.
+  </Step>
+</Steps>
+
+## Ví dụ CLAUDE.md theo loại dự án
+
+<Tabs>
+  <Tab title="Backend API">
+    ```markdown
+    # Project: REST API Service
+
+    ## Stack
+    - Node.js 20, TypeScript 5, Express 4
+    - PostgreSQL 16 via Prisma ORM
+    - Redis cho caching và sessions
+    - Jest + Supertest cho integration tests
+
+    ## Architecture
+    - Controller → Service → Repository pattern
+    - Validation với Zod schemas ở controller layer
+    - Business logic chỉ trong Service layer
+    - Database queries chỉ trong Repository layer
+
+    ## Conventions
+    - Dùng async/await, không callback
+    - Tất cả handlers có try/catch
+    - Error responses theo format: `{ error: string, code: string }`
+    - Conventional commits: feat:, fix:, chore:, docs:
+
+    ## Commands
+    - `npm run dev` — dev server với hot reload
+    - `npm test` — unit + integration tests
+    - `npm run migrate` — chạy Prisma migrations
+    - `npm run seed` — seed dữ liệu mẫu
+    ```
+  </Tab>
+
+  <Tab title="Frontend React">
+    ```markdown
+    # Project: React Frontend
+
+    ## Stack
+    - React 18, TypeScript 5, Vite 5
+    - TailwindCSS 3 cho styling
+    - React Query cho server state
+    - Zustand cho client state
+    - Vitest + Testing Library cho tests
+
+    ## Architecture
+    - Feature-based folder structure trong src/features/
+    - Shared components trong src/components/
+    - Custom hooks trong src/hooks/
+    - API calls chỉ trong React Query hooks
+
+    ## Conventions
+    - Component files: PascalCase.tsx
+    - Hook files: use camelCase.ts prefix
+    - Không dùng default export cho components
+    - Props interface đặt cùng file với component
+
+    ## Commands
+    - `npm run dev` — dev server (port 5173)
+    - `npm test` — chạy Vitest
+    - `npm run build` — production build
+    - `npm run preview` — preview production build
+    ```
+  </Tab>
+
+  <Tab title="Fullstack Monorepo">
+    ```markdown
+    # Project: Fullstack Monorepo
+
+    ## Structure
+    - `packages/api` — Express backend
+    - `packages/web` — React frontend
+    - `packages/shared` — Shared types và utilities
+
+    ## Stack
+    - TypeScript 5 xuyên suốt
+    - pnpm workspaces
+    - Turborepo cho build pipeline
+
+    ## Conventions
+    - Shared types định nghĩa trong packages/shared
+    - Không import trực tiếp giữa api và web
+    - Tất cả thay đổi shared types cần update cả hai packages
+
+    ## Commands (chạy từ root)
+    - `pnpm dev` — khởi động tất cả packages
+    - `pnpm test` — test tất cả packages
+    - `pnpm build` — build tất cả packages
+    - `pnpm --filter api dev` — chỉ chạy backend
+    ```
+  </Tab>
+</Tabs>
+
+## Auto Memory
+
+Ngoài `CLAUDE.md`, Claude Code còn có cơ chế tự động lưu thông tin học được trong quá trình làm việc:
+
+<Accordion title="MEMORY.md là gì?">
+  Claude tự động lưu các thông tin quan trọng vào `~/.claude/MEMORY.md` trong quá trình làm việc. File này lưu trữ những thông tin như:
+
+  - Quyết định kiến trúc bạn đã giải thích cho Claude
+  - Thông tin về môi trường phát triển cá nhân của bạn
+  - Sở thích về phong cách code mà bạn đã sửa
+
+  ```markdown
+  # Claude Memory
+
+  ## User Preferences
+  - Thích giải thích ngắn gọn, ít verbose
+  - Dùng yarn thay vì npm
+  - Prefer functional components, không dùng class components
+
+  ## Project Notes
+  - Database chạy trên port 5433 (không phải 5432 mặc định)
+  - API key lưu trong .env.local, không phải .env
+  ```
+
+  <Note>
+    File này hoàn toàn tự động — bạn không cần chỉnh sửa thủ công. Claude cập nhật nó khi học được thông tin mới đáng nhớ.
+  </Note>
+</Accordion>
+
+<Accordion title="Kiểm soát những gì Claude nhớ">
+  Bạn có thể ảnh hưởng đến những gì Claude lưu vào memory bằng cách nói rõ:
+
+  ```
+  # Yêu cầu Claude nhớ thông tin cụ thể
+  > Remember that we use port 5433 for the database in this project
+
+  # Xem những gì Claude đang nhớ
+  /context
+
+  # Xóa memory nếu cần bắt đầu lại
+  > Please forget everything you've saved about my preferences
+  ```
+</Accordion>
+
+## Quản lý context window
+
+Context window là giới hạn lượng thông tin Claude có thể xử lý trong một lần. Khi context đầy, hiệu suất giảm và Claude có thể bỏ sót thông tin từ đầu session.
+
+<Steps>
+  <Step title="Kiểm tra trạng thái context">
+    Dùng lệnh `/usage` để xem bao nhiêu token đã được sử dụng:
+
+    ```
+    /usage
+    ```
+
+    Kết quả hiển thị lượng token đã dùng và còn lại trong context window.
+  </Step>
+
+  <Step title="Nén context khi cần">
+    Khi thấy cảnh báo context gần đầy hoặc Claude phản hồi chậm hơn, dùng `/compact`:
+
+    ```
+    /compact
+    ```
+
+    Claude sẽ tóm tắt lịch sử hội thoại thành bản ngắn gọn, giải phóng không gian cho các tác vụ tiếp theo.
+  </Step>
+
+  <Step title="Xóa và bắt đầu lại nếu cần">
+    Với tác vụ hoàn toàn mới, tốt hơn là xóa hội thoại cũ thay vì compact:
+
+    ```
+    /clear
+    ```
+
+    <Note>
+      Dùng `/clear` khi chuyển sang tác vụ hoàn toàn không liên quan đến công việc hiện tại. Ngữ cảnh cũ sẽ gây nhiễu hơn là hỗ trợ.
+    </Note>
+  </Step>
+</Steps>
+
+## Thứ tự ưu tiên của các nguồn memory
+
+Khi có nhiều nguồn cung cấp thông tin cho Claude, thứ tự ưu tiên như sau:
+
+<CardGroup cols={2}>
+  <Card title="Ưu tiên cao nhất" icon="circle-1">
+    **Prompt hiện tại của bạn** — những gì bạn viết trong session luôn được ưu tiên hàng đầu.
+  </Card>
+  <Card title="Ưu tiên thứ hai" icon="circle-2">
+    **CLAUDE.md trong thư mục con** — hướng dẫn cụ thể cho module/thư mục đang làm việc.
+  </Card>
+  <Card title="Ưu tiên thứ ba" icon="circle-3">
+    **CLAUDE.md tại thư mục gốc dự án** — quy ước chung của toàn dự án.
+  </Card>
+  <Card title="Ưu tiên thấp nhất" icon="circle-4">
+    **~/.claude/CLAUDE.md và MEMORY.md** — sở thích cá nhân và thông tin tự động lưu.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Nếu muốn ghi đè một quy ước trong `CLAUDE.md` cho một tác vụ cụ thể, chỉ cần nói rõ trong prompt. Ví dụ: "For this task only, use callbacks instead of async/await to match the existing code style."
+</Tip>

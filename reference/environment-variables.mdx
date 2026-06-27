@@ -1,0 +1,188 @@
+---
+title: "Biến môi trường cấu hình Claude Code"
+sidebarTitle: "Env Variables"
+description: "Danh sách đầy đủ environment variables để cấu hình Claude Code: API keys, proxy, Bedrock, Vertex AI và telemetry."
+---
+
+Environment variables là cách linh hoạt nhất để cấu hình Claude Code — đặc biệt hữu ích trong môi trường CI/CD, Docker container, hoặc khi bạn không muốn lưu thông tin nhạy cảm như API key vào file. Vì environment variables có thứ tự ưu tiên cao nhất, chúng ghi đè mọi cấu hình trong `settings.json`.
+
+## Xác thực và API
+
+| Biến | Mô tả |
+|------|-------|
+| `ANTHROPIC_API_KEY` | API key từ Anthropic Console để xác thực |
+| `ANTHROPIC_BASE_URL` | Endpoint API tuỳ chỉnh (LLM gateway, proxy nội bộ) |
+| `ANTHROPIC_MODEL` | Model mặc định (ví dụ: `claude-sonnet-4-5`) |
+
+<CodeGroup>
+
+```bash Thiết lập cơ bản
+export ANTHROPIC_API_KEY="sk-ant-..."
+export ANTHROPIC_MODEL="claude-sonnet-4-5"
+```
+
+```bash Dùng endpoint tuỳ chỉnh
+export ANTHROPIC_API_KEY="sk-ant-..."
+export ANTHROPIC_BASE_URL="https://api-gateway.company.com/anthropic"
+```
+
+</CodeGroup>
+
+<Note>
+`ANTHROPIC_BASE_URL` hữu ích khi công ty bạn dùng LLM gateway nội bộ để kiểm soát chi phí, logging, hoặc rate limiting. Đảm bảo endpoint này tương thích với Anthropic API format.
+</Note>
+
+## Nhà cung cấp cloud
+
+### Amazon Bedrock
+
+Để dùng Claude qua Amazon Bedrock thay vì Anthropic API trực tiếp:
+
+| Biến | Mô tả |
+|------|-------|
+| `ANTHROPIC_BEDROCK` | Đặt là `"true"` để bật Bedrock |
+| `AWS_ACCESS_KEY_ID` | AWS Access Key ID |
+| `AWS_SECRET_ACCESS_KEY` | AWS Secret Access Key |
+| `AWS_REGION` | AWS Region (ví dụ: `us-east-1`) |
+
+```bash
+export ANTHROPIC_BEDROCK=true
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="wJalr..."
+export AWS_REGION="us-east-1"
+```
+
+### Google Vertex AI
+
+Để dùng Claude qua Google Vertex AI:
+
+| Biến | Mô tả |
+|------|-------|
+| `ANTHROPIC_VERTEX` | Đặt là `"true"` để bật Vertex AI |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Đường dẫn đến file credentials JSON |
+| `GCLOUD_PROJECT` | ID của Google Cloud project |
+| `CLOUDE_VERTEX_REGION` | Region của Vertex AI (ví dụ: `us-central1`) |
+
+```bash
+export ANTHROPIC_VERTEX=true
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+export GCLOUD_PROJECT="my-gcp-project-id"
+export CLOUDE_VERTEX_REGION="us-central1"
+```
+
+## Proxy và mạng
+
+| Biến | Mô tả |
+|------|-------|
+| `HTTPS_PROXY` | URL proxy cho kết nối HTTPS |
+| `HTTP_PROXY` | URL proxy cho kết nối HTTP |
+| `NO_PROXY` | Danh sách host không qua proxy (ngăn cách bởi dấu phẩy) |
+| `NODE_EXTRA_CA_CERTS` | Đường dẫn đến bundle CA certificate tuỳ chỉnh |
+
+<CodeGroup>
+
+```bash Cấu hình proxy cơ bản
+export HTTPS_PROXY="https://proxy.company.com:8080"
+export HTTP_PROXY="http://proxy.company.com:8080"
+export NO_PROXY="localhost,127.0.0.1,internal.company.com"
+```
+
+```bash Proxy với xác thực
+export HTTPS_PROXY="https://user:password@proxy.company.com:8080"
+```
+
+```bash CA certificate tuỳ chỉnh
+export NODE_EXTRA_CA_CERTS="/etc/ssl/certs/company-ca-bundle.pem"
+```
+
+</CodeGroup>
+
+<Note>
+`NODE_EXTRA_CA_CERTS` cần thiết khi công ty bạn dùng TLS inspection proxy hoặc certificate nội bộ không có trong bundle CA mặc định. Claude Code chạy trên Node.js nên cần biến này thay vì `SSL_CERT_FILE`.
+</Note>
+
+## Telemetry và riêng tư
+
+| Biến | Giá trị | Mô tả |
+|------|---------|-------|
+| `CLAUDE_CODE_DISABLE_TELEMETRY` | `"1"` | Tắt hoàn toàn gửi telemetry data |
+
+```bash
+export CLAUDE_CODE_DISABLE_TELEMETRY=1
+```
+
+## Cách đặt environment variables
+
+<Accordion title="Đặt trong shell session hiện tại">
+Biến chỉ tồn tại trong session terminal hiện tại:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+claude
+```
+</Accordion>
+
+<Accordion title="Đặt vĩnh viễn trong shell profile">
+Thêm vào `~/.bashrc`, `~/.zshrc` hoặc `~/.profile`:
+
+```bash
+# Thêm vào ~/.zshrc
+export ANTHROPIC_API_KEY="sk-ant-..."
+export ANTHROPIC_MODEL="claude-sonnet-4-5"
+export CLAUDE_CODE_DISABLE_TELEMETRY=1
+```
+
+Sau đó chạy `source ~/.zshrc` để áp dụng.
+</Accordion>
+
+<Accordion title="Đặt trong file .env của dự án">
+Nếu dự án dùng dotenv, tạo file `.env` (và thêm vào `.gitignore`):
+
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-sonnet-4-5
+```
+
+<Warning>
+Không bao giờ commit file `.env` chứa API key vào git repository. Luôn thêm `.env` vào `.gitignore`.
+</Warning>
+</Accordion>
+
+<Accordion title="Đặt trong CI/CD (GitHub Actions)">
+Trong GitHub Actions, dùng Secrets:
+
+```yaml
+# .github/workflows/ci.yml
+jobs:
+  claude-task:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_DISABLE_TELEMETRY: "1"
+        run: |
+          claude --print "Chạy code review cho PR này"
+```
+</Accordion>
+
+<Accordion title="Đặt trong Docker container">
+```dockerfile
+# Dockerfile
+FROM node:20
+ENV ANTHROPIC_MODEL=claude-sonnet-4-5
+ENV CLAUDE_CODE_DISABLE_TELEMETRY=1
+# Không đặt API key trong Dockerfile — dùng runtime secrets
+```
+
+```bash
+# Khi chạy container
+docker run -e ANTHROPIC_API_KEY="sk-ant-..." my-image
+```
+</Accordion>
+
+<Tip>
+Để kiểm tra environment variables nào đang được Claude Code nhận diện, chạy `/doctor` trong phiên tương tác. Lệnh này sẽ hiển thị thông tin chẩn đoán bao gồm cấu hình đang hoạt động.
+</Tip>

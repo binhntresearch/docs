@@ -1,0 +1,183 @@
+---
+title: "Cài đặt Claude Code trên mọi hệ điều hành"
+sidebarTitle: "Cài Đặt"
+description: "Hướng dẫn cài đặt Claude Code trên macOS, Linux và Windows với native install, Homebrew, WinGet và npm."
+---
+
+Claude Code là công cụ lập trình AI chạy trực tiếp trong terminal của bạn, hỗ trợ đầy đủ trên macOS, Linux và Windows. Trang này hướng dẫn bạn từng bước cài đặt, xác minh, cập nhật và gỡ cài đặt Claude Code theo phương thức phù hợp nhất với hệ điều hành của mình.
+
+## Yêu cầu hệ thống
+
+Trước khi cài đặt, hãy đảm bảo máy bạn đáp ứng các yêu cầu tối thiểu sau:
+
+| Hệ điều hành | Phiên bản tối thiểu |
+|---|---|
+| macOS | 10.15 (Catalina) trở lên |
+| Ubuntu / Debian | Ubuntu 20.04+ hoặc Debian 10+ |
+| Windows | Windows 10 hoặc 11 (native hoặc WSL2) |
+
+<Note>
+  Claude Code yêu cầu **Node.js 18 trở lên**. Chạy lệnh `node --version` để kiểm tra phiên bản hiện tại. Nếu chưa có Node.js, hãy tải về tại [nodejs.org](https://nodejs.org) trước khi tiến hành cài đặt.
+</Note>
+
+## Cài đặt Claude Code
+
+Chọn tab tương ứng với hệ điều hành của bạn để xem hướng dẫn phù hợp.
+
+<Tabs>
+  <Tab title="macOS">
+    ### Cài đặt Native (khuyến nghị)
+
+    Phương thức native tự động cập nhật trong nền, giúp bạn luôn dùng phiên bản mới nhất mà không cần thao tác thủ công.
+
+    <CodeGroup>
+      ```bash Native (tự động cập nhật)
+      curl -fsSL https://claude.ai/install.sh | bash
+      ```
+
+      ```bash Homebrew (bản ổn định)
+      brew install --cask claude-code
+      ```
+
+      ```bash Homebrew (bản mới nhất)
+      brew install --cask claude-code@latest
+      ```
+
+      ```bash npm (toàn cục)
+      npm install -g @anthropic-ai/claude-code
+      ```
+    </CodeGroup>
+
+    <Tip>
+      Nếu bạn đang dùng Homebrew để quản lý các công cụ phát triển, hãy chọn phương thức Homebrew để dễ dàng tích hợp vào quy trình cập nhật hiện có với lệnh `brew upgrade`.
+    </Tip>
+  </Tab>
+
+  <Tab title="Linux">
+    ### Cài đặt Native (khuyến nghị)
+
+    Cách nhanh nhất để bắt đầu trên Linux là dùng script cài đặt native — chỉ cần một lệnh duy nhất:
+
+    <CodeGroup>
+      ```bash Native (tự động cập nhật)
+      curl -fsSL https://claude.ai/install.sh | bash
+      ```
+
+      ```bash npm (toàn cục)
+      npm install -g @anthropic-ai/claude-code
+      ```
+    </CodeGroup>
+
+    ### Cài đặt qua apt (Debian / Ubuntu)
+
+    Để quản lý Claude Code bằng trình quản lý gói hệ thống, hãy thêm kho lưu trữ apt của Anthropic:
+
+    ```bash
+    # Thêm khóa GPG của Anthropic
+    curl -fsSL https://packages.anthropic.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/anthropic.gpg
+
+    # Thêm kho lưu trữ apt
+    echo "deb [signed-by=/usr/share/keyrings/anthropic.gpg] https://packages.anthropic.com/apt stable main" \
+      | sudo tee /etc/apt/sources.list.d/anthropic.list
+
+    # Cài đặt Claude Code
+    sudo apt update && sudo apt install claude-code
+    ```
+
+    <Note>
+      Phương thức apt phù hợp cho môi trường máy chủ hoặc khi bạn cần kiểm soát phiên bản chặt chẽ trong pipeline CI/CD.
+    </Note>
+  </Tab>
+
+  <Tab title="Windows">
+    ### Cài đặt Native
+
+    Trên Windows, bạn có ba lựa chọn tùy theo môi trường shell đang dùng:
+
+    <CodeGroup>
+      ```powershell PowerShell
+      irm https://claude.ai/install.ps1 | iex
+      ```
+
+      ```cmd Command Prompt (CMD)
+      curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd && del install.cmd
+      ```
+
+      ```bash WSL2 (bash)
+      curl -fsSL https://claude.ai/install.sh | bash
+      ```
+    </CodeGroup>
+
+    ### Cài đặt qua WinGet
+
+    Nếu bạn dùng Windows Package Manager (WinGet), hãy chạy lệnh sau trong PowerShell hoặc Terminal:
+
+    ```powershell
+    winget install Anthropic.ClaudeCode
+    ```
+
+    ### Cài đặt qua npm
+
+    ```powershell
+    npm install -g @anthropic-ai/claude-code
+    ```
+
+    <Tip>
+      Microsoft khuyến nghị sử dụng **WSL2** để có trải nghiệm phát triển tốt nhất trên Windows. Claude Code hoạt động đầy đủ tính năng trong môi trường WSL2.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## Xác minh cài đặt
+
+Sau khi cài đặt xong, hãy mở terminal mới và chạy lệnh sau để kiểm tra:
+
+```bash
+claude --version
+```
+
+Nếu thấy số phiên bản hiển thị (ví dụ: `claude 1.x.x`), bạn đã cài đặt thành công. Tiếp theo, chạy lệnh `claude` để khởi động và bắt đầu đăng nhập.
+
+## Cập nhật Claude Code
+
+<Accordion title="Cách cập nhật theo từng phương thức cài đặt">
+  **Native install** — tự động cập nhật trong nền, bạn không cần làm gì thêm.
+
+  **Homebrew:**
+  ```bash
+  brew upgrade claude-code
+  ```
+
+  **WinGet:**
+  ```powershell
+  winget upgrade Anthropic.ClaudeCode
+  ```
+
+  **npm:**
+  ```bash
+  npm update -g @anthropic-ai/claude-code
+  ```
+
+  **apt (Debian/Ubuntu):**
+  ```bash
+  sudo apt update && sudo apt upgrade claude-code
+  ```
+</Accordion>
+
+<Tip>
+  Chạy lệnh `claude --version` trước và sau khi cập nhật để xác nhận phiên bản mới đã được áp dụng.
+</Tip>
+
+## Gỡ cài đặt
+
+Khi cần gỡ cài đặt Claude Code, hãy dùng lệnh tích hợp sẵn:
+
+```bash
+claude uninstall
+```
+
+Ngoài ra, bạn cũng có thể xóa thủ công bằng cách loại bỏ binary `claude` khỏi `PATH` của hệ thống. Đối với cài đặt qua Homebrew hoặc WinGet, hãy dùng lệnh gỡ cài đặt tương ứng của trình quản lý gói đó.
+
+<Warning>
+  Lệnh `claude uninstall` sẽ xóa binary Claude Code nhưng **không** xóa file cấu hình và lịch sử hội thoại được lưu cục bộ. Nếu muốn xóa toàn bộ dữ liệu, hãy xóa thêm thư mục `~/.claude` sau khi gỡ cài đặt.
+</Warning>

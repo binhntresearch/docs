@@ -1,0 +1,188 @@
+---
+title: "Tích hợp Claude Code vào GitHub Actions và CI/CD"
+sidebarTitle: "GitHub Actions"
+description: "Sử dụng anthropic/claude-code-action để tự động review PR, triage issues và autofix code trong pipeline GitHub Actions và GitLab CI/CD."
+---
+
+Tích hợp Claude Code vào pipeline CI/CD giúp bạn tự động hóa các tác vụ lặp đi lặp lại như review pull request, phân loại issues và sửa lỗi theo yêu cầu — tất cả mà không cần can thiệp thủ công. Action chính thức `anthropic/claude-code-action` chạy trực tiếp trong GitHub Actions và nhận `ANTHROPIC_API_KEY` từ repository secrets.
+
+## Yêu cầu cài đặt
+
+Trước khi bắt đầu, hãy thêm API key của bạn vào repository secrets:
+
+<Steps>
+  <Step title="Tạo API key">
+    Truy cập [console.anthropic.com](https://console.anthropic.com) và tạo một API key mới dành riêng cho CI/CD.
+  </Step>
+  <Step title="Thêm secret vào repository">
+    Vào **Settings → Secrets and variables → Actions → New repository secret**, đặt tên là `ANTHROPIC_API_KEY` và dán API key vào.
+  </Step>
+  <Step title="Tạo file workflow">
+    Tạo thư mục `.github/workflows/` trong repository nếu chưa có, rồi tạo file `.yml` cho từng workflow.
+  </Step>
+</Steps>
+
+---
+
+## Các workflow mẫu
+
+### Review Pull Request tự động
+
+Workflow này tự động phân tích mỗi PR khi được mở hoặc cập nhật, sau đó đăng nhận xét trực tiếp lên PR.
+
+<CodeGroup>
+```yaml .github/workflows/claude-review.yml
+name: Claude Code Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropic/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          task: |
+            Review this pull request for:
+            - Logic errors and bugs
+            - Security vulnerabilities
+            - Performance issues
+            - Code style consistency
+            Post your review as a PR comment.
+```
+</CodeGroup>
+
+<Tip>
+  Bạn có thể tùy chỉnh prompt trong `task` để Claude tập trung vào các tiêu chí quan trọng với dự án của bạn, ví dụ: kiểm tra tuân thủ naming convention hoặc phát hiện SQL injection.
+</Tip>
+
+---
+
+### Triage Issues tự động
+
+Khi có issue mới được tạo, Claude sẽ phân tích nội dung, gán nhãn phù hợp, assign cho thành viên đúng team và để lại comment hướng dẫn bước tiếp theo.
+
+<CodeGroup>
+```yaml .github/workflows/claude-triage.yml
+name: Issue Triage
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropic/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          task: |
+            Analyze this issue and:
+            1. Add appropriate labels
+            2. Assign to the right team member
+            3. Add a helpful comment with next steps
+```
+</CodeGroup>
+
+---
+
+### Auto-fix theo lệnh trong review comment
+
+Khi reviewer để lại comment có chứa `/claude fix`, Claude sẽ tự động đọc comment đó và sửa lỗi được đề cập trong PR.
+
+<CodeGroup>
+```yaml .github/workflows/claude-autofix.yml
+name: Auto Fix
+on:
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  fix:
+    if: contains(github.event.comment.body, '/claude fix')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropic/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          task: Fix the issue mentioned in the review comment
+```
+</CodeGroup>
+
+<Note>
+  Lệnh trigger `/claude fix` có thể được thay đổi thành bất kỳ chuỗi nào bằng cách sửa điều kiện `if:`. Ví dụ: `contains(github.event.comment.body, '/ai refactor')` để trigger refactor.
+</Note>
+
+---
+
+## GitLab CI/CD
+
+Nếu bạn dùng GitLab thay vì GitHub, hãy cài Claude Code CLI trong pipeline và chạy lệnh `claude` trực tiếp:
+
+<CodeGroup>
+```yaml .gitlab-ci.yml
+claude-review:
+  stage: review
+  image: node:20
+  script:
+    - npm install -g @anthropic-ai/claude-code
+    - claude --print "Review the changes in this MR" --no-interactive
+  only:
+    - merge_requests
+```
+</CodeGroup>
+
+<Warning>
+  Với GitLab CI/CD, bạn cần thêm `ANTHROPIC_API_KEY` vào **Settings → CI/CD → Variables** của project hoặc group. Đánh dấu biến là **Masked** để ẩn giá trị trong log.
+</Warning>
+
+---
+
+## Dùng với AWS Bedrock và Google Vertex AI
+
+Thay vì dùng API key của Anthropic trực tiếp, bạn có thể cấu hình action để gọi Claude thông qua các cloud provider:
+
+<Tabs>
+  <Tab title="AWS Bedrock">
+    ```yaml
+    - uses: anthropic/claude-code-action@v1
+      with:
+        task: "Review this PR"
+      env:
+        CLAUDE_CODE_USE_BEDROCK: "1"
+        AWS_REGION: us-east-1
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    ```
+  </Tab>
+  <Tab title="Google Vertex AI">
+    ```yaml
+    - uses: anthropic/claude-code-action@v1
+      with:
+        task: "Review this PR"
+      env:
+        CLAUDE_CODE_USE_VERTEX: "1"
+        CLOUD_ML_REGION: us-east5
+        ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Các trường hợp sử dụng phổ biến
+
+<Accordion title="Kiểm tra bảo mật tự động">
+  Thêm workflow chạy mỗi khi có PR merge vào `main`, yêu cầu Claude quét toàn bộ diff để phát hiện hardcoded credentials, SQL injection, XSS và các lỗ hổng OWASP phổ biến.
+</Accordion>
+
+<Accordion title="Tạo release notes tự động">
+  Trigger khi tạo tag mới, yêu cầu Claude đọc commit messages từ lần release trước và tạo release notes có cấu trúc rõ ràng theo nhóm: features, fixes, breaking changes.
+</Accordion>
+
+<Accordion title="Kiểm tra chất lượng tài liệu">
+  Chạy khi có thay đổi trong thư mục `docs/`, yêu cầu Claude kiểm tra chính tả, tính nhất quán của thuật ngữ và đề xuất cải thiện cách diễn đạt.
+</Accordion>

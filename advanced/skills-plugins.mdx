@@ -1,0 +1,260 @@
+---
+title: "Mở rộng Claude Code với skills và plugins"
+sidebarTitle: "Skills & Plugins"
+description: "Tạo và cài đặt skills tái sử dụng, quản lý plugins từ marketplace để mở rộng khả năng của Claude Code."
+---
+
+Khi bạn thường xuyên lặp lại cùng một quy trình — deploy ứng dụng, viết unit test theo chuẩn nhất định, hay review code theo checklist của team — đó là dấu hiệu cần đến **skills**. Skills là các workflow được ghi lại dưới dạng markdown, còn **plugins** là gói đóng gói hoàn chỉnh bao gồm skills, hooks, và MCP servers — có thể cài đặt và chia sẻ dễ dàng.
+
+## Skills — workflow tái sử dụng
+
+Skills được lưu trong thư mục `.claude/skills/` của dự án dưới dạng file markdown. Mỗi file mô tả một quy trình cụ thể mà Claude có thể thực thi theo yêu cầu.
+
+### Tạo skill đầu tiên
+
+<Steps>
+  <Step title="Tạo thư mục skills">
+    ```bash
+    mkdir -p .claude/skills
+    ```
+  </Step>
+  <Step title="Viết file skill dạng markdown">
+    Tạo file `.claude/skills/deploy.md`:
+    ```markdown
+    # Deploy the application
+
+    Deploy the application following these steps:
+    1. Run `npm run build` and verify no errors
+    2. Run tests: `npm test` — abort if any test fails
+    3. Push to deploy branch: `git push origin deploy`
+    4. Monitor deploy status until completion or timeout (5 minutes)
+    5. Report success or failure with relevant log lines
+    ```
+  </Step>
+  <Step title="Sử dụng skill">
+    Trong phiên Claude Code, chỉ cần gọi tên skill:
+    ```
+    Run the deploy skill
+    ```
+    hoặc
+    ```
+    Deploy the application
+    ```
+    Claude sẽ đọc file skill và thực thi từng bước.
+  </Step>
+</Steps>
+
+### Ví dụ các skills hữu ích
+
+<CodeGroup>
+  ```markdown .claude/skills/new-feature.md
+  # Create a new feature
+
+  When asked to implement a new feature:
+  1. Create a feature branch: `git checkout -b feature/{{feature-name}}`
+  2. Write the implementation following the existing code style
+  3. Add unit tests with at least 80% coverage for new code
+  4. Update relevant documentation in `docs/`
+  5. Run `npm test` and `npm run lint` — fix all issues
+  6. Create a concise commit message following Conventional Commits
+  ```
+
+  ```markdown .claude/skills/code-review.md
+  # Review code changes
+
+  Perform a thorough code review:
+  1. Check for security vulnerabilities (SQL injection, XSS, insecure dependencies)
+  2. Verify error handling is complete and appropriate
+  3. Check that all public functions have JSDoc comments
+  4. Ensure no sensitive data (tokens, passwords) is hardcoded
+  5. Verify test coverage for changed files
+  6. Output a structured report: Critical / Warning / Suggestion
+  ```
+
+  ```markdown .claude/skills/release.md
+  # Prepare a release
+
+  Prepare the project for release:
+  1. Update version in `package.json` following semver
+  2. Generate changelog from commits since last tag
+  3. Update `CHANGELOG.md` with new entries
+  4. Run full test suite: `npm test`
+  5. Build production bundle: `npm run build`
+  6. Create git tag: `git tag v{{version}}`
+  7. Push tag: `git push origin v{{version}}`
+  ```
+</CodeGroup>
+
+<Tip>
+  Đặt tên file skill theo động từ-danh từ (ví dụ: `deploy.md`, `review-pr.md`, `generate-tests.md`) để dễ nhớ và dễ gọi. Claude nhận diện skill qua tên file và tiêu đề heading đầu tiên.
+</Tip>
+
+### Cài đặt skill từ nguồn ngoài
+
+Bạn có thể cài đặt skill từ URL — hữu ích khi team chia sẻ bộ workflow chung qua tài liệu hoặc repository:
+
+```bash
+npx skills add https://mintlify.com/docs
+```
+
+Lệnh này tải skill về và lưu vào `.claude/skills/` của dự án hiện tại.
+
+<Note>
+  Skills được lưu cục bộ trong thư mục dự án. Commit thư mục `.claude/skills/` vào git để toàn bộ team dùng chung bộ skills nhất quán.
+</Note>
+
+## Plugins — gói mở rộng toàn diện
+
+Trong khi skills chỉ là workflow markdown, **plugins** là gói hoàn chỉnh hơn: một plugin có thể bao gồm nhiều skills, hooks tự động, cấu hình MCP servers, và cả agent templates — tất cả đóng gói sẵn để cài một lần là dùng được ngay.
+
+### Cài đặt plugin
+
+<Tabs>
+  <Tab title="Từ marketplace">
+    ```bash
+    claude plugin install <plugin-name>
+    ```
+    Ví dụ, cài plugin kiểm tra bảo mật tự động:
+    ```bash
+    claude plugin install security-guidance
+    ```
+    Plugin `security-guidance` sẽ tự động review mọi thay đổi code của Claude để phát hiện lỗ hổng bảo mật — không cần cấu hình thêm.
+  </Tab>
+  <Tab title="Từ URL">
+    ```bash
+    claude plugin install https://example.com/my-plugin.zip
+    ```
+    Dùng để cài plugin từ repository nội bộ hoặc nguồn tùy chỉnh, không qua marketplace.
+  </Tab>
+</Tabs>
+
+### Quản lý plugins đã cài
+
+Xem danh sách plugins đang hoạt động:
+
+```
+/plugin list
+```
+
+Lệnh này hiển thị tên plugin, phiên bản, và danh sách skills/hooks/MCP servers mà plugin đó đã đăng ký.
+
+### Tạo plugin của riêng bạn
+
+Nếu bạn muốn đóng gói workflow của team thành plugin có thể phân phối, tạo file `plugin.json` tại thư mục gốc của plugin:
+
+```json
+{
+  "name": "my-team-workflow",
+  "version": "1.0.0",
+  "description": "Bộ workflow chuẩn của team backend",
+  "skills": [
+    "skills/deploy.md",
+    "skills/code-review.md",
+    "skills/release.md"
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": { "tool_name": "write_file" },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write {{file_path}} --log-level silent"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm test -- --passWithNoTests 2>&1 | tail -10"
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+<Steps>
+  <Step title="Chuẩn bị cấu trúc thư mục">
+    ```
+    my-plugin/
+    ├── plugin.json
+    └── skills/
+        ├── deploy.md
+        ├── code-review.md
+        └── release.md
+    ```
+  </Step>
+  <Step title="Đóng gói thành file zip">
+    ```bash
+    zip -r my-team-workflow.zip my-plugin/
+    ```
+  </Step>
+  <Step title="Chia sẻ hoặc cài đặt">
+    ```bash
+    # Cài trực tiếp từ file
+    claude plugin install ./my-team-workflow.zip
+
+    # Hoặc host lên server và cài từ URL
+    claude plugin install https://internal.company.com/plugins/my-team-workflow.zip
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Chỉ cài plugins từ nguồn bạn tin tưởng. Plugins có quyền truy cập đầy đủ vào hooks và MCP servers — một plugin độc hại có thể gây rủi ro bảo mật nghiêm trọng.
+</Warning>
+
+## So sánh: Skills vs Plugins
+
+| Tiêu chí | Skills | Plugins |
+|---|---|---|
+| Định dạng | Markdown (`.md`) | JSON + nhiều file |
+| Phạm vi | Workflow đơn lẻ | Nhiều skills + hooks + MCP |
+| Cài đặt | `npx skills add URL` hoặc tạo tay | `claude plugin install` |
+| Chia sẻ | Commit vào git repo | Đóng gói `.zip` hoặc publish marketplace |
+| Phù hợp | Quy trình team, project-specific | Bộ công cụ hoàn chỉnh, dùng lại nhiều nơi |
+
+## Workflow đề xuất cho team
+
+<Accordion title="Onboarding thành viên mới">
+  Tạo skill `.claude/skills/onboarding.md` hướng dẫn setup môi trường:
+  ```markdown
+  # New developer onboarding
+
+  Help a new developer set up the development environment:
+  1. Check Node.js version >= 18: `node --version`
+  2. Install dependencies: `npm install`
+  3. Copy env template: `cp .env.example .env`
+  4. Initialize database: `npm run db:migrate`
+  5. Seed test data: `npm run db:seed`
+  6. Run project to verify: `npm run dev`
+  7. Report any errors with suggested fixes
+  ```
+  Thành viên mới chỉ cần chạy `claude` và gõ _"Run onboarding"_ là xong.
+</Accordion>
+
+<Accordion title="Chuẩn hoá code review toàn team">
+  Một plugin bao gồm skill review + hook auto-format + MCP GitHub server đảm bảo mọi người đều review theo cùng một tiêu chuẩn, và GitHub issues được tạo tự động cho các lỗi nghiêm trọng.
+</Accordion>
+
+<Accordion title="CI/CD tích hợp">
+  Tạo skill `release.md` phối hợp với hook `Stop` để tự động chạy toàn bộ pipeline sau khi Claude hoàn thành — build, test, tag, push — mà không cần bạn theo dõi từng bước.
+</Accordion>
+
+<Tip>
+  Bắt đầu bằng cách ghi lại quy trình bạn đang làm thủ công thành skill. Chỉ cần mô tả từng bước bằng ngôn ngữ tự nhiên — Claude đủ thông minh để hiểu và thực thi mà không cần scripting phức tạp.
+</Tip>

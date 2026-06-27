@@ -1,0 +1,250 @@
+---
+title: "Workflow hàng ngày với Claude Code cho lập trình viên"
+sidebarTitle: "Workflow Thực Tế"
+description: "Hướng dẫn các workflow phổ biến: khám phá codebase, sửa bug, viết test, refactor code và quản lý git với Claude Code."
+---
+
+Một công cụ AI chỉ thực sự hữu ích khi bạn biết cách tích hợp nó vào quy trình làm việc hàng ngày. Phần này tổng hợp bảy workflow phổ biến nhất mà lập trình viên dùng Claude Code mỗi ngày — từ khám phá codebase lạ đến quản lý git — với các lệnh mẫu bạn có thể dùng ngay.
+
+## Tổng quan các workflow
+
+<CardGroup cols={2}>
+  <Card title="Khám phá codebase" icon="sitemap">
+    Hiểu nhanh kiến trúc và luồng dữ liệu của dự án mới
+  </Card>
+  <Card title="Sửa bug" icon="bug">
+    Xác định nguyên nhân và sửa lỗi từ thông báo lỗi hoặc mô tả triệu chứng
+  </Card>
+  <Card title="Viết test" icon="flask">
+    Tạo unit test, chạy và tự sửa các test thất bại
+  </Card>
+  <Card title="Refactor code" icon="arrows-rotate">
+    Cải thiện cấu trúc code mà không thay đổi hành vi
+  </Card>
+  <Card title="Quản lý git" icon="code-branch">
+    Commit, tạo PR và review thay đổi bằng ngôn ngữ tự nhiên
+  </Card>
+  <Card title="Sửa lint & dependencies" icon="wrench">
+    Tự động xử lý lỗi ESLint và cập nhật package
+  </Card>
+</CardGroup>
+
+## Chi tiết từng workflow
+
+<Accordion title="1. Khám phá codebase mới">
+  Khi bắt đầu làm việc với một dự án lạ, hãy yêu cầu Claude phân tích và giải thích kiến trúc tổng thể. Claude sẽ đọc cấu trúc thư mục, các file cấu hình và tóm tắt cách các thành phần kết nối với nhau.
+
+  ```bash
+  claude "I'm new to this codebase. Give me an overview of the architecture."
+  ```
+
+  Sau khi hiểu tổng thể, bạn có thể đặt câu hỏi sâu hơn trong cùng session:
+
+  ```bash
+  # Hỏi về một module cụ thể
+  claude "What does the auth module do and how does it connect to the user database?"
+
+  # Hỏi về luồng dữ liệu
+  claude "Trace the flow of a user login request from frontend to database"
+
+  # Tìm hiểu về một file cụ thể
+  claude "Explain what PaymentService.ts does and its dependencies"
+  ```
+
+  <Tip>
+    Chạy lệnh này ngay trong thư mục gốc của dự án để Claude có toàn bộ ngữ cảnh. Nếu dự án có file `CLAUDE.md`, Claude sẽ đọc nó trước tiên.
+  </Tip>
+</Accordion>
+
+<Accordion title="2. Tìm và sửa bug">
+  Claude xử lý bug hiệu quả nhất khi bạn cung cấp đầy đủ thông tin: thông báo lỗi, stack trace hoặc mô tả hành vi sai. Bạn có thể paste trực tiếp nội dung lỗi vào prompt.
+
+  <CodeGroup>
+    ```bash Mô tả triệu chứng
+    claude "The login fails with 'invalid token' error. Find and fix the bug."
+    ```
+
+    ```bash Paste thông báo lỗi đầy đủ
+    claude "Fix this error: TypeError: Cannot read property 'id' of undefined at UserService.ts:23"
+    ```
+
+    ```bash Chỉ định file cụ thể
+    claude "Fix the bug in login.ts line 45"
+    ```
+  </CodeGroup>
+
+  Với các lỗi phức tạp, hãy dùng chế độ interactive để trao đổi thêm:
+
+  ```bash
+  # Khởi động interactive mode
+  claude
+
+  # Trong session, bạn có thể đặt nhiều câu hỏi liên tiếp:
+  # > What could cause 'invalid token' error in the auth flow?
+  # > Check the token validation logic in authMiddleware.ts
+  # > Fix the issue and add a test to prevent regression
+  ```
+
+  <Note>
+    Sau khi Claude đề xuất sửa, hãy yêu cầu giải thích: "Why does this fix work?" giúp bạn hiểu vấn đề sâu hơn thay vì chỉ copy code.
+  </Note>
+</Accordion>
+
+<Accordion title="3. Viết và chạy test">
+  Claude có thể viết test, chạy ngay trong terminal và tự sửa các test thất bại trong một lệnh duy nhất. Đây là một trong những workflow tiết kiệm thời gian nhất.
+
+  ```bash
+  claude "Write unit tests for the UserService class, run them, and fix any failures"
+  ```
+
+  Các biến thể phổ biến:
+
+  <CodeGroup>
+    ```bash Test cho một function cụ thể
+    claude "Write tests for the calculateDiscount function in pricing.ts"
+    ```
+
+    ```bash Test với coverage report
+    claude "Write tests for the auth module and ensure at least 80% coverage"
+    ```
+
+    ```bash Sửa test đang thất bại
+    claude "The tests in payment.test.ts are failing. Find out why and fix them."
+    ```
+  </CodeGroup>
+
+  <Tip>
+    Thêm yêu cầu "and run them" vào cuối prompt để Claude tự chạy test ngay sau khi viết xong. Nếu có lỗi, Claude sẽ tiếp tục sửa mà không cần bạn nhắc thêm.
+  </Tip>
+</Accordion>
+
+<Accordion title="4. Refactor code">
+  Khi codebase trở nên khó bảo trì, hãy dùng Claude để refactor một cách có hệ thống. Chỉ rõ mục tiêu refactor để Claude không thay đổi hành vi của code.
+
+  <CodeGroup>
+    ```bash Chuyển sang async/await
+    claude "Refactor the payment module to use async/await instead of callbacks"
+    ```
+
+    ```bash Tách file lớn
+    claude "Split UserService.ts into smaller, focused modules"
+    ```
+
+    ```bash Áp dụng design pattern
+    claude "Refactor the notification system to use the Observer pattern"
+    ```
+
+    ```bash Cải thiện type safety
+    claude "Add proper TypeScript types to the entire api/ directory"
+    ```
+  </CodeGroup>
+
+  <Warning>
+    Trước khi refactor, hãy đảm bảo bạn có test coverage tốt. Yêu cầu Claude "run existing tests after refactoring to ensure nothing is broken" để kiểm tra an toàn.
+  </Warning>
+</Accordion>
+
+<Accordion title="5. Workflow Git">
+  Claude hiểu ngữ cảnh của thay đổi bạn đã thực hiện và có thể tạo commit message, PR description hay review code một cách có chất lượng.
+
+  <CodeGroup>
+    ```bash Tạo commit có ý nghĩa
+    claude "Commit my changes with a descriptive message"
+    ```
+
+    ```bash Tạo Pull Request
+    claude "Create a PR for the feature/auth-improvements branch"
+    ```
+
+    ```bash Review thay đổi gần đây
+    claude "Review the changes in the last 3 commits"
+    ```
+  </CodeGroup>
+
+  Các tác vụ git nâng cao hơn:
+
+  ```bash
+  # Tóm tắt thay đổi theo nhóm tính năng
+  claude "Summarize all changes since the last release tag"
+
+  # Kiểm tra trước khi merge
+  claude "Check if the current branch has any conflicts with main and suggest how to resolve them"
+
+  # Tạo changelog
+  claude "Generate a CHANGELOG entry for the changes in this PR"
+  ```
+
+  <Note>
+    Claude tạo commit message theo conventional commits nếu bạn có quy ước này trong `CLAUDE.md`. Xem phần [Memory & Context](/basics/memory-context) để thiết lập.
+  </Note>
+</Accordion>
+
+<Accordion title="6. Sửa lỗi lint">
+  Thay vì sửa từng lỗi ESLint một, hãy để Claude xử lý hàng loạt. Claude đọc cấu hình lint hiện có và sửa đúng theo quy tắc đã định nghĩa.
+
+  <CodeGroup>
+    ```bash Sửa toàn bộ thư mục
+    claude "Fix all ESLint errors in the src/ directory"
+    ```
+
+    ```bash Sửa một file cụ thể
+    claude "Fix all lint errors in components/Button.tsx"
+    ```
+
+    ```bash Sửa và giải thích
+    claude "Fix ESLint errors in utils/ and explain what each rule violation was"
+    ```
+  </CodeGroup>
+
+  <Tip>
+    Thêm "without disabling any rules" vào prompt để Claude sửa code thực sự thay vì thêm `// eslint-disable` comment.
+  </Tip>
+</Accordion>
+
+<Accordion title="7. Cập nhật dependencies">
+  Cập nhật dependencies thường kèm theo breaking changes. Claude có thể cập nhật package, đọc changelog và tự sửa các phần code bị ảnh hưởng.
+
+  <CodeGroup>
+    ```bash Cập nhật tất cả dependencies
+    claude "Update all npm dependencies and fix any breaking changes"
+    ```
+
+    ```bash Cập nhật một package cụ thể
+    claude "Update React to v19 and fix any breaking changes in the codebase"
+    ```
+
+    ```bash Kiểm tra bảo mật
+    claude "Check for security vulnerabilities in dependencies and update affected packages"
+    ```
+  </CodeGroup>
+
+  <Warning>
+    Luôn kiểm tra kỹ các thay đổi và chạy test đầy đủ sau khi cập nhật dependencies. Yêu cầu Claude "run all tests after updating" để phát hiện sự cố sớm.
+  </Warning>
+</Accordion>
+
+## Kết hợp nhiều workflow
+
+Sức mạnh thực sự của Claude Code nằm ở khả năng kết hợp nhiều workflow trong một session liên tục:
+
+```bash
+# Ví dụ: session phát triển tính năng hoàn chỉnh
+claude
+
+# Trong session:
+# 1. Khám phá codebase
+> Give me an overview of how user authentication works
+
+# 2. Thêm tính năng
+> Add a "remember me" option to the login form, following existing patterns
+
+# 3. Viết test
+> Write tests for the new remember me functionality
+
+# 4. Commit
+> Commit all changes with a descriptive conventional commit message
+```
+
+<Tip>
+  Dùng một session liên tục thay vì nhiều session riêng lẻ. Claude nhớ toàn bộ ngữ cảnh trong session, giúp các tác vụ sau hiểu chính xác những gì đã thực hiện trước đó.
+</Tip>
