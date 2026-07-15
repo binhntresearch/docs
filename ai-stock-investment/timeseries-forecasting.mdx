@@ -1,0 +1,508 @@
+---
+title: "Time Series Forecasting cho Chứng khoán"
+description: "ARIMA, Prophet, LSTM, Transformer cho dự đoán giá cổ phiếu"
+icon: "chart-area"
+---
+
+**Time Series Forecasting** là core của AI trading — dự đoán **giá tương lai** dựa trên **pattern trong dữ liệu quá khứ**.
+
+<Callout type="info">
+Giá cổ phiếu là **non-stationary time series** với seasonality, trends, and noise. Các ML/DL models tìm patterns để dự đoán biến động tiếp theo.
+</Callout>
+
+## Overview: Models & Use Cases
+
+| Model | Complexity | Use case | Pros |
+|---|---|---|---|
+| **Moving Average** | Simple | Baseline | Easy to understand |
+| **ARIMA** | Medium | Stationary TS | Statistical foundation |
+| **Prophet** | Medium | Multi-seasonality | Facebook's production-tested |
+| **XGBoost** | Medium-High | Feature-rich TS | Best tabular performance |
+| **LSTM** | High | Sequential patterns | Captures long-term dependencies |
+| **Transformer** | Very High | Complex patterns | State-of-the-art |
+
+## Baseline: Moving Average
+
+```python
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from sklearn.metrics import mean_absolute_percentage_error
+
+df = yf.download("AAPL", period="5y", progress=False)
+
+# Simple Moving Average
+df['SMA_5'] = df['Close'].rolling(5).mean()
+df['SMA_20'] = df['Close'].rolling(20).mean()
+
+# Exponential Moving Average
+df['EMA_5'] = df['Close'].ewm(span=5).mean()
+
+# Baseline prediction:明天 = MA today
+df['MA_Prediction'] = df['Close'].shift(1).rolling(20).mean()
+df = df.dropna()
+
+mape = mean_absolute_percentage_error(df['Close'], df['MA_Prediction'])
+print(f"SMA Baseline MAPE: {mape * 100:.2f}%")
+```
+
+## ARIMA (AutoRegressive Integrated Moving Average)
+
+```python
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.stattools import adfuller
+
+# Step 1: Check stationarity
+def check_stationarity(series):
+    result = adfuller(series)
+    print(f"ADF Statistic: {result[0]:.4f}")
+    print(f"P-value: {result[1]:.4f}")
+    print(f"Stationary: {result[1] < 0.05}")
+    return result[1] < 0.05
+
+check_stationarity(df['Close'])
+
+# Step 2: Find optimal ARIMA parameters
+from statsmodels.tsa.stattools import acf, pacf
+from itertools import product
+
+def find_best_arima(data, max_p=5, max_d=2, max_q=5):
+    """Grid search for best ARIMA order"""
+    best_aic = float('inf')
+    best_order = (1, 1, 1)
+
+    for p, d, q in product(range(max_p), range(max_d), range(max_q)):
+        try:
+            model = ARIMA(data, order=(p, d, q))
+            fitted = model.fit()
+            if fitted.aic < best_aic:
+                best_aic = fitted.aic
+                best_order = (p, d, q)
+        except:
+            continue
+
+    print(f"Best ARIMA{best_order}: AIC={best_aic:.2f}")
+    return best_order
+
+# Find optimal parameters
+best_order = find_best_arima(df['Close'])
+
+# Step 3: Train and forecast
+model = ARIMA(df['Close'], order=best_order)
+fitted = model.fit()
+
+# Forecast next 30 days
+forecast = fitted.forecast(steps=30)
+print(f"Next 30 days forecast:\n{forecast}")
+
+# Confidence intervals
+forecast_ci = fitted.get_forecast(steps=30)
+conf_int = forecast_ci.conf_int()
+```
+
+## Prophet (Meta)
+
+```python
+from prophet import Prophet
+
+# Prophet expects 'ds' (date) and 'y' (value)
+df_prophet = df[['Close']].reset_index()
+df_prophet.columns = ['ds', 'y']
+
+# Split train/test
+train = df_prophet[:-30]
+test = df_prophet[-30:]
+
+# Train
+model = Prophet(
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False,
+    seasonality_mode='multiplicative',
+    changepoint_prior_scale=0.05  # Regularization
+)
+model.fit(train)
+
+# Forecast
+future = model.make_future_dataframe(periods=30)
+forecast = model.predict(future)
+
+# Evaluate
+predicted = forecast.set_index('ds')['yhat'].iloc[-30:]
+actual = test.set_index('ds')['y']
+mape = mean_absolute_percentage_error(actual, predicted)
+print(f"Prophet MAPE: {mape * 100:.2f}%")
+
+# Plot
+fig = model.plot(forecast)
+fig2 = model.plot_components(forecast)
+```
+
+## LSTM cho Stock Prediction
+
+```python
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import MinMaxScaler
+
+# Prepare sequences
+def create_sequences(data, seq_length=60, target_length=1):
+    X, y = [], []
+    for i in range(len(data) - seq_length - target_length + 1):
+        X.append(data[i:i + seq_length])
+        y.append(data[i + seq_length:i + seq_length + target_length])
+    return np.array(X), np.array(y)
+
+scaler = MinMaxScaler()
+data_scaled = scaler.fit_transform(df[['Close', 'Volume', 'High', 'Low']].values)
+
+# Create sequences
+X, y = create_sequences(data_scaled, seq_length=60)
+
+# Train/test split (time-based, no shuffle)
+split = int(0.8 * len(X))
+X_train, X_test = X[:split], X[split:]
+y_train, y_test = y[:split], y[split:]
+
+# PyTorch Dataset
+class StockDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = torch.FloatTensor(X)
+        self.y = torch.FloatTensor(y)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+train_loader = DataLoader(StockDataset(X_train, y_train), batch_size=32, shuffle=False)
+test_loader = DataLoader(StockDataset(X_test, y_test), batch_size=32, shuffle=False)
+
+# LSTM Model
+class StockLSTM(nn.Module):
+    def __init__(self, input_size=4, hidden_size=128, num_layers=2, dropout=0.2):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout
+        )
+        self.attention = nn.Linear(hidden_size, 1)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size, 64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, target_length * 4)  # Output 4 features
+        )
+
+    def forward(self, x):
+        # LSTM
+        lstm_out, _ = self.lstm(x)  # (batch, seq, hidden)
+
+        # Attention weights
+        attn_weights = torch.softmax(self.attention(lstm_out), dim=1)
+        context = torch.sum(attn_weights * lstm_out, dim=1)
+
+        # Fully connected
+        out = self.fc(context)
+        return out
+
+
+# Train
+model = StockLSTM(input_size=4)
+criterion = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
+
+def train_epoch(model, loader, criterion, optimizer):
+    model.train()
+    total_loss = 0
+    for X_batch, y_batch in loader:
+        optimizer.zero_grad()
+        predictions = model(X_batch)
+        loss = criterion(predictions, y_batch.reshape(predictions.shape))
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+        total_loss += loss.item()
+    return total_loss / len(loader)
+
+# Training loop
+for epoch in range(100):
+    train_loss = train_epoch(model, train_loader, criterion, optimizer)
+    scheduler.step(train_loss)
+
+    if (epoch + 1) % 10 == 0:
+        print(f"Epoch {epoch+1}/100 — Loss: {train_loss:.6f}")
+
+# Evaluate
+model.eval()
+with torch.no_grad():
+    test_predictions = []
+    test_actuals = []
+    for X_batch, y_batch in test_loader:
+        pred = model(X_batch)
+        test_predictions.extend(pred.numpy())
+        test_actuals.extend(y_batch.numpy())
+
+test_predictions = scaler.inverse_transform(np.array(test_predictions))
+test_actuals = scaler.inverse_transform(np.array(test_actuals))
+
+mape = mean_absolute_percentage_error(
+    test_actuals[:, 0],  # Close price
+    test_predictions[:, 0]
+)
+print(f"LSTM MAPE: {mape * 100:.2f}%")
+```
+
+## XGBoost cho Time Series
+
+```python
+import xgboost as xgb
+from sklearn.model_selection import TimeSeriesSplit
+
+# Create features from time series
+def create_features(df, target_col='Close'):
+    features = df.copy()
+
+    # Lag features
+    for lag in [1, 2, 3, 5, 10, 20]:
+        features[f'lag_{lag}'] = features[target_col].shift(lag)
+
+    # Rolling statistics
+    for window in [5, 10, 20, 50]:
+        features[f'rolling_mean_{window}'] = features[target_col].rolling(window).mean()
+        features[f'rolling_std_{window}'] = features[target_col].rolling(window).std()
+        features[f'rolling_min_{window}'] = features[target_col].rolling(window).min()
+        features[f'rolling_max_{window}'] = features[target_col].rolling(window).max()
+
+    # Price ratios
+    features['close_to_high'] = features['Close'] / features['High']
+    features['close_to_low'] = features['Close'] / features['Low']
+    features['high_low_range'] = (features['High'] - features['Low']) / features['Close']
+
+    # Volume features
+    features['volume_change'] = features['Volume'].pct_change()
+    features['volume_ma_ratio'] = features['Volume'] / features['Volume'].rolling(20).mean()
+
+    # Calendar features
+    features['day_of_week'] = features.index.dayofweek
+    features['month'] = features.index.month
+    features['is_month_end'] = features.index.is_month_end.astype(int)
+
+    # Target: next day return
+    features['target'] = features[target_col].pct_change().shift(-1)
+
+    features = features.dropna()
+    return features
+
+
+features = create_features(df)
+
+# Split
+feature_cols = [c for c in features.columns if c not in ['target', 'Open', 'High', 'Low', 'Close', 'Volume']]
+X = features[feature_cols]
+y = features['target']
+
+split = int(0.8 * len(X))
+X_train, X_test = X[:split], X[split:]
+y_train, y_test = y[:split], y[split:]
+
+# Train XGBoost
+model = xgb.XGBRegressor(
+    n_estimators=500,
+    max_depth=6,
+    learning_rate=0.01,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    reg_alpha=0.1,
+    reg_lambda=1.0,
+    early_stopping_rounds=20
+)
+
+model.fit(
+    X_train, y_train,
+    eval_set=[(X_test, y_test)],
+    verbose=False
+)
+
+# Evaluate
+predictions = model.predict(X_test)
+direction_accuracy = (
+    np.sign(predictions) == np.sign(y_test)
+).mean()
+
+print(f"Direction Accuracy: {direction_accuracy * 100:.2f}%")
+print(f"R² Score: {model.score(X_test, y_test):.4f}")
+
+# Feature importance
+importance = pd.Series(
+    model.feature_importances_,
+    index=feature_cols
+).sort_values(ascending=False)
+
+print("\nTop 10 Features:")
+print(importance.head(10))
+```
+
+## Transformer Model
+
+```python
+class StockTransformer(nn.Module):
+    def __init__(self, input_size=4, d_model=64, nhead=4, num_layers=2,
+                 hidden_size=128, seq_length=60, target_length=1):
+        super().__init__()
+        self.input_projection = nn.Linear(input_size, d_model)
+        self.positional_encoding = nn.Parameter(
+            torch.randn(1, seq_length, d_model) * 0.1
+        )
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=hidden_size,
+            dropout=0.1,
+            batch_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.fc = nn.Sequential(
+            nn.Linear(d_model, 64),
+            nn.ReLU(),
+            nn.Linear(64, target_length * input_size)
+        )
+
+    def forward(self, x):
+        # Project input
+        x = self.input_projection(x) + self.positional_encoding[:, :x.size(1), :]
+
+        # Transformer
+        x = self.transformer(x)
+
+        # Take last time step
+        x = x[:, -1, :]
+
+        # Output
+        return self.fc(x)
+```
+
+## Walk-Forward Validation
+
+```python
+def walk_forward_validation(data, model_factory, window_size=252, test_size=21):
+    """
+    Rolling window backtest — realistic for time series
+    """
+    predictions = []
+    actuals = []
+
+    for start in range(0, len(data) - window_size - test_size, test_size):
+        # Train window
+        train_end = start + window_size
+        train_data = data[:train_end]
+
+        # Test window
+        test_start = train_end
+        test_end = test_start + test_size
+        test_data = data[test_start:test_end]
+
+        # Train model
+        model = model_factory()
+        model.fit(train_data)
+
+        # Predict
+        preds = model.predict(test_data)
+        predictions.extend(preds)
+        actuals.extend(test_data['Close'].values)
+
+    return {
+        'predictions': predictions,
+        'actuals': actuals,
+        'mape': mean_absolute_percentage_error(actuals, predictions),
+        'direction_accuracy': np.mean(np.sign(predictions) == np.sign(actuals))
+    }
+```
+
+## Production Prediction Pipeline
+
+```python
+class StockPredictionPipeline:
+    def __init__(self, symbol, models=None):
+        self.symbol = symbol
+        self.models = models or {
+            'xgboost': self.train_xgboost,
+            'lstm': self.train_lstm
+        }
+        self.scaler = MinMaxScaler()
+
+    def prepare_data(self):
+        df = yf.download(self.symbol, period="5y", progress=False)
+        features = create_features(df)
+        return features
+
+    def train_xgboost(self, X_train, y_train, X_val, y_val):
+        model = xgb.XGBRegressor(
+            n_estimators=300,
+            max_depth=6,
+            learning_rate=0.01,
+            early_stopping_rounds=20
+        )
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+        return model
+
+    def predict_ensemble(self, features):
+        """Ensemble of multiple models"""
+        predictions = {}
+        for name, train_fn in self.models.items():
+            predictions[name] = train_fn(features)
+
+        # Weighted average
+        weights = {'xgboost': 0.5, 'lstm': 0.5}
+        final = sum(
+            predictions[name] * weights[name]
+            for name in predictions
+        )
+
+        return final
+```
+
+## Key Considerations
+
+<Warning>
+**Time Series Forecasting pitfalls:**
+
+1. **Look-ahead bias** — Đừng dùng dữ liệu tương lai trong features
+2. **Overfitting** — TS models dễ overfit patterns không có thật
+3. **Stationarity** — Dữ liệu non-stationary cần differencing
+4. **Transaction costs** — Strategy tốt trên backtest thua real trading do fees
+5. **Market regime shifts** — Patterns thay đổi, model cần retrain thường xuyên
+6. **Low signal-to-noise ratio** — Giá stock rất noisy, prediction accuracy > 60% đã tốt
+</Warning>
+
+<Check>
+- **Walk-forward validation** thay vì random split
+- **Direction accuracy** quan trọng hơn absolute MAPE
+- **Ensemble** nhiều models cho robustness
+- **Regularization** (dropout, weight decay, early stopping)
+- **Feature engineering** tốt hơn model architecture
+</Check>
+
+<Tip>
+Trong thực tế, **feature engineering + XGBoost** thường tốt hơn deep learning cho stock prediction. LSTM/Transformer giỏi hơn khi data lớn (>100K samples) và có auxiliary data (news, sentiment).
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Portfolio Optimization" icon="chart-pie" href="/ai-stock-investment/portfolio-optimization">
+    Markowitz, Black-Litterman, Deep RL
+  </Card>
+  <Card title="Risk Management" icon="shield-halved" href="/ai-stock-investment/risk-management">
+    VaR, Sharpe ratio, position sizing
+  </Card>
+  <Card title="Backtesting" icon="clock-rotate-left" href="/ai-stock-investment/backtesting">
+    Test strategies on historical data
+  </Card>
+</CardGroup>

@@ -1,0 +1,467 @@
+---
+title: "Tối ưu hóa Danh mục Đầu tư"
+description: "Modern Portfolio Theory, Markowitz, Black-Litterman và Deep RL cho asset allocation"
+icon: "chart-pie"
+---
+
+**Portfolio Optimization** tìm tỷ trọng tài sản tối ưu nhất để **tối đa hóa lợi nhuận** với **mức rủi ro chấp nhận được**.
+
+<Callout type="info">
+**Modern Portfolio Theory (Markowitz, 1952):** Diversification có thể giảm risk mà không giảm expected return — bằng cách kết hợp các tài sản không correllate hoàn toàn.
+</Callout>
+
+## Mathematical Foundation
+
+### Return & Risk
+
+```python
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+# Load data
+tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "JPM", "JNJ"]
+data = yf.download(tickers, period="5y", progress=False)['Close']
+
+# Daily returns
+returns = data.pct_change().dropna()
+
+# Annual return
+annual_return = returns.mean() * 252
+print("Annual Returns:")
+print(annual_return)
+
+# Annual volatility
+annual_volatility = returns.std() * np.sqrt(252)
+print("\nAnnual Volatility:")
+print(annual_volatility)
+
+# Correlation matrix
+correlation = returns.corr()
+print("\nCorrelation Matrix:")
+print(correlation)
+```
+
+### Efficient Frontier
+
+```python
+from scipy.optimize import minimize
+
+def portfolio_stats(weights, returns, cov_matrix):
+    """Calculate portfolio return, volatility, Sharpe"""
+    port_return = np.sum(returns * weights)
+    port_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+    sharpe_ratio = port_return / port_volatility  # Risk-free = 0 for simplicity
+    return port_return, port_volatility, sharpe_ratio
+
+def minimize_negative_sharpe(weights, returns, cov_matrix):
+    """Objective: minimize negative Sharpe ratio"""
+    port_return, port_volatility, sharpe = portfolio_stats(weights, returns, cov_matrix)
+    return -sharpe
+
+# Constraints and bounds
+num_assets = len(tickers)
+constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]  # Weights sum to 1
+bounds = tuple((0, 1) for _ in range(num_assets))  # No short selling
+
+# Find maximum Sharpe ratio portfolio
+initial_weights = np.ones(num_assets) / num_assets
+
+result = minimize(
+    minimize_negative_sharpe,
+    initial_weights,
+    args=(annual_return.values, returns.cov().values * 252),
+    method='SLSQP',
+    bounds=bounds,
+    constraints=constraints
+)
+
+optimal_weights = result.x
+port_return, port_vol, sharpe = portfolio_stats(
+    optimal_weights,
+    annual_return.values,
+    returns.cov().values * 252
+)
+
+print(f"\nMaximum Sharpe Portfolio:")
+for ticker, weight in zip(tickers, optimal_weights):
+    if weight > 0.01:  # Only show significant weights
+        print(f"  {ticker}: {weight*100:.2f}%")
+print(f"Return: {port_return*100:.2f}%")
+print(f"Volatility: {port_vol*100:.2f}%")
+print(f"Sharpe Ratio: {sharpe:.3f}")
+```
+
+### Monte Carlo Simulation
+
+```python
+def monte_carlo_simulation(returns, cov_matrix, num_portfolios=10000):
+    """Generate random portfolios"""
+    num_assets = len(returns)
+    results = np.zeros((num_portfolios, 3))  # return, volatility, sharpe
+
+    for i in range(num_portfolios):
+        weights = np.random.random(num_assets)
+        weights /= np.sum(weights)
+
+        port_return, port_vol, sharpe = portfolio_stats(weights, returns, cov_matrix)
+        results[i] = [port_return, port_vol, sharpe]
+
+    return results
+
+mc_results = monte_carlo_simulation(
+    annual_return.values,
+    returns.cov().values * 252
+)
+
+# Plot efficient frontier
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 8))
+plt.scatter(mc_results[:, 1] * 100, mc_results[:, 0] * 100,
+            c=mc_results[:, 2], cmap='viridis', alpha=0.5, s=5)
+plt.colorbar(label='Sharpe Ratio')
+plt.xlabel('Annual Volatility (%)')
+plt.ylabel('Annual Return (%)')
+plt.title('Efficient Frontier — Monte Carlo Simulation')
+plt.grid(True, alpha=0.3)
+plt.show()
+```
+
+## Minimum Variance Portfolio
+
+```python
+def min_variance_portfolio(returns, cov_matrix):
+    """Portfolio with lowest possible volatility"""
+    num_assets = len(returns)
+    initial_weights = np.ones(num_assets) / num_assets
+
+    constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+    bounds = tuple((0, 1) for _ in range(num_assets))
+
+    result = minimize(
+        lambda w: np.sqrt(np.dot(w.T, np.dot(cov_matrix, w))),  # Minimize vol
+        initial_weights,
+        method='SLSQP',
+        bounds=bounds,
+        constraints=constraints
+    )
+
+    return result.x
+
+min_var_weights = min_variance_portfolio(
+    annual_return.values,
+    returns.cov().values * 252
+)
+
+print("Minimum Variance Portfolio:")
+for ticker, weight in zip(tickers, min_var_weights):
+    if weight > 0.01:
+        print(f"  {ticker}: {weight*100:.2f}%")
+```
+
+## Risk Parity
+
+```python
+def risk_parity_portfolio(returns, cov_matrix):
+    """Equal risk contribution from each asset"""
+    num_assets = len(returns)
+    target_risk = 1.0 / num_assets  # Equal risk contribution
+
+    def risk_budget_objective(weights):
+        port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        marginal_risk = np.dot(cov_matrix, weights)
+        risk_contribution = weights * marginal_risk / port_vol
+        return np.sum((risk_contribution - target_risk * port_vol) ** 2)
+
+    initial_weights = np.ones(num_assets) / num_assets
+    constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+    bounds = tuple((0.01, 1) for _ in range(num_assets))
+
+    result = minimize(
+        risk_budget_objective,
+        initial_weights,
+        method='SLSQP',
+        bounds=bounds,
+        constraints=constraints
+    )
+
+    return result.x
+
+rp_weights = risk_parity_portfolio(
+    annual_return.values,
+    returns.cov().values * 252
+)
+
+print("Risk Parity Portfolio:")
+for ticker, weight in zip(tickers, rp_weights):
+    if weight > 0.01:
+        print(f"  {ticker}: {weight*100:.2f}%")
+```
+
+## Black-Litterman Model
+
+<Callout type="info">
+**Black-Litterman** kết hợp **market equilibrium returns** với **investor views** (subjective beliefs) để estimate expected returns — robust hơn pure mean-variance.
+</Callout>
+
+```python
+def black_litterman(returns, cov_matrix, market_caps, views, confidence):
+    """
+    Black-Litterman expected returns
+
+    Args:
+        returns: historical returns
+        cov_matrix: covariance matrix
+        market_caps: market capitalization of each asset
+        views: P @ mu = Q (investor views matrix)
+        confidence: Omega matrix (uncertainty of views)
+    """
+    # Market-implied returns (equilibrium)
+    market_weights = market_caps / np.sum(market_caps)
+    risk_aversion = (returns.mean() * 252).dot(market_weights) / \
+                    (market_weights.dot(cov_matrix.dot(market_weights)) * 252)
+    tau = 0.05  # Scaling factor
+
+    pi = risk_aversion * cov_matrix.dot(market_weights)
+
+    # Combine with views
+    P = views  # Views matrix
+    Q = np.array([0.15, -0.10])  # Expected views (AAPL up 15%, TSLA down 10%)
+    Omega = confidence * np.diag(np.diag(P @ (tau * cov_matrix) @ P.T))
+
+    # Posterior expected returns
+    posterior = np.linalg.inv(
+        np.linalg.inv(tau * cov_matrix) + P.T @ np.linalg.inv(Omega) @ P
+    ) @ (np.linalg.inv(tau * cov_matrix) @ pi + P.T @ np.linalg.inv(Omega) @ Q)
+
+    return posterior
+
+
+# Example views
+# View 1: AAPL will outperform MSFT by 10%
+# View 2: TSLA will underperform GOOGL by 5%
+P = np.zeros((2, num_assets))
+P[0, tickers.index('AAPL')] = 1
+P[0, tickers.index('MSFT')] = -1
+P[1, tickers.index('TSLA')] = 1
+P[1, tickers.index('GOOGL')] = -1
+
+Q = np.array([0.10, -0.05])
+
+market_caps = np.array([
+    2.8e12,  # AAPL
+    3.1e12,  # MSFT
+    1.9e12,  # GOOGL
+    1.7e12,  # AMZN
+    0.8e12,  # TSLA
+    1.2e12,  # NVDA
+    0.6e12,  # JPM
+    0.4e12,  # JNJ
+])
+
+bl_returns = black_litterman(
+    returns, returns.cov().values * 252,
+    market_caps, P, Q
+)
+
+print("Black-Litterman Expected Returns:")
+for ticker, ret in zip(tickers, bl_returns):
+    print(f"  {ticker}: {ret*100:.2f}%")
+```
+
+## Deep Reinforcement Learning cho Portfolio
+
+```python
+import torch
+import torch.nn as nn
+
+class PortfolioEnvironment:
+    """Portfolio allocation environment for RL"""
+    def __init__(self, prices, transaction_cost=0.001):
+        self.prices = prices
+        self.returns = prices.pct_change().fillna(0)
+        self.transaction_cost = transaction_cost
+        self.n_assets = prices.shape[1]
+        self.reset()
+
+    def reset(self):
+        self.current_step = 0
+        self.portfolio_value = 1.0
+        self.weights = np.ones(self.n_assets) / self.n_assets
+        self.done = False
+        return self._get_state()
+
+    def _get_state(self):
+        """Current state: recent returns + current weights"""
+        lookback = 30
+        recent_returns = self.returns.iloc[
+            max(0, self.current_step - lookback):self.current_step
+        ].values.flatten()
+
+        return np.concatenate([
+            recent_returns,
+            self.weights,
+            [self.portfolio_value]
+        ])
+
+    def step(self, action):
+        """Execute rebalancing action"""
+        new_weights = np.array(action)
+        new_weights = np.clip(new_weights, 0, 1)
+        new_weights /= new_weights.sum()
+
+        # Transaction cost
+        cost = np.sum(np.abs(new_weights - self.weights)) * self.transaction_cost
+        self.portfolio_value *= (1 - cost)
+
+        # Update weights
+        self.weights = new_weights
+
+        # Return for this step
+        daily_return = self.returns.iloc[self.current_step].values
+        portfolio_return = np.dot(self.weights, daily_return)
+        self.portfolio_value *= (1 + portfolio_return)
+
+        self.current_step += 1
+        if self.current_step >= len(self.returns) - 1:
+            self.done = True
+
+        reward = portfolio_return  # Simple reward
+        return self._get_state(), reward, self.done, {}
+
+
+class DQNPortfolio(nn.Module):
+    """DQN for portfolio allocation"""
+    def __init__(self, state_size, n_assets):
+        super().__init__()
+        self.fc1 = nn.Linear(state_size, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, n_assets)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        return self.softmax(self.fc3(x))
+```
+
+## Rebalancing Strategy
+
+```python
+class PortfolioRebalancer:
+    def __init__(self, target_weights, threshold=0.05):
+        self.target = target_weights
+        self.threshold = threshold
+
+    def should_rebalance(self, current_weights):
+        """Rebalance if any weight drifts > threshold"""
+        drift = np.abs(current_weights - self.target)
+        return np.any(drift > self.threshold)
+
+    def get_rebalancing_trades(self, current_weights, portfolio_value):
+        """Calculate trades needed"""
+        target_values = self.target * portfolio_value
+        current_values = current_weights * portfolio_value
+
+        trades = target_values - current_values
+        return trades
+
+    def execute_rebalance(self, current_weights, portfolio_value):
+        """Full rebalancing logic"""
+        if not self.should_rebalance(current_weights):
+            return None
+
+        trades = self.get_rebalancing_trades(current_weights, portfolio_value)
+
+        # Apply transaction costs
+        total_turnover = np.sum(np.abs(trades)) / portfolio_value
+        transaction_cost = total_turnover * 0.001  # 0.1% fee
+
+        new_portfolio_value = portfolio_value * (1 - transaction_cost)
+
+        return {
+            'trades': trades,
+            'new_weights': self.target,
+            'turnover': total_turnover,
+            'transaction_cost': transaction_cost,
+            'new_portfolio_value': new_portfolio_value
+        }
+```
+
+## Evaluation Metrics
+
+```python
+def evaluate_portfolio(returns_series):
+    """Comprehensive portfolio evaluation"""
+    total_return = (1 + returns_series).prod() - 1
+    annual_return = returns_series.mean() * 252
+    annual_vol = returns_series.std() * np.sqrt(252)
+    sharpe = annual_return / annual_vol
+
+    # Maximum drawdown
+    cumulative = (1 + returns_series).cumprod()
+    running_max = cumulative.cummax()
+    drawdown = (cumulative - running_max) / running_max
+    max_drawdown = drawdown.min()
+
+    # Calmar ratio
+    calmar = annual_return / abs(max_drawdown) if max_drawdown != 0 else 0
+
+    # Sortino ratio (downside only)
+    downside_returns = returns_series[returns_series < 0]
+    downside_vol = downside_returns.std() * np.sqrt(252)
+    sortino = annual_return / downside_vol if downside_vol != 0 else 0
+
+    # Win rate
+    win_rate = (returns_series > 0).sum() / len(returns_series)
+
+    return {
+        'total_return': total_return,
+        'annual_return': annual_return,
+        'annual_volatility': annual_vol,
+        'sharpe_ratio': sharpe,
+        'sortino_ratio': sortino,
+        'calmar_ratio': calmar,
+        'max_drawdown': max_drawdown,
+        'win_rate': win_rate
+    }
+```
+
+## Key Insights
+
+<Check>
+- **Diversification là free lunch** — Giảm risk mà không giảm expected return
+- **Risk Parity** thường robust hơn Markowitz trong thực tế
+- **Rebalancing frequency** — Quarterly tốt hơn monthly (lower transaction costs)
+- **Black-Litterman** tốt hơn mean-variance cho institutional allocations
+- **Deep RL** promising nhưng cần大量 data và careful training
+</Check>
+
+<Warning>
+**Portfolio Optimization pitfalls:**
+
+1. **Estimation error** — Expected returns rất khó estimate chính xác
+2. **Correlation instability** — Correlations tăng trong market crashes
+3. **Transaction costs** — Rebalancing quá frequent giảm returns
+4. **Survivorship bias** — Chỉ test trên stocks đang tồn tại
+5. **Overfitting** — Optimal weights trên past data có thể không work future
+</Warning>
+
+<Tip>
+Bắt đầu với **equal-weight** (1/N) portfolio — đơn giản và often beats complex optimization trong short-medium term. Thêm optimization sau khi hiểu rõ underlying assumptions.
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Risk Management" icon="shield-halved" href="/ai-stock-investment/risk-management">
+    VaR, position sizing, stop-loss
+  </Card>
+  <Card title="Backtesting" icon="clock-rotate-left" href="/ai-stock-investment/backtesting">
+    Test strategies on historical data
+  </Card>
+  <Card title="Trading Agent" icon="robot" href="/ai-stock-investment/trading-agent">
+    AI agent giao dịch tự động
+  </Card>
+</CardGroup>

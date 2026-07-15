@@ -1,0 +1,611 @@
+---
+title: "Phân tích cơ bản"
+description: "Financial statements, valuation ratios và DCF model"
+icon: "magnifying-glass-dollar"
+---
+
+**Phân tích cơ bản (Fundamental Analysis)** đánh giá **giá trị nội tại** của doanh nghiệp thông qua báo cáo tài chính, ngành, và môi trường kinh tế vĩ mô để quyết định cổ phiếu bị **định giá thấp** (undervalued) hay **định giá cao** (overvalued).
+
+<Callout type="info">
+**Triết lý:** Giá có thể dao động ngắn hạn, nhưng **dài hạn giá sẽ quay về giá trị thực** của doanh nghiệp. Tìm cổ phiếu tốt đang bị thị trường định giá thấp.
+</Callout>
+
+## 3 Báo cáo tài chính cốt lõi
+
+<Tabs>
+  <Tab title="Income Statement">
+    Báo cáo kết quả kinh doanh — doanh thu, chi phí, lợi nhuận theo kỳ
+
+    - **Revenue (Doanh thu):** Tổng tiền bán hàng
+    - **COGS:** Cost of goods sold
+    - **Gross Profit:** Revenue - COGS
+    - **Operating Expenses:** SG&A, R&D
+    - **Operating Income:** Gross Profit - OpEx
+    - **Net Income:** Lợi nhuận sau thuế = **EPS × Shares**
+  </Tab>
+  <Tab title="Balance Sheet">
+    Bảng cân đối kế toán — tài sản, nợ, vốn tại 1 thời điểm
+
+    - **Assets:** Cash, Receivables, Inventory, PP&E
+    - **Liabilities:** Payables, Short/Long-term Debt
+    - **Equity:** Vốn cổ đông = Assets - Liabilities
+    - **Fundamental equation:** Assets = Liabilities + Equity
+  </Tab>
+  <Tab title="Cash Flow Statement">
+    Báo cáo lưu chuyển tiền tệ
+
+    - **Operating CF:** Tiền từ hoạt động kinh doanh
+    - **Investing CF:** Tiền từ M&A, capex
+    - **Financing CF:** Tiền từ debt, equity, dividends
+    - **Free Cash Flow:** OCF - CapEx (quan trọng nhất)
+  </Tab>
+</Tabs>
+
+## Đọc dữ liệu với Python
+
+```python
+import yfinance as yf
+
+ticker = yf.Ticker("AAPL")
+
+# Income Statement
+income_stmt = ticker.income_stmt
+print("Revenue:", income_stmt.loc["Total Revenue"])
+print("Net Income:", income_stmt.loc["Net Income"])
+print("EPS:", income_stmt.loc["Basic EPS"])
+
+# Balance Sheet
+balance_sheet = ticker.balance_sheet
+print("\nTotal Assets:", balance_sheet.loc["Total Assets"])
+print("Total Liabilities:", balance_sheet.loc["Total Liabilities Net Minority Interest"])
+print("Total Equity:", balance_sheet.loc["Stockholders Equity"])
+
+# Cash Flow
+cashflow = ticker.cashflow
+print("\nOperating Cash Flow:", cashflow.loc["Operating Cash Flow"])
+print("Capital Expenditures:", cashflow.loc["Capital Expenditure"])
+print("Free Cash Flow:", cashflow.loc["Operating Cash Flow"] + cashflow.loc["Capital Expenditure"])
+
+# Quarterly statements
+quarterly_income = ticker.quarterly_income_stmt
+quarterly_balance = ticker.quarterly_balance_sheet
+```
+
+## Valuation Ratios
+
+### 1. Earnings Ratios
+
+```python
+import yfinance as yf
+
+ticker = yf.Ticker("AAPL")
+info = ticker.info
+
+# P/E Ratio (Price-to-Earnings)
+# Market price / EPS — cho biết bao nhiêu $ trả cho 1$ lợi nhuận
+pe = info['trailingPE']       # Trailing P/E (dựa EPS quá khứ)
+forward_pe = info['forwardPE']  # Forward P/E (dựa EPS dự kiến)
+
+print(f"P/E: {pe}")
+print(f"Forward P/E: {forward_pe}")
+
+# EPS (Earnings Per Share)
+eps = info['trailingEps']
+print(f"EPS: ${eps}")
+
+# PEG Ratio (P/E to Growth)
+# PEG < 1: Undervalued, PEG > 2: Overvalued
+peg = info['pegRatio']
+print(f"PEG: {peg}")
+```
+
+### 2. Price-Based Ratios
+
+```python
+# P/B (Price-to-Book)
+# Market Cap / Book Value — tốt cho financial, real estate
+pb = info['priceToBook']
+print(f"P/B: {pb}")
+
+# P/S (Price-to-Sales)
+# Market Cap / Revenue — tốt cho growth stocks chưa profitable
+ps = info['priceToSalesTrailing12Months']
+print(f"P/S: {ps}")
+
+# EV/EBITDA (Enterprise Value to EBITDA)
+# Tốt hơn P/E cho comparisons across companies
+ev = info['enterpriseValue']
+ebitda = info['ebitda']
+ev_ebitda = ev / ebitda if ebitda else None
+print(f"EV/EBITDA: {ev_ebitda}")
+```
+
+### 3. Profitability Ratios
+
+```python
+# ROE (Return on Equity) — quan trọng nhất
+# Net Income / Shareholders' Equity
+# > 15% là tốt, > 20% là xuất sắc
+roe = info['returnOnEquity']
+print(f"ROE: {roe * 100:.2f}%")
+
+# ROA (Return on Assets)
+# Net Income / Total Assets
+roa = info['returnOnAssets']
+print(f"ROA: {roa * 100:.2f}%")
+
+# Profit Margin
+# Net Income / Revenue
+profit_margin = info['profitMargins']
+print(f"Profit Margin: {profit_margin * 100:.2f}%")
+
+# Operating Margin
+operating_margin = info['operatingMargins']
+print(f"Operating Margin: {operating_margin * 100:.2f}%")
+
+# Gross Margin
+gross_margin = info['grossMargins']
+print(f"Gross Margin: {gross_margin * 100:.2f}%")
+```
+
+### 4. Financial Health
+
+```python
+# Debt-to-Equity
+# Total Debt / Shareholders' Equity
+# < 1 = healthy, > 2 = risky
+de = info['debtToEquity']
+print(f"Debt-to-Equity: {de}")
+
+# Current Ratio
+# Current Assets / Current Liabilities
+# > 1.5 = healthy liquidity
+current_ratio = info['currentRatio']
+print(f"Current Ratio: {current_ratio}")
+
+# Quick Ratio (Acid Test)
+# (Current Assets - Inventory) / Current Liabilities
+quick_ratio = info['quickRatio']
+print(f"Quick Ratio: {quick_ratio}")
+
+# Free Cash Flow
+fcf = info['freeCashflow']
+print(f"Free Cash Flow: ${fcf:,}")
+
+# Interest Coverage
+# EBIT / Interest Expense
+# > 3 = safe, < 1.5 = dangerous
+interest_coverage = info.get('interestCoverage', None)
+```
+
+### 5. Growth Metrics
+
+```python
+# Revenue Growth (YoY)
+revenue_growth = info['revenueGrowth']
+print(f"Revenue Growth: {revenue_growth * 100:.2f}%")
+
+# Earnings Growth (YoY)
+earnings_growth = info['earningsGrowth']
+print(f"Earnings Growth: {earnings_growth * 100:.2f}%")
+
+# Calculate CAGR over multiple years
+def calculate_cagr(start_value, end_value, years):
+    """Compound Annual Growth Rate"""
+    return ((end_value / start_value) ** (1 / years)) - 1
+
+# Example: Revenue từ 2020 → 2025
+revenue_2020 = 274_515e6  # Apple 2020
+revenue_2025 = 401_000e6  # Apple 2025 (estimated)
+cagr = calculate_cagr(revenue_2020, revenue_2025, 5)
+print(f"5-year Revenue CAGR: {cagr * 100:.2f}%")
+```
+
+### 6. Dividend Metrics
+
+```python
+# Dividend Yield
+div_yield = info['dividendYield']
+print(f"Dividend Yield: {div_yield * 100:.2f}%")
+
+# Payout Ratio
+# Dividends / Net Income
+# < 50% sustainable, > 80% risky
+payout = info['payoutRatio']
+print(f"Payout Ratio: {payout * 100:.2f}%")
+
+# Dividend Growth (historical)
+dividends = ticker.dividends
+print(dividends.tail(10))
+```
+
+## Tính toán các Ratios từ Financial Statements
+
+```python
+def calculate_financial_ratios(income_stmt, balance_sheet, cashflow):
+    """Calculate ratios from raw financial statements"""
+
+    ratios = {}
+
+    # Profitability
+    ratios['gross_margin'] = (
+        income_stmt.loc['Gross Profit'] / income_stmt.loc['Total Revenue']
+    ).iloc[0]
+
+    ratios['operating_margin'] = (
+        income_stmt.loc['Operating Income'] / income_stmt.loc['Total Revenue']
+    ).iloc[0]
+
+    ratios['net_margin'] = (
+        income_stmt.loc['Net Income'] / income_stmt.loc['Total Revenue']
+    ).iloc[0]
+
+    ratios['roe'] = (
+        income_stmt.loc['Net Income'] / balance_sheet.loc['Stockholders Equity']
+    ).iloc[0]
+
+    ratios['roa'] = (
+        income_stmt.loc['Net Income'] / balance_sheet.loc['Total Assets']
+    ).iloc[0]
+
+    # Liquidity
+    ratios['current_ratio'] = (
+        balance_sheet.loc['Current Assets'] / balance_sheet.loc['Current Liabilities']
+    ).iloc[0]
+
+    # Leverage
+    ratios['debt_to_equity'] = (
+        balance_sheet.loc['Total Liabilities Net Minority Interest'] /
+        balance_sheet.loc['Stockholders Equity']
+    ).iloc[0]
+
+    # Cash Flow
+    ratios['fcf_margin'] = (
+        cashflow.loc['Operating Cash Flow'] +
+        cashflow.loc['Capital Expenditure']
+    ) / income_stmt.loc['Total Revenue']
+
+    return ratios
+```
+
+## DuPont Analysis
+
+Phân tích ROE thành 3 thành phần:
+
+```python
+def dupont_analysis(net_income, revenue, total_assets, equity):
+    """
+    ROE = Net Margin × Asset Turnover × Equity Multiplier
+    """
+    net_margin = net_income / revenue                  # Profitability
+    asset_turnover = revenue / total_assets            # Efficiency
+    equity_multiplier = total_assets / equity          # Leverage
+
+    roe = net_margin * asset_turnover * equity_multiplier
+
+    return {
+        'net_margin': net_margin,
+        'asset_turnover': asset_turnover,
+        'equity_multiplier': equity_multiplier,
+        'roe': roe
+    }
+```
+
+## Discounted Cash Flow (DCF)
+
+<Callout type="info">
+DCF định giá công ty dựa trên **giá trị hiện tại của dòng tiền tương lai**. Đây là phương pháp valuation "academic standard".
+</Callout>
+
+### Single-stage DCF
+
+```python
+def simple_dcf(fcf, growth_rate, discount_rate, terminal_growth, years=10):
+    """
+    Simple DCF valuation
+
+    Args:
+        fcf: Current Free Cash Flow
+        growth_rate: Annual growth rate (e.g., 0.10 for 10%)
+        discount_rate: WACC (e.g., 0.10 for 10%)
+        terminal_growth: Perpetual growth after explicit period
+        years: Explicit forecast period
+    """
+    # Project future cash flows
+    cash_flows = []
+    for year in range(1, years + 1):
+        fcf_year = fcf * (1 + growth_rate) ** year
+        pv = fcf_year / (1 + discount_rate) ** year
+        cash_flows.append(pv)
+
+    # Terminal value (Gordon Growth Model)
+    terminal_fcf = fcf * (1 + growth_rate) ** years * (1 + terminal_growth)
+    terminal_value = terminal_fcf / (discount_rate - terminal_growth)
+    pv_terminal = terminal_value / (1 + discount_rate) ** years
+
+    # Enterprise value
+    enterprise_value = sum(cash_flows) + pv_terminal
+
+    return {
+        'enterprise_value': enterprise_value,
+        'pv_explicit': sum(cash_flows),
+        'pv_terminal': pv_terminal,
+        'terminal_pct': pv_terminal / enterprise_value
+    }
+
+
+# Example: Apple
+fcf = 100_000_000_000  # $100B
+growth_rate = 0.08     # 8% growth
+discount_rate = 0.09   # 9% WACC
+terminal_growth = 0.025 # 2.5% perpetual
+
+valuation = simple_dcf(fcf, growth_rate, discount_rate, terminal_growth)
+print(f"Enterprise Value: ${valuation['enterprise_value']:,.0f}")
+```
+
+### Multi-stage DCF (more realistic)
+
+```python
+def multistage_dcf(initial_fcf, growth_phases, discount_rate, terminal_growth):
+    """
+    Multi-stage DCF with declining growth
+
+    growth_phases: list of (years, growth_rate) tuples
+    Example: [(5, 0.15), (5, 0.10), (5, 0.05)]
+    """
+    pv_total = 0
+    current_fcf = initial_fcf
+    total_years = sum(years for years, _ in growth_phases)
+
+    # Calculate explicit forecast period
+    year = 0
+    for years, growth in growth_phases:
+        for _ in range(years):
+            year += 1
+            current_fcf *= (1 + growth)
+            pv = current_fcf / (1 + discount_rate) ** year
+            pv_total += pv
+
+    # Terminal value
+    terminal_fcf = current_fcf * (1 + terminal_growth)
+    terminal_value = terminal_fcf / (discount_rate - terminal_growth)
+    pv_terminal = terminal_value / (1 + discount_rate) ** year
+
+    enterprise_value = pv_total + pv_terminal
+
+    return {
+        'enterprise_value': enterprise_value,
+        'pv_explicit': pv_total,
+        'pv_terminal': pv_terminal,
+        'forecast_fcf': current_fcf
+    }
+
+
+# Example: High-growth → mature company
+result = multistage_dcf(
+    initial_fcf=1_000_000_000,  # $1B
+    growth_phases=[(5, 0.20), (5, 0.12), (5, 0.05)],  # 3 phases
+    discount_rate=0.10,
+    terminal_growth=0.025
+)
+print(f"EV: ${result['enterprise_value']:,.0f}")
+```
+
+### DCF sang Equity Value & Intrinsic Price
+
+```python
+def dcf_to_intrinsic_price(enterprise_value, total_debt, cash, shares_outstanding):
+    """
+    Convert Enterprise Value to per-share intrinsic value
+    """
+    equity_value = enterprise_value - total_debt + cash
+    intrinsic_price = equity_value / shares_outstanding
+    return intrinsic_price
+
+
+# Current price vs intrinsic
+def is_undervalued(current_price, intrinsic_price, margin_of_safety=0.25):
+    """
+    Margin of Safety: Mua khi giá < 75% intrinsic value (25% margin)
+    """
+    discount = (intrinsic_price - current_price) / intrinsic_price
+    verdict = "Undervalued" if discount > margin_of_safety else \
+              "Fair Value" if discount > 0 else \
+              "Overvalued"
+    return {
+        'intrinsic_price': intrinsic_price,
+        'current_price': current_price,
+        'upside': discount,
+        'verdict': verdict
+    }
+```
+
+## Comparables Analysis
+
+```python
+def peer_comparison(peers, ratio='trailingPE'):
+    """Compare valuation across peers"""
+    data = []
+    for symbol in peers:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        data.append({
+            'symbol': symbol,
+            'name': info.get('longName', ''),
+            'pe': info.get('trailingPE'),
+            'pb': info.get('priceToBook'),
+            'ps': info.get('priceToSalesTrailing12Months'),
+            'roe': info.get('returnOnEquity'),
+            'div_yield': info.get('dividendYield'),
+            'market_cap': info.get('marketCap'),
+        })
+
+    df = pd.DataFrame(data)
+
+    # Median comparison
+    median_pe = df['pe'].median()
+
+    # Undervalued if PE < 70% of peer median
+    df['verdict'] = df['pe'].apply(
+        lambda x: 'Undervalued' if x < median_pe * 0.7
+        else 'Fair' if x < median_pe * 1.3
+        else 'Overvalued'
+    )
+
+    return df
+
+
+# Example: Compare tech giants
+peers = ['AAPL', 'MSFT', 'GOOGL', 'META', 'AMZN']
+comparison = peer_comparison(peers)
+print(comparison)
+```
+
+## Financial Health Score (Piotroski F-Score)
+
+```python
+def piotroski_f_score(income_stmt, balance_sheet, cashflow, current_year_idx=0):
+    """
+    Piotroski F-Score (0-9): Higher = stronger financial health
+    """
+    score = 0
+    details = []
+
+    # 1. Positive net income
+    if income_stmt.loc['Net Income'].iloc[current_year_idx] > 0:
+        score += 1
+        details.append("✓ Positive net income")
+
+    # 2. Positive operating cash flow
+    if cashflow.loc['Operating Cash Flow'].iloc[current_year_idx] > 0:
+        score += 1
+        details.append("✓ Positive operating cash flow")
+
+    # 3. ROA improvement
+    roa_current = (
+        income_stmt.loc['Net Income'].iloc[current_year_idx] /
+        balance_sheet.loc['Total Assets'].iloc[current_year_idx]
+    )
+    roa_previous = (
+        income_stmt.loc['Net Income'].iloc[current_year_idx + 1] /
+        balance_sheet.loc['Total Assets'].iloc[current_year_idx + 1]
+    )
+    if roa_current > roa_previous:
+        score += 1
+        details.append("✓ ROA improved")
+
+    # 4. CFO > Net Income (quality of earnings)
+    if cashflow.loc['Operating Cash Flow'].iloc[current_year_idx] > \
+       income_stmt.loc['Net Income'].iloc[current_year_idx]:
+        score += 1
+        details.append("✓ Cash flow > Net Income")
+
+    # 5. Decreased debt ratio
+    debt_ratio_current = (
+        balance_sheet.loc['Total Liabilities Net Minority Interest'].iloc[current_year_idx] /
+        balance_sheet.loc['Total Assets'].iloc[current_year_idx]
+    )
+    debt_ratio_previous = (
+        balance_sheet.loc['Total Liabilities Net Minority Interest'].iloc[current_year_idx + 1] /
+        balance_sheet.loc['Total Assets'].iloc[current_year_idx + 1]
+    )
+    if debt_ratio_current < debt_ratio_previous:
+        score += 1
+        details.append("✓ Debt ratio decreased")
+
+    # 6. Improved current ratio
+    cr_current = (
+        balance_sheet.loc['Current Assets'].iloc[current_year_idx] /
+        balance_sheet.loc['Current Liabilities'].iloc[current_year_idx]
+    )
+    cr_previous = (
+        balance_sheet.loc['Current Assets'].iloc[current_year_idx + 1] /
+        balance_sheet.loc['Current Liabilities'].iloc[current_year_idx + 1]
+    )
+    if cr_current > cr_previous:
+        score += 1
+        details.append("✓ Current ratio improved")
+
+    # 7. No share dilution
+    shares_current = balance_sheet.loc['Common Stock'].iloc[current_year_idx]
+    shares_previous = balance_sheet.loc['Common Stock'].iloc[current_year_idx + 1]
+    if shares_current <= shares_previous:
+        score += 1
+        details.append("✓ No share dilution")
+
+    # 8. Improved gross margin
+    gm_current = (
+        income_stmt.loc['Gross Profit'].iloc[current_year_idx] /
+        income_stmt.loc['Total Revenue'].iloc[current_year_idx]
+    )
+    gm_previous = (
+        income_stmt.loc['Gross Profit'].iloc[current_year_idx + 1] /
+        income_stmt.loc['Total Revenue'].iloc[current_year_idx + 1]
+    )
+    if gm_current > gm_previous:
+        score += 1
+        details.append("✓ Gross margin improved")
+
+    # 9. Improved asset turnover
+    at_current = (
+        income_stmt.loc['Total Revenue'].iloc[current_year_idx] /
+        balance_sheet.loc['Total Assets'].iloc[current_year_idx]
+    )
+    at_previous = (
+        income_stmt.loc['Total Revenue'].iloc[current_year_idx + 1] /
+        balance_sheet.loc['Total Assets'].iloc[current_year_idx + 1]
+    )
+    if at_current > at_previous:
+        score += 1
+        details.append("✓ Asset turnover improved")
+
+    return {
+        'score': score,
+        'max_score': 9,
+        'details': details,
+        'interpretation': 'Strong' if score >= 7 else 'Moderate' if score >= 4 else 'Weak'
+    }
+```
+
+## Limitations
+
+<Warning>
+**Phân tích cơ bản có giới hạn:**
+
+1. **Backward-looking** — Dùng dữ liệu quá khứ để dự đoán tương lai (có thể không accurate)
+2. **Subjective assumptions** — Growth rate, discount rate, terminal value đều là ước lượng
+3. **Không capture short-term momentum** — Có thể undervalued nhưng vẫn giảm tiếp
+4. **Industry differences** — P/E 30 cho tech ≠ P/E 30 cho bank
+5. **DCF highly sensitive** — Thay đổi growth 1% có thể thay đổi valuation 20%+
+6. **Black swan events** — COVID, financial crisis không thể predict
+</Warning>
+
+## Best Practices
+
+<Check>
+- **So sánh với peers cùng ngành** — không so P/E Apple với P/E bank
+- **Check trends**, không chỉ absolute values
+- **Combine 3+ ratios** để có bức tranh toàn diện
+- **Margin of safety** — mua dưới intrinsic value 25%+
+- **DCF sensitivity analysis** — test với nhiều scenarios
+- **Update quarterly** — earnings thay đổi mỗi quý
+</Check>
+
+<Tip>
+Kết hợp fundamental analysis với **technical analysis** (timing) và **sentiment analysis** (market mood) cho decision tốt nhất. Nhà đầu tư thành công như Warren Buffett combine cả ba.
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Sentiment Analysis" icon="newspaper" href="/ai-stock-investment/sentiment-analysis">
+    News & social media sentiment với NLP
+  </Card>
+  <Card title="Time Series Forecasting" icon="chart-area" href="/ai-stock-investment/timeseries-forecasting">
+    ML/DL cho dự đoán giá
+  </Card>
+  <Card title="Portfolio Optimization" icon="chart-pie" href="/ai-stock-investment/portfolio-optimization">
+    Markowitz, Black-Litterman, Deep RL
+  </Card>
+</CardGroup>

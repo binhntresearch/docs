@@ -1,0 +1,549 @@
+---
+title: "Thu thập dữ liệu Tài chính"
+description: "APIs, scraping và xử lý dữ liệu chứng khoán cho AI models"
+icon: "database"
+---
+
+Dữ liệu là **nền tảng của mọi AI model**. Bài học này hướng dẫn cách thu thập, xử lý và lưu trữ dữ liệu tài chính.
+
+## Các nguồn dữ liệu chính
+
+<Tabs>
+  <Tab title="Free APIs">
+    - **yfinance** — Yahoo Finance (EOD data, dễ dùng nhất)
+    - **Alpha Vantage** — 25 requests/day free
+    - **Finnhub** — 60 calls/min free
+    - **Tiingo** — 500 symbols free tier
+    - **FRED** — Economic data (Federal Reserve)
+  </Tab>
+  <Tab title="Paid APIs">
+    - **Polygon.io** — Real-time US stocks
+    - **Quandl** — Premium datasets
+    - **Bloomberg Terminal** — Professional standard
+    - **Refinitiv (LSEG)** — Institutional grade
+    - **IEX Cloud** — Real-time & historical
+  </Tab>
+  <Tab title="Vietnam Specific">
+    - **vnstock** — Library chuyên cho VN market
+    - **FiinTrade** — Real-time + historical
+    - **SSI iBoard** — Broker data feed
+    - **CafeF** — Financial news & data
+    - **VietStock** — Vietnamese stock data
+  </Tab>
+  <Tab title="Crypto">
+    - **CCXT** — Unified API cho 100+ exchanges
+    - **CoinGecko** — Free crypto data
+    - **Binance API** — Real-time crypto
+    - **CoinMarketCap** — Aggregated data
+  </Tab>
+</Tabs>
+
+## yfinance — Yahoo Finance
+
+```python
+import yfinance as yf
+import pandas as pd
+
+# Single ticker
+ticker = yf.Ticker("AAPL")
+df = ticker.history(period="1y", interval="1d")
+
+print(df.head())
+#                   Open      High       Low     Close    Volume  Dividends  Stock Splits
+# Date
+# 2025-07-15     185.00    186.20    184.80    185.92   52300000       0.0           0.0
+# 2025-07-16     186.50    187.80    186.10    187.45   48700000       0.0           0.0
+
+# Multiple tickers
+data = yf.download(
+    tickers=["AAPL", "GOOGL", "MSFT"],
+    period="5y",
+    interval="1d",
+    group_by="ticker"
+)
+
+# Get ticker info
+info = ticker.info
+print(f"Market Cap: {info['marketCap']}")
+print(f"P/E Ratio: {info['trailingPE']}")
+print(f"52w High: {info['fiftyTwoWeekHigh']}")
+print(f"52w Low: {info['fiftyTwoWeekLow']}")
+```
+
+### Custom date range
+
+```python
+# Specific date range
+df = yf.download(
+    "AAPL",
+    start="2020-01-01",
+    end="2026-07-15",
+    interval="1d",
+    progress=False
+)
+
+# Intraday data (max 60 days for free)
+intraday = yf.download(
+    "AAPL",
+    period="5d",
+    interval="5m",
+    progress=False
+)
+
+# Different intervals
+intervals = ["1m", "5m", "15m", "30m", "1h", "1d", "5d", "1wk", "1mo", "3mo"]
+```
+
+## Alpha Vantage
+
+```python
+import requests
+
+API_KEY = "your_api_key"
+
+# Daily OHLCV
+url = (
+    f"https://www.alphavantage.co/query?"
+    f"function=TIME_SERIES_DAILY&"
+    f"symbol=AAPL&"
+    f"apikey={API_KEY}&"
+    f"outputsize=full&"
+    f"datatype=csv"
+)
+df = pd.read_csv(url)
+
+# Technical indicators
+url = (
+    f"https://www.alphavantage.co/query?"
+    f"function=RSI&"
+    f"symbol=AAPL&"
+    f"interval=daily&"
+    f"time_period=14&"
+    f"series_type=close&"
+    f"apikey={API_KEY}"
+)
+response = requests.get(url).json()
+rsi_data = response["Technical Analysis: RSI"]
+
+# Fundamental data
+url = (
+    f"https://www.alphavantage.co/query?"
+    f"function=OVERVIEW&"
+    f"symbol=AAPL&"
+    f"apikey={API_KEY}"
+)
+overview = requests.get(url).json()
+print(overview["MarketCapitalization"])
+print(overview["PERatio"])
+print(overview["EPS"])
+```
+
+## vnstock — Dữ liệu Việt Nam
+
+```python
+from vnstock import Trading, Quote, Finance, Listing
+
+# Trading data (real-time)
+trading = Trading(source="VCI")
+df = trading.ohlc(
+    symbol="VNM",
+    start="2024-01-01",
+    end="2026-07-15",
+    interval="1D"
+)
+
+# Quote (realtime)
+quote = Quote(source="VCI")
+realtime = quote.price("VNM")
+print(realtime)
+
+# Financial reports
+finance = Finance(source="VCI")
+balance_sheet = finance.balance_sheet("VNM", period="year")
+income_stmt = finance.income_statement("VNM", period="year")
+cash_flow = finance.cash_flow("VNM", period="year")
+
+# List all symbols
+listing = Listing(source="VCI")
+all_symbols = listing.all_symbols()
+```
+
+## Web Scraping cho tin tức
+
+```python
+import requests
+from bs4 import BeautifulSoup
+
+def scrape_stock_news(symbol, limit=20):
+    """Scrape news from CafeF (Vietnamese financial news)"""
+    url = f"https://cafef.vn/timeline/{symbol}-timeline.chn"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    articles = []
+    for item in soup.find_all("div", class_="t-item")[:limit]:
+        title = item.find("h3").get_text(strip=True) if item.find("h3") else ""
+        link = item.find("a")["href"] if item.find("a") else ""
+        date = item.find("span", class_="time").get_text(strip=True) if item.find("span", "time") else ""
+
+        if title and link:
+            articles.append({
+                "symbol": symbol,
+                "title": title,
+                "url": "https://cafef.vn" + link if link.startswith("/") else link,
+                "date": date
+            })
+
+    return articles
+
+
+def scrape_full_article(url):
+    """Scrape full article content"""
+    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    content = soup.find("div", class_="detail-content")
+    if not content:
+        return ""
+
+    paragraphs = [p.get_text(strip=True) for p in content.find_all("p")]
+    return " ".join(paragraphs)
+```
+
+## News APIs
+
+```python
+import requests
+from datetime import datetime, timedelta
+
+# NewsAPI
+def get_financial_news(query, days_back=7):
+    api_key = "your_newsapi_key"
+    from_date = (datetime.now() - timedelta(days=days_back)).isoformat()
+
+    url = (
+        f"https://newsapi.org/v2/everything?"
+        f"q={query}&"
+        f"from={from_date}&"
+        f"sortBy=publishedAt&"
+        f"language=en&"
+        f"apiKey={api_key}"
+    )
+
+    response = requests.get(url).json()
+    articles = response.get("articles", [])
+
+    return [
+        {
+            "title": a["title"],
+            "description": a["description"],
+            "source": a["source"]["name"],
+            "published_at": a["publishedAt"],
+            "url": a["url"],
+            "content": a["content"]
+        }
+        for a in articles
+    ]
+
+
+# Finnhub (tốt cho financial news)
+def get_finnhub_news(symbol):
+    api_key = "your_finnhub_key"
+    today = datetime.now().strftime("%Y-%m-%d")
+    week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    url = (
+        f"https://finnhub.io/api/v1/company-news?"
+        f"symbol={symbol}&"
+        f"from={week_ago}&"
+        f"to={today}&"
+        f"token={api_key}"
+    )
+
+    return requests.get(url).json()
+```
+
+## Real-time Data với WebSocket
+
+```python
+import websocket
+import json
+
+def on_message(ws, message):
+    data = json.loads(message)
+    print(f"[{data['s']}] Price: ${data['p']}")
+
+def on_error(ws, error):
+    print(f"Error: {error}")
+
+# Finnhub WebSocket
+def start_finnhub_stream(symbols):
+    ws = websocket.WebSocketApp(
+        f"wss://ws.finnhub.io?token=YOUR_API_KEY",
+        on_message=on_message,
+        on_error=on_error
+    )
+    ws.on_open = lambda ws: [ws.send(json.dumps({"type": "subscribe", "symbol": s})) for s in symbols]
+    ws.run_forever()
+
+# Binance WebSocket (crypto)
+def start_binance_stream(symbol):
+    ws_url = f"wss://stream.binance.com:9443/ws/{symbol}@kline_1m"
+    ws = websocket.WebSocketApp(
+        ws_url,
+        on_message=lambda w, m: print(json.loads(m))
+    )
+    ws.run_forever()
+```
+
+## Data Storage
+
+```python
+import sqlite3
+import pandas as pd
+
+# SQLite cho local storage
+def save_to_sqlite(df, symbol, db_path="market_data.db"):
+    conn = sqlite3.connect(db_path)
+    df.to_sql(symbol, conn, if_exists="replace", index=True)
+    conn.close()
+
+def load_from_sqlite(symbol, db_path="market_data.db"):
+    conn = sqlite3.connect(db_path)
+    df = pd.read_sql(f"SELECT * FROM {symbol}", conn, parse_dates=["Date"], index_col="Date")
+    conn.close()
+    return df
+
+# Parquet cho efficient storage (recommended)
+def save_to_parquet(df, path):
+    df.to_parquet(path, compression="snappy")
+
+def load_from_parquet(path):
+    return pd.read_parquet(path)
+
+# CSV cho sharing
+df.to_csv(f"{symbol}_data.csv", index=True)
+```
+
+## Data Quality Checks
+
+```python
+def validate_ohlcv_data(df):
+    """Validate OHLCV data quality"""
+    issues = []
+
+    # Check for missing values
+    if df.isnull().any().any():
+        issues.append(f"Missing values: {df.isnull().sum().sum()} cells")
+
+    # Check for invalid OHLC relationships
+    invalid_high = (df["High"] < df["Low"]).sum()
+    if invalid_high > 0:
+        issues.append(f"Invalid High < Low in {invalid_high} rows")
+
+    invalid_high_low = (
+        (df["High"] < df["Open"]) |
+        (df["High"] < df["Close"]) |
+        (df["Low"] > df["Open"]) |
+        (df["Low"] > df["Close"])
+    ).sum()
+    if invalid_high_low > 0:
+        issues.append(f"OHLC logic violated in {invalid_high_low} rows")
+
+    # Check for duplicate dates
+    duplicates = df.index.duplicated().sum()
+    if duplicates > 0:
+        issues.append(f"Duplicate dates: {duplicates}")
+
+    # Check for outliers (price jumps > 50%)
+    pct_change = df["Close"].pct_change()
+    outliers = (pct_change.abs() > 0.5).sum()
+    if outliers > 0:
+        issues.append(f"Extreme price moves: {outliers}")
+
+    # Check for zero/negative prices
+    if (df["Close"] <= 0).any():
+        issues.append(f"Zero/negative prices detected")
+
+    if issues:
+        print("⚠️ Data quality issues:")
+        for issue in issues:
+            print(f"  - {issue}")
+    else:
+        print("✅ Data quality: All checks passed")
+
+    return issues
+
+
+# Usage
+df = yf.download("AAPL", period="1y")
+validate_ohlcv_data(df)
+```
+
+## Data Cleaning
+
+```python
+def clean_ohlcv_data(df):
+    """Clean and validate OHLCV dataframe"""
+    df = df.copy()
+
+    # 1. Drop duplicates
+    df = df[~df.index.duplicated(keep="first")]
+
+    # 2. Sort by date
+    df = df.sort_index()
+
+    # 3. Forward fill missing values (limited)
+    df = df.fillna(method="ffill", limit=3)
+
+    # 4. Drop remaining NaN
+    df = df.dropna()
+
+    # 5. Fix OHLC logic
+    df["High"] = df[["Open", "High", "Close"]].max(axis=1)
+    df["Low"] = df[["Open", "Low", "Close"]].min(axis=1)
+
+    # 6. Detect and handle outliers
+    pct_change = df["Close"].pct_change()
+    outlier_mask = pct_change.abs() > 0.5  # 50% move
+    if outlier_mask.any():
+        print(f"Flagging {outlier_mask.sum()} extreme moves for review")
+        df["outlier_flag"] = outlier_mask
+
+    return df
+```
+
+## Fundamental Data từ APIs
+
+```python
+def get_full_fundamental_data(ticker):
+    """Get all available fundamental data"""
+    t = yf.Ticker(ticker)
+    info = t.info
+
+    fundamentals = {
+        "valuation": {
+            "market_cap": info.get("marketCap"),
+            "enterprise_value": info.get("enterpriseValue"),
+            "trailing_pe": info.get("trailingPE"),
+            "forward_pe": info.get("forwardPE"),
+            "price_to_book": info.get("priceToBook"),
+            "price_to_sales": info.get("priceToSalesTrailing12Months"),
+            "peg_ratio": info.get("pegRatio"),
+        },
+        "profitability": {
+            "profit_margin": info.get("profitMargins"),
+            "operating_margin": info.get("operatingMargins"),
+            "roe": info.get("returnOnEquity"),
+            "roa": info.get("returnOnAssets"),
+            "eps": info.get("trailingEps"),
+        },
+        "growth": {
+            "revenue_growth": info.get("revenueGrowth"),
+            "earnings_growth": info.get("earningsGrowth"),
+        },
+        "financial_health": {
+            "total_cash": info.get("totalCash"),
+            "total_debt": info.get("totalDebt"),
+            "debt_to_equity": info.get("debtToEquity"),
+            "current_ratio": info.get("currentRatio"),
+            "quick_ratio": info.get("quickRatio"),
+            "free_cashflow": info.get("freeCashflow"),
+        },
+        "dividends": {
+            "dividend_rate": info.get("dividendRate"),
+            "dividend_yield": info.get("dividendYield"),
+            "payout_ratio": info.get("payoutRatio"),
+        },
+    }
+
+    return fundamentals
+
+
+# Financial statements
+def get_financial_statements(ticker):
+    t = yf.Ticker(ticker)
+    return {
+        "income_stmt": t.income_stmt,
+        "balance_sheet": t.balance_sheet,
+        "cashflow": t.cashflow,
+        "quarterly_income": t.quarterly_income_stmt,
+    }
+```
+
+## Pipeline hoàn chỉnh
+
+```python
+class StockDataPipeline:
+    """Complete pipeline for collecting and storing stock data"""
+
+    def __init__(self, db_path="market_data.db"):
+        self.db_path = db_path
+
+    def fetch_and_save(self, symbol, period="5y"):
+        # Fetch
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=period)
+
+        # Validate
+        issues = validate_ohlcv_data(df)
+        if issues:
+            print(f"⚠️ Issues for {symbol}: {issues}")
+
+        # Clean
+        df = clean_ohlcv_data(df)
+
+        # Add metadata
+        df["symbol"] = symbol
+
+        # Save to SQLite
+        conn = sqlite3.connect(self.db_path)
+        df.to_sql(symbol, conn, if_exists="replace", index=True)
+        conn.close()
+
+        # Save to Parquet (efficient backup)
+        save_to_parquet(df, f"data/{symbol}.parquet")
+
+        print(f"✅ {symbol}: {len(df)} rows saved")
+        return df
+
+    def load(self, symbol):
+        return load_from_sqlite(symbol, self.db_path)
+
+
+# Usage
+pipeline = StockDataPipeline()
+symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"]
+
+for symbol in symbols:
+    pipeline.fetch_and_save(symbol)
+```
+
+<Tip>
+**Best practices:**
+- **Cache data locally** — tránh gọi API lặp lại (rate limits + tốc thời gian)
+- **Validate mọi record** — financial data có thể có lỗi từ source
+- **Lưu trữ Parquet** — columnar storage, compress tốt, query nhanh hơn CSV
+- **Track data version** — dùng DVC hoặc timestamps để reproduce experiments
+</Tip>
+
+<Warning>
+Rate limits quan trọng! Yfinance không có hard limit nhưng Yahoo có thể block IP nếu spam. Alpha Vantage free tier giới hạn 25 requests/day. Luôn cache data thay vì call API liên tục.
+</Warning>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Phân tích kỹ thuật" icon="chart-line" href="/ai-stock-investment/technical-analysis">
+    Technical indicators & chart patterns
+  </Card>
+  <Card title="Phân tích cơ bản" icon="magnifying-glass-dollar" href="/ai-stock-investment/fundamental-analysis">
+    Financial ratios & valuation models
+  </Card>
+  <Card title="Sentiment Analysis" icon="newspaper" href="/ai-stock-investment/sentiment-analysis">
+    News & social media sentiment với NLP
+  </Card>
+</CardGroup>

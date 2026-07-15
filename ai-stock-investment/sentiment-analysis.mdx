@@ -1,0 +1,559 @@
+---
+title: "Phân tích Sentiment"
+description: "News, social media sentiment với NLP và LLM cho trading"
+icon: "newspaper"
+---
+
+**Sentiment Analysis** đo lường "tâm lý thị trường" từ tin tức, social media, báo cáo tài chính để dự đoán biến động giá ngắn hạn.
+
+<Callout type="info">
+**Giả định:** Tâm lý tích cực → giá tăng. Tâm lý tiêu cực → giá giảm. Markets không phải always rational — sentiment drivers ngắn hạn.
+</Callout>
+
+## Sources of Sentiment Data
+
+<Tabs>
+  <Tab title="News">
+    - **Financial news** (Bloomberg, CNBC, Reuters, CafeF, VietStock)
+    - **Earnings calls transcripts**
+    - **SEC filings** (10-K, 10-Q, 8-K)
+    - **Press releases** (corporate announcements)
+    - **Analyst reports**
+  </Tab>
+  <Tab title="Social Media">
+    - **Twitter/X** — financial Twitter (cashtag $AAPL)
+    - **Reddit** — r/wallstreetbets, r/stocks, r/investing
+    - **StockTwits** — Twitter dành cho traders
+    - **Discord** — trading communities
+    - **Telegram** — Việt Nam trading groups
+  </Tab>
+  <Tab title="Research & Reports">
+    - **Analyst ratings** (buy/hold/sell)
+    - **Price targets**
+    - **Insider transactions**
+    - **Institutional holdings** (13F filings)
+    - **Congress trading** (interesting signal)
+  </Tab>
+  <Tab title="Derived Indicators">
+    - **Fear & Greed Index** (CNN)
+    - **VIX** (Volatility Index)
+    - **Put/Call Ratio**
+    - **Insider sentiment**
+    - **Short interest**
+  </Tab>
+</Tabs>
+
+## Sentiment Analysis Techniques
+
+### 1. VADER — Rule-based (đơn giản)
+
+```python
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+nltk.download('vader_lexicon')
+sia = SentimentIntensityAnalyzer()
+
+text = "Apple reported record-breaking earnings, beating analyst expectations!"
+
+scores = sia.polarity_scores(text)
+print(scores)
+# {'neg': 0.0, 'neu': 0.459, 'pos': 0.541, 'compound': 0.8805}
+
+# compound > 0.05: positive
+# compound < -0.05: negative
+# else: neutral
+```
+
+**Limitations:**
+- Không hiểu context tài chính
+- "bull market" có thể bị hiểu sai
+- Limited English vocabulary
+
+### 2. FinBERT — Specialized cho Finance
+
+```python
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+
+# Load FinBERT
+tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
+model = AutoModelForSequenceClassification.from_pretrained("ProsusAI/finbert")
+
+def finbert_sentiment(text):
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=512
+    )
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
+
+    # FinBERT labels: positive, negative, neutral
+    labels = ["positive", "negative", "neutral"]
+    scores = predictions[0].tolist()
+
+    return {
+        "sentiment": labels[scores.index(max(scores))],
+        "positive": scores[0],
+        "negative": scores[1],
+        "neutral": scores[2],
+        "confidence": max(scores)
+    }
+
+
+# Example financial text
+text = "Apple's iPhone sales dropped 15% YoY, missing Wall Street estimates"
+result = finbert_sentiment(text)
+print(result)
+# {'sentiment': 'negative', 'positive': 0.05, 'negative': 0.91, 'neutral': 0.04, 'confidence': 0.91}
+```
+
+### 3. LLM-based (Claude/GPT-4) — Most powerful
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+def claude_sentiment_financial(text):
+    """Use Claude for nuanced financial sentiment"""
+
+    prompt = f"""Analyze the sentiment of this financial text for stock market implications.
+
+Text: "{text}"
+
+Provide:
+1. Overall sentiment (bullish/bearish/neutral)
+2. Confidence (0-100)
+3. Key financial signals detected
+4. Time horizon impact (short-term/long-term)
+5. Affected tickers (if any)
+
+Return as JSON."""
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=500,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response.content[0].text
+
+
+# Example
+text = """
+Tesla just announced a 2-for-1 stock split, record deliveries, and expansion into
+Mexico. However, the CEO warned of "significant delivery challenges" in Q4
+due to logistics bottlenecks, and competition is intensifying.
+"""
+
+analysis = claude_sentiment_financial(text)
+print(analysis)
+```
+
+<Callout type="info">
+LLM-based sentiment nắm **nuance, sarcasm, context** tốt hơn FinBERT/VADER. Đặc biệt powerful cho **earnings calls transcripts** và complex financial narratives.
+</Callout>
+
+## Scraping Sentiment Data
+
+### Twitter/X Sentiment
+
+```python
+import tweepy
+from datetime import datetime, timedelta
+
+# Twitter API v2
+client = tweepy.Client(bearer_token="YOUR_BEARER_TOKEN")
+
+def get_twitter_sentiment(symbol, hours_back=24, max_tweets=100):
+    # Calculate time
+    start_time = (datetime.now() - timedelta(hours=hours_back)).isoformat()
+
+    # Search tweets
+    query = f"${symbol} -is:retweet lang:en"
+
+    tweets = client.search_recent_tweets(
+        query=query,
+        max_results=max_tweets,
+        start_time=start_time,
+        tweet_fields=["created_at", "public_metrics"]
+    )
+
+    if not tweets.data:
+        return None
+
+    results = []
+    for tweet in tweets.data:
+        sentiment = finbert_sentiment(tweet.text)
+        results.append({
+            "tweet": tweet.text,
+            "created_at": tweet.created_at,
+            "sentiment": sentiment["sentiment"],
+            "confidence": sentiment["confidence"],
+            "engagement": tweet.public_metrics.get("like_count", 0) +
+                          tweet.public_metrics.get("retweet_count", 0) * 2
+        })
+
+    return results
+
+
+# Aggregate sentiment
+def aggregate_sentiment(tweets):
+    if not tweets:
+        return None
+
+    weighted_scores = []
+    for tweet in tweets:
+        # Weight by engagement & confidence
+        weight = (tweet["engagement"] + 1) * tweet["confidence"]
+
+        if tweet["sentiment"] == "positive":
+            score = weight
+        elif tweet["sentiment"] == "negative":
+            score = -weight
+        else:
+            score = 0
+
+        weighted_scores.append(score)
+
+    return sum(weighted_scores) / len(weighted_scores)
+```
+
+### Reddit Sentiment
+
+```python
+import praw
+
+reddit = praw.Reddit(
+    client_id="YOUR_CLIENT_ID",
+    client_secret="YOUR_CLIENT_SECRET",
+    user_agent="stock_sentiment_app"
+)
+
+def get_reddit_sentiment(subreddit_name, symbol, limit=50):
+    subreddit = reddit.subreddit(subreddit_name)
+
+    posts = []
+    for post in subreddit.search(f"${symbol}", limit=limit, sort="hot"):
+        # Combine title and body
+        text = post.title
+        if post.selftext:
+            text += " " + post.selftext
+
+        sentiment = finbert_sentiment(text)
+
+        posts.append({
+            "title": post.title,
+            "score": post.score,
+            "comments": post.num_comments,
+            "sentiment": sentiment,
+            "url": post.url,
+            "created": post.created_utc
+        })
+
+    return posts
+
+
+# Aggregate across subreddits
+def multi_subreddit_sentiment(symbol, subs=None):
+    if subs is None:
+        subs = ["wallstreetbets", "stocks", "investing", "options"]
+
+    all_posts = []
+    for sub in subs:
+        try:
+            posts = get_reddit_sentiment(sub, symbol)
+            all_posts.extend(posts)
+        except Exception as e:
+            print(f"Error in {sub}: {e}")
+
+    return all_posts
+```
+
+### Earnings Call Sentiment
+
+```python
+import requests
+from bs4 import BeautifulSoup
+
+def get_earnings_call_text(symbol, quarter):
+    """Scrape earnings call transcript"""
+    # Use financial modeling prep, Seeking Alpha, etc.
+    # Example with Seeking Alpha
+    url = f"https://seekingalpha.com/symbol/{symbol}/earnings/transcripts"
+    # ... scraping logic ...
+    pass
+
+
+def analyze_call_sentiment(transcript_text):
+    """Analyze sentiment of earnings call"""
+    # Split into Q&A and prepared remarks
+    sections = transcript_text.split("Question-and-Answer Session")
+
+    # Tone analysis
+    prompt = f"""Analyze the sentiment and tone of this earnings call.
+
+Focus on:
+1. Management confidence level
+2. Hedging language ("might", "could", "hopefully")
+3. Forward guidance sentiment
+4. Q&A evasiveness
+
+Transcript:
+{transcript_text[:4000]}  # First 4000 chars
+"""
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response.content[0].text
+```
+
+## News Sentiment Pipeline
+
+```python
+class NewsSentimentAnalyzer:
+    def __init__(self, symbol):
+        self.symbol = symbol
+        self.sentiments = []
+
+    def fetch_news(self, days=7):
+        """Fetch news from multiple sources"""
+        all_news = []
+
+        # NewsAPI
+        all_news.extend(get_financial_news(self.symbol, days_back=days))
+
+        # Finnhub
+        all_news.extend(get_finnhub_news(self.symbol))
+
+        return all_news
+
+    def analyze_sentiment(self, articles):
+        """Analyze each article"""
+        results = []
+        for article in articles:
+            text = f"{article['title']} {article.get('description', '')}"
+
+            # Choose analyzer
+            sentiment = claude_sentiment_financial(text)
+
+            results.append({
+                'source': article.get('source', {}).get('name', 'Unknown'),
+                'title': article['title'],
+                'published_at': article.get('publishedAt'),
+                'url': article['url'],
+                'sentiment': sentiment
+            })
+
+            self.sentiments.append(sentiment)
+
+        return results
+
+    def aggregate_sentiment(self):
+        """Calculate aggregate sentiment score"""
+        if not self.sentiments:
+            return None
+
+        scores = []
+        for s in self.sentiments:
+            if s['sentiment'] == 'bullish':
+                scores.append(s['confidence'])
+            elif s['sentiment'] == 'bearish':
+                scores.append(-s['confidence'])
+            else:
+                scores.append(0)
+
+        return {
+            'mean_sentiment': sum(scores) / len(scores),
+            'bullish_count': sum(1 for s in self.sentiments if s['sentiment'] == 'bullish'),
+            'bearish_count': sum(1 for s in self.sentiments if s['sentiment'] == 'bearish'),
+            'neutral_count': sum(1 for s in self.sentiments if s['sentiment'] == 'neutral'),
+            'total_articles': len(self.sentiments)
+        }
+
+
+# Usage
+analyzer = NewsSentimentAnalyzer("AAPL")
+articles = analyzer.fetch_news(days=7)
+results = analyzer.analyze_sentiment(articles)
+aggregate = analyzer.aggregate_sentiment()
+
+print(f"Mean Sentiment: {aggregate['mean_sentiment']:.3f}")
+print(f"Bullish: {aggregate['bullish_count']}, Bearish: {aggregate['bearish_count']}")
+```
+
+## Fear & Greed Index
+
+```python
+import requests
+
+def get_fear_greed_index():
+    """Get CNN Fear & Greed Index"""
+    url = "https://api.alternative.me/fng/?limit=30&format=json"
+    response = requests.get(url).json()
+
+    data = response['data']
+
+    df = pd.DataFrame([
+        {
+            'date': pd.to_datetime(int(d['timestamp']), unit='s'),
+            'value': int(d['value']),
+            'classification': d['value_classification']
+        }
+        for d in data
+    ])
+
+    return df
+
+
+# Interpret
+def interpret_fng(value):
+    if value < 25:
+        return "Extreme Fear — Potential buying opportunity"
+    elif value < 45:
+        return "Fear"
+    elif value < 55:
+        return "Neutral"
+    elif value < 75:
+        return "Greed"
+    else:
+        return "Extreme Greed — Potential correction"
+
+
+# Usage
+fng = get_fear_greed_index()
+print(interpret_fng(fng['value'].iloc[0]))
+```
+
+## Sentiment as Feature cho ML Models
+
+```python
+def create_sentiment_features(df, news_sentiment_dict):
+    """
+    Add sentiment as features to trading model
+
+    news_sentiment_dict: {date: sentiment_score}
+    """
+    df = df.copy()
+
+    # Map sentiment to dates
+    df['news_sentiment'] = df.index.map(
+        lambda d: news_sentiment_dict.get(d.date(), 0)
+    )
+
+    # Rolling sentiment features
+    df['sentiment_3d_avg'] = df['news_sentiment'].rolling(3).mean()
+    df['sentiment_7d_avg'] = df['news_sentiment'].rolling(7).mean()
+    df['sentiment_change'] = df['news_sentiment'].diff()
+
+    # Sentiment volatility (controversy indicator)
+    df['sentiment_volatility'] = df['news_sentiment'].rolling(7).std()
+
+    return df
+```
+
+## Sentiment Strategy
+
+```python
+class SentimentTradingStrategy:
+    """Trade based on sentiment signals"""
+
+    def __init__(self, symbol, sentiment_analyzer):
+        self.symbol = symbol
+        self.analyzer = sentiment_analyzer
+        self.positions = []
+
+    def generate_signal(self, current_sentiment, threshold=0.3):
+        """
+        Simple strategy:
+        - Sentiment > threshold → BUY
+        - Sentiment < -threshold → SELL
+        """
+        if current_sentiment > threshold:
+            return "BUY"
+        elif current_sentiment < -threshold:
+            return "SELL"
+        else:
+            return "HOLD"
+
+    def execute_strategy(self, price_data):
+        signals = []
+
+        for date, row in price_data.iterrows():
+            # Get sentiment for this date
+            sentiment = self.analyzer.get_sentiment_for_date(date)
+
+            signal = self.generate_signal(sentiment)
+
+            signals.append({
+                'date': date,
+                'price': row['Close'],
+                'sentiment': sentiment,
+                'signal': signal
+            })
+
+        return pd.DataFrame(signals)
+```
+
+## Key Insights
+
+<Callout type="info">
+**Nghiên cứu thực nghiệm cho thấy:**
+- Sentiment có **predictive power ngắn hạn** (1-5 ngày)
+- **Contrarian signals** ở extreme (Fear & Greed > 75 hoặc < 25) thường accurate
+- Social media sentiment **amplifies** price moves sau đó
+- News sentiment cộng với **volume spikes** → strong signal
+</Callout>
+
+## Limitations
+
+<Warning>
+**Sentiment analysis pitfalls:**
+
+1. **Sentiment ≠ Causation** — Bearish news không có nghĩa giá sẽ giảm (có thể đã priced in)
+2. **Noise trong social media** — Bots, pump & dump schemes
+3. **Cultural/linguistic bias** — Model có thể biased
+4. **Real-time challenge** — News break nhanh, cần real-time processing
+5. **Confirmation bias** — Dễ chỉ tìm news confirm position hiện tại
+6. **Look-ahead bias** — Đừng dùng sentiment từ tương lai để backtest quá khứ
+</Warning>
+
+## Best Practices
+
+<Check>
+- **Combine nhiều sources** — news + social + analyst reports
+- **Weighted aggregation** — quality sources quan trọng hơn Twitter
+- **Time-decay weighting** — recent sentiment quan trọng hơn
+- **Sentiment + Volume** — confirm lẫn nhau
+- **Extreme readings** — Fear/Greed extremes thường contrarian signal
+- **Update frequently** — sentiment thay đổi liên tục
+</Check>
+
+<Tip>
+Đừng trade pure sentiment. Combine với **technical analysis** (entry timing) và **fundamental analysis** (company quality). Sentiment tốt nhất như một factor phụ trợ trong multi-factor model.
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Time Series Forecasting" icon="chart-area" href="/ai-stock-investment/timeseries-forecasting">
+    ML/DL cho dự đoán giá
+  </Card>
+  <Card title="Portfolio Optimization" icon="chart-pie" href="/ai-stock-investment/portfolio-optimization">
+    Modern Portfolio Theory
+  </Card>
+  <Card title="Trading Agent" icon="robot" href="/ai-stock-investment/trading-agent">
+    AI agent giao dịch tự động
+  </Card>
+</CardGroup>

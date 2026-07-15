@@ -1,0 +1,164 @@
+---
+title: "Tổng quan AI trong Đầu tư Chứng khoán"
+description: "AI/ML applications trong tài chính, các bài toán chính và cơ hội nghề nghiệp"
+icon: "book-open"
+---
+
+**AI trong tài chứng khoán** là việc ứng dụng Machine Learning, Deep Learning, NLP và Agentic AI để **phân tích dữ liệu tài chính, dự đoán biến động giá, tối ưu danh mục và tự động hóa giao dịch**.
+
+## Tại sao AI quan trọng trong tài chính?
+
+<Callout type="info">
+Thị trường chứng khoán tạo ra **hàng terabyte dữ liệu mỗi ngày**: giá cả, khối lượng, tin tức, báo cáo tài chính, social media. AI giúp **xử lý, tìm pattern và đưa ra quyết định nhanh hơn con người** hàng trăm lần.
+</Callout>
+
+## Các bài toán chính
+
+<Tabs>
+  <Tab title="Dự đoán giá">
+    - **Regression** trên time series (giá cổ phiếu, chỉ số)
+    - **Classification** — lên/xoay chiều (up/down)
+    - Models: ARIMA, Prophet, LSTM, Transformer
+    - Đánh giá: RMSE, MAE, MAPE, directional accuracy
+  </Tab>
+  <Tab title="Phân loại & Signal">
+    - **Buy/Hold/Sell** signals
+    - Pattern recognition (candlestick, chart patterns)
+    - Anomaly detection (pump & dump, insider trading)
+    - Models: Random Forest, XGBoost, CNN trên chart images
+  </Tab>
+  <Tab title="Sentiment Analysis">
+    - Phân tích tin tức, báo cáo tài chính
+    - Social media sentiment (Twitter/X, Reddit, StockTwits)
+    - Fear & Greed Index
+    - Models: BERT, FinBERT, LLM-based extraction
+  </Tab>
+  <Tab title="Portfolio Optimization">
+    - Tối ưu tỷ trọng tài sản
+    - Modern Portfolio Theory (Markowitz)
+    - Black-Litterman, Risk Parity
+    - Deep RL cho dynamic allocation
+  </Tab>
+  <Tab title="Risk Management">
+    - Value at Risk (VaR), CVaR
+    - Stress testing
+    - Fraud detection
+    - Drawdown analysis
+  </Tab>
+  <Tab title="Trading Agent">
+    - Agent giao dịch tự động
+    - Decision-making với LLM
+    - Multi-agent collaboration
+    - Real-time execution
+  </Tab>
+</Tabs>
+
+## AI Techniques phổ biến
+
+### Machine Learning
+
+| Technique | Use case |
+|---|---|
+| **Linear/Logistic Regression** | Baseline prediction, factor analysis |
+| **Random Forest** | Feature importance, signal classification |
+| **XGBoost / LightGBM** | Best accuracy cho tabular financial data |
+| **SVM** | Trend classification, regime detection |
+| **K-Means / DBSCAN** | Stock clustering, regime identification |
+
+### Deep Learning
+
+| Technique | Use case |
+|---|---|
+| **LSTM / GRU** | Time series forecasting, sequence modeling |
+| **Transformer** | Stock prediction, NLP cho financial text |
+| **CNN** | Chart pattern recognition (image-based) |
+| **Autoencoder** | Anomaly detection, feature extraction |
+| **GAN** | Synthetic data generation cho backtesting |
+| **Deep RL (PPO, DQN)** | Portfolio optimization, trading strategies |
+
+### NLP & LLM
+
+| Technique | Use case |
+|---|---|
+| **FinBERT** | Financial sentiment analysis |
+| **GPT/Claude** | Report summarization, news extraction |
+| **RAG** | Real-time data retrieval cho trading agent |
+| **NER** | Extract entities từ financial news |
+
+## So sánh: Phân tích truyền thống vs AI
+
+| Aspect | Traditional | AI-powered |
+|---|---|---|
+| **Tốc độ xử lý** | Chậm, thủ công | Real-time, tự động |
+| **Dữ liệu** | Limited (vài chỉ số) | Massive (text, prices, news, social) |
+| **Pattern recognition** | Subjective, biased | Objective, data-driven |
+| **Scalability** | Khó scale | Scale dễ dàng |
+| **Adaptability** | Static rules | Continuous learning |
+| **Decision speed** | Hours/days | Milliseconds |
+
+## Workflow tổng quan
+
+```
+1. Define Strategy        → Long/short, timeframe, risk appetite
+    ↓
+2. Collect Data          → Market data, fundamentals, news
+    ↓
+3. Feature Engineering   → Technical indicators, ratios, embeddings
+    ↓
+4. Build Model           → Train ML/DL model
+    ↓
+5. Backtest              → Test trên historical data
+    ↓
+6. Risk Management       → Position sizing, stop-loss
+    ↓
+7. Paper Trade           → Test trên live market (no real money)
+    ↓
+8. Deploy                → Production với monitoring
+    ↓
+9. Monitor & Retrain     → Continuous improvement
+```
+
+## Cơ hội nghề nghiệp
+
+<CardGroup>
+  <Card title="Quantitative Analyst (Quant)" icon="chart-mixed">
+    Phát triển chiến lược giao dịch dựa trên toán học & ML
+  </Card>
+  <Card title="Financial Data Scientist" icon="chart-pie">
+    Phân tích dữ liệu tài chính, xây dựng predictive models
+  </Card>
+  <Card title="Algorithmic Trader" icon="robot">
+    Phát triển & vận hành hệ thống giao dịch tự động
+  </Card>
+  <Card title="Risk Analyst" icon="shield-halved">
+    Đánh giá rủi ro, stress testing với AI
+  </Card>
+  <Card title="Trading Agent Developer" icon="microchip">
+    Xây dựng AI agent sử dụng LLM để giao dịch
+  </Card>
+  <Card title="FinTech Engineer" icon="building-columns">
+    Phát triển sản phẩm fintech sử dụng AI
+  </Card>
+</CardGroup>
+
+## Tools & Libraries chính
+
+| Category | Tools |
+|---|---|
+| **Data** | yfinance, Alpha Vantage, quandl, pandas-datareader |
+| **Backtesting** | backtrader, zipline, vectorbt |
+| **Technical Analysis** | ta-lib, pandas-ta, finta |
+| **ML** | scikit-learn, XGBoost, LightGBM |
+| **Deep Learning** | PyTorch, TensorFlow, Hugging Face |
+| **NLP** | FinBERT, spaCy, transformers |
+| **Trading APIs** | Alpaca, Interactive Brokers, Binance |
+| **Agent Frameworks** | LangChain, Claude Agent SDK |
+| **Visualization** | mplfinance, plotly, bokeh |
+
+<Warning>
+**Lưu ý:** AI không phải "magic bullet" trong trading. Markets có yếu tố **random walk**, **black swan events**, và **market regime shifts** mà model không thể predict được. Luôn combine AI với **risk management chặt chẽ** và **kiến thức tài chính** thực tế.
+</Warning>
+
+<Tip>
+Bắt đầu với **paper trading** (giao dịch ảo) trước khi dùng tiền thật. Hầu hết beginners thua vì **overconfidence** trong backtest và thiếu kinh nghiệm xử lý **psychology** khi thị trường biến động.
+</Tip>

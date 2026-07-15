@@ -1,0 +1,388 @@
+---
+title: "Phân tích kỹ thuật với Python"
+description: "Technical indicators (RSI, MACD, MA), candlestick patterns và signal generation"
+icon: "chart-line"
+---
+
+**Phân tích kỹ thuật** là phương pháp dự đoán biến động giá dựa trên **dữ liệu giá quá khứ** (price, volume) thay vì giá trị nội tại của công ty.
+
+<Callout type="info">
+**Giả định cốt lõi:** Giá phản ánh tất cả thông tin → Patterns lặp lại → Xu hướng tồn tại → Lịch sử sẽ lặp lại (đến một mức độ).
+</Callout>
+
+## Thư viện chính
+
+<Tabs>
+  <Tab title="pandas-ta">
+    - **150+ indicators** trong pandas extension
+    - Dễ dùng: `df.ta.rsi()`, `df.ta.macd()`
+    - DataFrame-native
+    ```python
+    import pandas_ta as ta
+    df.ta.rsi(length=14, append=True)
+    df.ta.macd(append=True)
+    df.ta.bbands(append=True)
+    ```
+  </Tab>
+  <Tab title="ta-lib">
+    - C library, **rất nhanh**
+    - Industrial-grade
+    ```python
+    import talib
+    rsi = talib.RSI(close, timeperiod=14)
+    macd, signal, hist = talib.MACD(close)
+    ```
+  </Tab>
+  <Tab title="finta">
+    - Lightweight, dễ học
+    - Backward-compatible API
+    ```python
+    from finta import TA
+    df['SMA'] = TA.SMA(df, 14)
+    df['RSI'] = TA.RSI(df, 14)
+    ```
+  </Tab>
+  <Tab title="mplfinance">
+    - Visualization candlestick charts
+    - Built trên matplotlib
+    ```python
+    import mplfinance as mpf
+    mpf.plot(df, type='candle', volume=True)
+    ```
+  </Tab>
+</Tabs>
+
+## Trend Indicators
+
+### Simple Moving Average (SMA) & Exponential MA (EMA)
+
+```python
+import pandas as pd
+import yfinance as yf
+
+df = yf.download("AAPL", period="1y", progress=False)
+
+# Simple Moving Averages
+df['SMA_20'] = df['Close'].rolling(window=20).mean()
+df['SMA_50'] = df['Close'].rolling(window=50).mean()
+df['SMA_200'] = df['Close'].rolling(window=200).mean()
+
+# Exponential Moving Average (weights recent prices more)
+df['EMA_12'] = df['Close'].ewm(span=12, adjust=False).mean()
+df['EMA_26'] = df['Close'].ewm(span=26, adjust=False).mean()
+
+# Golden Cross: SMA_50 crosses above SMA_200 (bullish)
+# Death Cross: SMA_50 crosses below SMA_200 (bearish)
+df['Signal'] = 0
+df.loc[df['SMA_50'] > df['SMA_200'], 'Signal'] = 1   # Golden Cross
+df.loc[df['SMA_50'] < df['SMA_200'], 'Signal'] = -1  # Death Cross
+
+# Crossover detection
+df['Crossover'] = df['Signal'].diff()
+```
+
+**Giải thích:**
+- **SMA_20:** Short-term trend
+- **SMA_50:** Medium-term trend
+- **SMA_200:** Long-term trend (rất quan trọng)
+- **Golden Cross** (50 lên 200): Bullish signal
+- **Death Cross** (50 xuống 200): Bearish signal
+
+### MACD (Moving Average Convergence Divergence)
+
+```python
+import pandas_ta as ta
+
+df = ta.macd(df['Close'], fast=12, slow=26, signal=9, append=True)
+# Creates: MACD_12_26_9, MACDs_12_26_9, MACDh_12_26_9
+
+# Trading signals
+df['MACD_Signal'] = 0
+# Bullish: MACD crosses above signal line
+df.loc[
+    (df['MACD_12_26_9'] > df['MACDs_12_26_9']) &
+    (df['MACD_12_26_9'].shift(1) <= df['MACDs_12_26_9'].shift(1)),
+    'MACD_Signal'
+] = 1
+
+# Bearish: MACD crosses below signal line
+df.loc[
+    (df['MACD_12_26_9'] < df['MACDs_12_26_9']) &
+    (df['MACD_12_26_9'].shift(1) >= df['MACDs_12_26_9'].shift(1)),
+    'MACD_Signal'
+] = -1
+```
+
+**MACD gồm 3 thành phần:**
+- **MACD Line** = EMA(12) − EMA(26)
+- **Signal Line** = EMA(9) của MACD Line
+- **Histogram** = MACD Line − Signal Line
+
+## Momentum Indicators
+
+### RSI (Relative Strength Index)
+
+```python
+df['RSI'] = ta.rsi(df['Close'], length=14)
+
+# Trading rules
+# RSI > 70: Overbought (có thể reversal down)
+# RSI < 30: Oversold (có thể reversal up)
+# RSI between 40-60: Neutral zone
+
+df['RSI_Signal'] = 0
+df.loc[df['RSI'] < 30, 'RSI_Signal'] = 1   # Buy signal
+df.loc[df['RSI'] > 70, 'RSI_Signal'] = -1  # Sell signal
+
+# Bullish divergence: Price makes lower low, RSI makes higher low
+df['RSI_Divergence'] = 0
+for i in range(20, len(df)):
+    if (df['Close'].iloc[i] < df['Close'].iloc[i-20]) and \
+       (df['RSI'].iloc[i] > df['RSI'].iloc[i-20]):
+        df['RSI_Divergence'].iloc[i] = 1  # Bullish
+```
+
+### Stochastic Oscillator
+
+```python
+df['Stoch'] = ta.stoch(df['High'], df['Low'], df['Close'])
+# %K and %D lines
+# %K > %D and %K < 20 → Buy
+# %K < %D and %K > 80 → Sell
+
+df['Stoch_Signal'] = 0
+df.loc[
+    (df['Stoch_%K'] > df['Stoch_%D']) & (df['Stoch_%K'] < 20),
+    'Stoch_Signal'
+] = 1
+df.loc[
+    (df['Stoch_%K'] < df['Stoch_%D']) & (df['Stoch_%K'] > 80),
+    'Stoch_Signal'
+] = -1
+```
+
+## Volatility Indicators
+
+### Bollinger Bands
+
+```python
+bb = ta.bbands(df['Close'], length=20, std=2)
+df = pd.concat([df, bb], axis=1)
+
+# Components: BBL (lower), BBM (middle), BBU (upper), BBB (bandwidth), BBP (%B)
+
+# Trading logic
+df['BB_Signal'] = 0
+df.loc[df['Close'] < df['BBL_20_2.0'], 'BB_Signal'] = 1   # Below lower → buy
+df.loc[df['Close'] > df['BBU_20_2.0'], 'BB_Signal'] = -1  # Above upper → sell
+
+# Bollinger Band squeeze: low volatility often precedes big moves
+df['BB_Width'] = df['BBU_20_2.0'] - df['BBL_20_2.0']
+df['Squeeze'] = df['BB_Width'] < df['BB_Width'].rolling(120).quantile(0.1)
+```
+
+### Average True Range (ATR)
+
+```python
+df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
+
+# ATR for volatility measurement & stop-loss placement
+# Stop-loss = Entry - (2 × ATR) for long positions
+
+def calculate_atr_stop_loss(entry_price, atr, multiplier=2):
+    return entry_price - (multiplier * atr)
+```
+
+## Volume Indicators
+
+### Volume Moving Average & OBV
+
+```python
+df['Vol_SMA_20'] = df['Volume'].rolling(20).mean()
+
+# Volume spike detection
+df['Volume_Spike'] = df['Volume'] > (df['Vol_SMA_20'] * 1.5)
+
+# On-Balance Volume (OBV)
+def calculate_obv(df):
+    obv = [0]
+    for i in range(1, len(df)):
+        if df['Close'].iloc[i] > df['Close'].iloc[i-1]:
+            obv.append(obv[-1] + df['Volume'].iloc[i])
+        elif df['Close'].iloc[i] < df['Close'].iloc[i-1]:
+            obv.append(obv[-1] - df['Volume'].iloc[i])
+        else:
+            obv.append(obv[-1])
+    return pd.Series(obv, index=df.index)
+
+df['OBV'] = calculate_obv(df)
+df['OBV_SMA'] = df['OBV'].rolling(20).mean()
+
+# OBV Divergence: Price up, OBV flat/down → reversal signal
+```
+
+### Money Flow Index (MFI)
+
+```python
+df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'])
+# Similar to RSI but includes volume
+# MFI > 80: Overbought
+# MFI < 20: Oversold
+```
+
+## Candlestick Patterns
+
+```python
+# pandas-ta tự động detect candlestick patterns
+df.ta.cdl_pattern(name="engulfing", append=True)
+df.ta.cdl_pattern(name="doji", append=True)
+df.ta.cdl_pattern(name="hammer", append=True)
+df.ta.cdl_pattern(name="morning_star", append=True)
+df.ta.cdl_pattern(name="evening_star", append=True)
+
+# Manual candlestick pattern detection
+def detect_doji(df, threshold=0.1):
+    """Doji: Open ≈ Close (indecision)"""
+    body = abs(df['Close'] - df['Open'])
+    range_ = df['High'] - df['Low']
+    return body < (range_ * threshold)
+
+def detect_hammer(df):
+    """Hammer: Long lower shadow, small body at top"""
+    body = abs(df['Close'] - df['Open'])
+    lower_shadow = df[['Open', 'Close']].min(axis=1) - df['Low']
+    upper_shadow = df['High'] - df[['Open', 'Close']].max(axis=1)
+
+    return (lower_shadow > (body * 2)) & (upper_shadow < body)
+
+def detect_engulfing(df):
+    """Bullish engulfing: Green candle engulfs previous red"""
+    prev_red = df['Close'].shift(1) < df['Open'].shift(1)
+    curr_green = df['Close'] > df['Open']
+    curr_open_below_prev_close = df['Open'] < df['Close'].shift(1)
+    curr_close_above_prev_open = df['Close'] > df['Open'].shift(1)
+
+    return prev_red & curr_green & curr_open_below_prev_close & curr_close_above_prev_open
+```
+
+## Composite Signals
+
+```python
+def generate_composite_signal(df):
+    """Combine multiple indicators into final signal"""
+    signals = pd.DataFrame(index=df.index)
+
+    # Trend component (40% weight)
+    signals['trend'] = 0
+    signals.loc[df['Close'] > df['SMA_200'], 'trend'] = 1
+    signals.loc[df['Close'] < df['SMA_200'], 'trend'] = -1
+
+    # Momentum (30% weight)
+    signals['momentum'] = 0
+    signals.loc[(df['RSI'] < 30) | (df['MACD_12_26_9'] > df['MACDs_12_26_9']), 'momentum'] = 1
+    signals.loc[(df['RSI'] > 70) | (df['MACD_12_26_9'] < df['MACDs_12_26_9']), 'momentum'] = -1
+
+    # Volume (20% weight)
+    signals['volume'] = 0
+    signals.loc[df['Volume_Spike'] & (df['Close'] > df['Open']), 'volume'] = 1
+    signals.loc[df['Volume_Spike'] & (df['Close'] < df['Open']), 'volume'] = -1
+
+    # Volatility (10% weight)
+    signals['volatility'] = 0
+    signals.loc[df['Squeeze'], 'volatility'] = 0  # Neutral during squeeze
+
+    # Weighted score
+    score = (
+        signals['trend'] * 0.4 +
+        signals['momentum'] * 0.3 +
+        signals['volume'] * 0.2 +
+        signals['volatility'] * 0.1
+    )
+
+    df['Composite_Signal'] = 0
+    df.loc[score > 0.3, 'Composite_Signal'] = 1   # Buy
+    df.loc[score < -0.3, 'Composite_Signal'] = -1 # Sell
+
+    return df
+```
+
+## Visualization
+
+```python
+import mplfinance as mpf
+import matplotlib.pyplot as plt
+
+def plot_with_indicators(df, n_days=120):
+    """Plot candlestick with indicators"""
+    df_plot = df.tail(n_days).copy()
+
+    # Add SMA overlays
+    apds = [
+        mpf.make_addplot(df_plot['SMA_20'], color='blue'),
+        mpf.make_addplot(df_plot['SMA_50'], color='orange'),
+        mpf.make_addplot(df_plot['SMA_200'], color='red'),
+    ]
+
+    # Subplot for RSI
+    rsi_panel = mpf.make_addplot(df_plot['RSI'], panel=2, color='purple',
+                                  ylim=(0, 100))
+    apds.append(rsi_panel)
+
+    # Plot
+    fig, axes = mpf.plot(
+        df_plot,
+        type='candle',
+        volume=True,
+        addplot=apds,
+        style='charles',
+        title='AAPL — Candlestick with Indicators',
+        returnfig=True,
+        figsize=(14, 10)
+    )
+
+    # Add horizontal lines for RSI levels
+    axes[2].axhline(70, color='red', linestyle='--', alpha=0.5)
+    axes[2].axhline(30, color='green', linestyle='--', alpha=0.5)
+
+    plt.show()
+```
+
+## Limitations & Pitfalls
+
+<Warning>
+**Technical analysis có giới hạn:**
+
+1. **Lagging indicators** — Signals xuất hiện SAU khi trend đã hình thành
+2. **Self-fulfilling prophecy đến một mức độ** — Nhiều người dùng cùng indicator → tạo thành pattern tự củng cố
+3. **Random walk** — Một phần biến động giá là noise không thể predict
+4. **Market regime changes** — Indicators hoạt động tốt trong trending markets, kém trong sideways
+5. **Không có holy grail** — Không có indicator nào win rate > 70% consistently
+</Warning>
+
+## Best Practices
+
+<Check>
+- **Kết hợp nhiều indicators** — không dựa vào 1 indicator duy nhất
+- **Confirm với volume** — Price moves không có volume confirmation thường weak
+- **Multi-timeframe analysis** — Check trend ở nhiều timeframe
+- **Risk management** — Stop-loss luôn quan trọng hơn entry signal
+- **Backtest trước khi dùng thật** — Tất cả strategies phải được validate
+</Check>
+
+<Tip>
+Kết hợp technical analysis với **fundamental analysis** (P/E, ROE) và **sentiment analysis** (news, social media) cho decision making toàn diện. Đừng dựa vào indicators đơn thuần!
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Phân tích cơ bản" icon="magnifying-glass-dollar" href="/ai-stock-investment/fundamental-analysis">
+    Financial ratios & valuation models
+  </Card>
+  <Card title="Sentiment Analysis" icon="newspaper" href="/ai-stock-investment/sentiment-analysis">
+    News & social sentiment với NLP
+  </Card>
+  <Card title="Time Series Forecasting" icon="chart-area" href="/ai-stock-investment/timeseries-forecasting">
+    ML/DL cho dự đoán giá
+  </Card>
+</CardGroup>

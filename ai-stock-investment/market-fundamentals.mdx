@@ -1,0 +1,279 @@
+---
+title: "Nền tảng thị trường Chứng khoán"
+description: "Kiến thức cốt lõi về thị trường, các loại tài sản, chỉ số và thuật ngữ"
+icon: "chart-candlestick"
+---
+
+Trước khi apply AI vào thị trường chứng khoán, bạn cần nắm **kiến thức nền tảng** về cách thị trường vận hành.
+
+## Thị trường Chứng khoán là gì?
+
+<Callout type="info">
+**Thị trường chứng khoán** là nơi diễn ra việc mua bán **cổ phiếu (stocks), trái phiếu (bonds), ETF, và các công cụ tài chính khác**. Đây là kênh huy động vốn cho doanh nghiệp và kênh đầu tư cho nhà đầu tư.
+</Callout>
+
+## Các loại tài sản tài chính
+
+<Tabs>
+  <Tab title="Cổ phiếu (Stocks)">
+    - **Common stock:** Quyền sở hữu một phần công ty, nhận cổ tức (dividend)
+    - **Preferred stock:** Ưu tiên cổ tức nhưng ít quyền biểu quyết
+    - **Blue-chip:** Cổ phiếu công ty lớn, ổn định (Apple, Microsoft, Vinfast)
+    - **Penny stocks:** Giá rẻ (<$5), rủi ro cao
+    - **Growth vs Value:** Tăng trưởng vs Giá trị
+  </Tab>
+  <Tab title="Trái phiếu (Bonds)">
+    - **Government bonds:** Chính phủ phát hành, an toàn
+    - **Corporate bonds:** Doanh nghiệp phát hành, rủi ro hơn
+    - **Yield:** Lãi suất trái phiếu
+    - **Duration:** Độ nhạy với lãi suất
+    - Thường dùng để **diversification** trong portfolio
+  </Tab>
+  <Tab title="ETF & Mutual Funds">
+    - **ETF (Exchange-Traded Fund):** Quỹ giao dịch trên sàn, chi phí thấp
+    - **Mutual Fund:** Quỹ mở, quản lý chuyên nghiệp
+    - **Index Fund:** Theo dõi chỉ số (VN-Index, S&P 500)
+    - **Sector ETF:** Tập trung vào ngành (tech, banking)
+  </Tab>
+  <Tab title="Derivatives">
+    - **Options:** Quyền (không nghĩa vụ) mua/bán ở giá strike
+    - **Futures:** Cam kết mua/bán trong tương lai
+    - **CFD:** Hợp đồng chênh lệch
+    - **Swaps:** Hoán đổi dòng tiền
+    - **Rủi ro cao**, thường dùng cho hedging & speculation
+  </Tab>
+  <Tab title="Crypto & Alternative">
+    - **Cryptocurrency:** Bitcoin, Ethereum (24/7 trading)
+    - **REITs:** Đầu tư bất động sản
+    - **Commodities:** Vàng, dầu, nông sản
+    - **Volatility cao**, correlation thấp với stocks
+  </Tab>
+</Tabs>
+
+## Các chỉ số quan trọng
+
+| Chỉ số | Thị trường | Mô tả |
+|---|---|---|
+| **S&P 500** | US | 500 công ty lớn nhất US |
+| **NASDAQ** | US | Tech-heavy, 100+ companies |
+| **Dow Jones** | US | 30 blue-chip stocks |
+| **VN-Index** | Việt Nam | HOSE, top companies |
+| **VN30** | Việt Nam | Top 30 blue-chips VN |
+| **Hang Seng** | Hồng Kông | Top HK stocks |
+| **Nikkei 225** | Nhật Bản | Top 225 Nhật |
+| **FTSE 100** | UK | Top 100 UK |
+| **DAX 40** | Đức | Top 40 Đức |
+| **Bitcoin** | Crypto | Largest cryptocurrency |
+
+## Cách đọc bảng giá
+
+```
+SYMBOL    LAST     CHANGE   %CHG    VOLUME      BID     ASK
+AAPL      185.92   +2.45    +1.34%  52.3M       185.91  185.93
+TSLA      248.50   -5.20    -2.05%  118.4M      248.48  248.52
+```
+
+<Steps>
+  <Step title="LAST (Last Price)">
+    Giá giao dịch gần nhất
+  </Step>
+  <Step title="CHANGE & %CHG">
+    Thay đổi so với phiên trước
+  </Step>
+  <Step title="VOLUME">
+    Khối lượng giao dịch (cao = nhiều trader quan tâm)
+  </Step>
+  <Step title="BID">
+    Giá mua cao nhất
+  </Step>
+  <Step title="ASK">
+    Giá bán thấp nhất
+  </Step>
+  <Step title="Spread">
+    Ask - Bid (càng nhỏ càng liquid)
+  </Step>
+</Steps>
+
+## OHLCV Data
+
+Mỗi phiên giao dịch cung cấp:
+
+| Field | Mô tả | Ý nghĩa |
+|---|---|---|
+| **Open** | Giá mở cửa | Xu hướng đầu phiên |
+| **High** | Giá cao nhất | Mức resistance trong ngày |
+| **Low** | Giá thấp nhất | Mức support trong ngày |
+| **Close** | Giá đóng cửa | Quan trọng nhất cho analysis |
+| **Volume** | Khối lượng giao dịch | Xác nhận xu hướng |
+
+```python
+# OHLCV representation
+import pandas as pd
+
+data = pd.DataFrame({
+    'Date': ['2026-01-15', '2026-01-16'],
+    'Open':  [185.00, 186.50],
+    'High':  [186.20, 187.80],
+    'Low':   [184.80, 186.10],
+    'Close': [185.92, 187.45],
+    'Volume':[52_300_000, 48_700_000]
+})
+```
+
+## Timeframes
+
+| Timeframe | Use case |
+|---|---|
+| **Tick (1s)** | Scalping, HFT |
+| **1 min - 15 min** | Day trading |
+| **1 hour - 4 hour** | Swing trading ngắn hạn |
+| **Daily** | Swing trading, position trading |
+| **Weekly/Monthly** | Long-term investing |
+
+## Các sàn giao dịch lớn
+
+<CardGroup>
+  <Card title="NYSE & NASDAQ" icon="building-columns">
+    2 sàn lớn nhất US (Apple, Microsoft, Google)
+  </Card>
+  <Card title="HOSE (Việt Nam)" icon="mountain-sun">
+    Sàn TP.HCM (VN-Index)
+  </Card>
+  <Card title="HNX (Việt Nam)" icon="building">
+    Sàn Hà Nội (upcom, derivatives)
+  </Card>
+  <Card title="LSE (London)" icon="crown">
+    London Stock Exchange
+  </Card>
+  <Card title="TSE (Tokyo)" icon="torii-gate">
+    Tokyo Stock Exchange
+  </Card>
+  <Card title="Crypto exchanges" icon="bitcoin-sign">
+    Binance, Coinbase, Kraken (24/7)
+  </Card>
+</CardGroup>
+
+## Thuật ngữ quan trọng
+
+### Thuật ngữ cơ bản
+
+| Term | Mô tả |
+|---|---|
+| **Bull Market** | Thị trường tăng giá |
+| **Bear Market** | Thị trường giảm giá (-20%+) |
+| **Volatility** | Mức độ biến động giá |
+| **Liquidity** | Khả năng mua/bán nhanh |
+| **Market Cap** | Vốn hóa = Price × Shares |
+| **Dividend** | Cổ tức trả cho cổ đông |
+
+### Thuật ngữ kỹ thuật
+
+| Term | Mô tả |
+|---|---|
+| **Support** | Mức giá mà giá khó giảm xuống |
+| **Resistance** | Mức giá mà giá khó vượt qua |
+| **Breakout** | Giá vượt qua resistance |
+| **Breakdown** | Giá phá qua support |
+| **Trend** | Xu hướng (uptrend, downtrend, sideways) |
+| **Reversal** | Đảo chiều xu hướng |
+
+## Order Types
+
+```python
+# Các loại lệnh phổ biến
+order_types = {
+    "Market": "Mua/bán ngay giá thị trường",
+    "Limit": "Mua/bán ở giá cụ thể hoặc tốt hơn",
+    "Stop-Loss": "Tự động bán khi giá xuống mức nhất định",
+    "Take-Profit": "Tự động bán khi giá lên mức nhất định",
+    "Stop-Limit": "Kết hợp stop + limit",
+    "Trailing Stop": "Stop-loss di chuyển theo giá"
+}
+```
+
+## Market Hours
+
+| Market | Hours (Local) | Hours (VN) |
+|---|---|---|
+| NYSE/NASDAQ | 9:30 - 16:00 EST | 21:30 - 04:00 (next day) |
+| HOSE | 9:00 - 15:00 ICT | 9:00 - 15:00 |
+| HNX | 9:00 - 15:00 ICT | 9:00 - 15:00 |
+| London LSE | 8:00 - 16:30 GMT | 15:00 - 23:30 |
+| Tokyo TSE | 9:00 - 15:00 JST | 7:00 - 13:00 |
+| Crypto | 24/7 | 24/7 |
+
+## Market Participants
+
+<Steps>
+  <Step title="Retail Investors">
+    Nhà đầu tư cá nhân (chiếm ~25% volume US)
+  </Step>
+  <Step title="Institutional Investors">
+    Quỹ, pension funds, hedge funds (chiếm phần lớn volume)
+  </Step>
+  <Step title="Market Makers">
+    Cung cấp thanh khoản, kiếm lợi từ spread
+  </Step>
+  <Step title="High-Frequency Trading (HFT)">
+    Giao dịch tốc độ milisecond
+  </Step>
+  <Step title="Algorithmic Trading">
+    Bot giao dịch tự động theo thuật toán
+  </Step>
+</Steps>
+
+## Các lý thuyết tài chính nền tảng
+
+### 1. Efficient Market Hypothesis (EMH)
+
+<Callout type="info">
+**EMH** cho rằng giá cổ phiếu đã phản ánh **tất cả thông tin** có sẵn → không thể "beat the market" consistently.
+
+- **Weak form:** Giá phản ánh thông tin quá khứ
+- **Semi-strong:** Giá phản ánh thông tin công khai
+- **Strong:** Giá phản ánh cả thông tin nội bộ
+</Callout>
+
+### 2. Modern Portfolio Theory (Markowitz)
+
+- **Diversification** giảm risk
+- Tối ưu **risk-return tradeoff**
+- **Efficient frontier** — danh mục tối ưu
+
+### 3. Capital Asset Pricing Model (CAPM)
+
+```
+Expected Return = Risk-Free Rate + Beta × (Market Return - Risk-Free Rate)
+```
+
+- **Beta:** Đo lường biến động so với thị trường
+
+## Tại sao nền tảng quan trọng cho AI?
+
+<Warning>
+AI chỉ là **công cụ**. Nếu bạn không hiểu thị trường:
+- **Features** bạn chọn có thể vô nghĩa
+- **Signals** model đưa ra có thể là noise
+- **Risk management** sẽ sai lầm
+- Bạn sẽ **tin tưởng sai** vào model
+</Warning>
+
+<Tip>
+Đừng bỏ qua phần này! Trader giỏi **không phải người code giỏi nhất**, mà là người hiểu thị trường + có risk management chặt chẽ. AI chỉ là amplification.
+</Tip>
+
+## Bước tiếp theo
+
+Bây giờ bạn đã hiểu thị trường, hãy chuyển sang:
+
+<CardGroup>
+  <Card title="Thu thập dữ liệu" icon="database" href="/ai-stock-investment/data-collection">
+    APIs và data sources cho AI models
+  </Card>
+  <Card title="Phân tích kỹ thuật" icon="chart-line" href="/ai-stock-investment/technical-analysis">
+    Indicators và chart patterns
+  </Card>
+  <Card title="Phân tích cơ bản" icon="magnifying-glass-dollar" href="/ai-stock-investment/fundamental-analysis">
+    Financial ratios và valuation
+  </Card>
+</CardGroup>
