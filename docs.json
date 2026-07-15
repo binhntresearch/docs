@@ -630,6 +630,44 @@
         ]
       },
       {
+        "tab": "AI Stock Investment",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "ai-stock-investment/index",
+              "ai-stock-investment/overview",
+              "ai-stock-investment/market-fundamentals"
+            ]
+          },
+          {
+            "group": "Phân tích Chứng khoán",
+            "icon": "chart-line",
+            "pages": [
+              "ai-stock-investment/fundamental-analysis",
+              "ai-stock-investment/technical-analysis"
+            ]
+          },
+          {
+            "group": "AI & Dữ liệu Thị trường",
+            "icon": "brain",
+            "pages": [
+              "ai-stock-investment/data-collection",
+              "ai-stock-investment/sentiment-analysis",
+              "ai-stock-investment/timeseries-forecasting"
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "ai-stock-investment/portfolio-optimization"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Mobile",
         "groups": [
           {
