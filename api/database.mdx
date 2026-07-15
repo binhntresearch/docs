@@ -1,0 +1,224 @@
+---
+title: "Database & ORM"
+description: "Prisma, Drizzle, SQLAlchemy — generate schema và queries với Claude Code"
+icon: "database"
+---
+
+Database là backbone của mọi API. Claude Code rất giỏi generating schema, migrations, và queries cho Postgres, MySQL, MongoDB.
+
+## Prisma + PostgreSQL
+
+```
+Tạo Prisma schema cho ứng dụng Task Management:
+
+models:
+- User: id, email (unique), name, password (hashed), role (enum: USER, ADMIN),
+  emailVerified, avatar, createdAt, updatedAt
+- Project: id, name, description, ownerId (FK), createdAt
+- Task: id, title, description, status (enum: TODO, IN_PROGRESS, DONE),
+  priority, assigneeId (FK), projectId (FK), dueDate, createdAt, updatedAt
+- Comment: id, content, authorId (FK), taskId (FK), createdAt
+
+Relations:
+- User has many Projects (owned)
+- User has many Tasks (assigned)
+- Project has many Tasks
+- Task has many Comments
+- User has many Comments (authored)
+
+Include indexes cho foreign keys và email
+Enable soft delete với deletedAt field
+```
+
+**Generated Prisma Schema:**
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  name          String
+  password      String
+  role          Role      @default(USER)
+  emailVerified Boolean   @default(false)
+  avatar        String?
+  deletedAt     DateTime?
+
+  ownedProjects  Project[]  @relation("ProjectOwner")
+  assignedTasks  Task[]     @relation("TaskAssignee")
+  comments       Comment[]  @relation("CommentAuthor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([deletedAt])
+}
+
+model Project {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  ownerId     Int
+  owner       User      @relation("ProjectOwner", fields: [ownerId], references: [id])
+  tasks       Task[]
+  deletedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([deletedAt])
+}
+
+model Task {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Int        @default(0)
+  assigneeId  Int
+  assignee    User       @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  projectId   Int
+  project     Project    @relation(fields: [projectId], references: [id])
+  dueDate     DateTime?
+  deletedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assigneeId])
+  @@index([projectId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  content   String
+  authorId  Int
+  author    User      @relation("CommentAuthor", fields: [authorId], references: [id])
+  taskId    Int
+  task      Task      @relation(fields: [taskId], references: [id])
+  createdAt DateTime  @default(now())
+
+  @@index([taskId])
+  @@index([authorId])
+}
+```
+
+## Generate Queries
+
+```
+Tạo Prisma queries cho Products:
+- findAll({ page, limit, category, search }) - với pagination
+- findById(id) - throw error nếu không tồn tại
+- findBySlug(slug)
+- create(data) - validate uniqueness
+- update(id, data) - partial update
+- delete(id) - soft delete (set deletedAt)
+- findRelated(id) - top 5 products cùng category
+
+Bao gồm typing với Prisma.ProductGetPayload
+```
+
+## Drizzle ORM (TypeScript)
+
+```
+Tạo Drizzle schema cho e-commerce:
+- users (id, email, name, passwordHash, role, createdAt)
+- products (id, name, slug, description, price, stock, categoryId, isActive)
+- categories (id, name, slug, parentId nullable cho nested)
+- orders (id, userId, status, total, createdAt)
+- orderItems (id, orderId, productId, quantity, price)
+
+Relations:
+- products belongs to category
+- orders belongs to user
+- orders has many orderItems
+- orderItems belongs to product
+
+Drizzle types tốt, soft delete, indexes
+```
+
+## SQLAlchemy (Python)
+
+```
+Tạo SQLAlchemy models cho CRM:
+
+Base với:
+- id (primary key)
+- created_at, updated_at timestamps
+- is_deleted flag cho soft delete
+
+Tables:
+- companies (id, name, industry, size, website)
+- contacts (id, name, email, phone, company_id FK)
+- deals (id, title, value, stage enum, contact_id FK, owner_id FK, close_date)
+- activities (id, type enum, content, contact_id FK, user_id FK)
+
+Relationships với backrefs
+Indexes cho foreign keys và search columns
+```
+
+## Migrations
+
+```
+Tạo migration script với Alembic:
+- Tạo tables theo schema ở trên
+- Tạo indexes
+- Tạo enums
+- Foreign keys
+
+Generate migration: alembic revision --autogenerate
+Apply migration: alembic upgrade head
+```
+
+## Seed Data
+
+```
+Tạo seed script với:
+- 5 users mẫu (1 admin, 4 regular users)
+- 10 categories
+- 50 products với giá random
+- 20 orders test
+- Password hash với bcrypt
+```
+
+## Common Database Prompts
+
+```
+Tạo query optimization:
+- Add index cho email (already there)
+- Add composite index cho (status, createdAt)
+- Add GIN index cho full-text search trên name
+- Explain query plan với EXPLAIN
+```
+
+```
+Tạo migration cho production:
+- Backup database trước khi migrate
+- Zero-downtime migrations
+- Rollback plan
+- Data migration scripts
+```

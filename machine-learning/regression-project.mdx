@@ -1,0 +1,180 @@
+---
+title: "Regression Project"
+description: "House Price Prediction với comprehensive feature engineering"
+icon: "chart-line"
+---
+
+Dự án Regression — **House Price Prediction** với feature engineering chi tiết và model comparison.
+
+## Step 1: Load + Explore
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('house_prices.csv')
+
+# Categorize columns
+num_cols = ['sqft_living', 'bedrooms', 'bathrooms', 'sqft_lot', 'floors']
+cat_cols = ['city', 'zipcode', 'waterfront', 'view', 'condition']
+date_cols = ['date']
+
+# Quick stats
+print(df.describe())
+print(df.isnull().sum())
+
+# Target distribution
+df['price'].hist(bins=50)
+plt.title('Price Distribution')
+plt.show()
+
+# Log transform for skewed target
+df['price_log'] = np.log1p(df['price'])
+df['price_log'].hist(bins=50)
+plt.title('Log Price Distribution')
+plt.show()
+```
+
+## Step 2: Feature Engineering
+
+```python
+# Date features
+df['year'] = pd.to_datetime(df['date']).dt.year
+df['month'] = pd.to_datetime(df['date']).dt.month
+
+# Geographic features (price depends on location)
+df['price_per_sqft'] = df['price'] / df['sqft_living']
+
+# Group by zipcode — target encoding
+zipcode_stats = df.groupby('zipcode')['price'].agg(['mean', 'median', 'std'])
+df = df.merge(zipcode_stats, left_on='zipcode', right_index=True, suffixes=('', '_zip'))
+
+# Binary features
+df['was_renovated'] = (df['yr_renovated'] > 0).astype(int)
+df['age'] = df['year'] - df['yr_built']
+
+# Interaction features
+df['sqft_per_room'] = df['sqft_living'] / (df['bedrooms'] + df['bathrooms'])
+```
+
+## Step 3: Pipeline
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransformer
+from sklearn.impute import SimpleImputer
+import numpy as np
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', Pipeline([
+            ('imputer', SimpleImputer(strategy='median')),
+            ('scaler', StandardScaler())
+        ]), num_cols + ['year', 'age', 'sqft_per_room', 'price_per_sqft']),
+
+        ('cat', Pipeline([
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('onehot', OneHotEncoder(handle_unknown='ignore'))
+        ]), cat_cols),
+
+        ('log_target', FunctionTransformer(np.log1p), ['mean_zip'])
+    ]
+)
+```
+
+## Step 4: Model Comparison
+
+```python
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+import xgboost as xgb
+from sklearn.model_selection import cross_val_score
+
+models = {
+    'Ridge': Ridge(alpha=1.0),
+    'Lasso': Lasso(alpha=0.01),
+    'Random Forest': RandomForestRegressor(n_estimators=100, random_state=42),
+    'Gradient Boosting': GradientBoostingRegressor(n_estimators=100, random_state=42),
+    'XGBoost': xgb.XGBRegressor(n_estimators=100, random_state=42)
+}
+
+X = df.drop(['price', 'price_log'], axis=1)
+y = df['price_log']
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42, test_size=0.2)
+
+for name, model in models.items():
+    pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('model', model)
+    ])
+
+    scores = cross_val_score(
+        pipeline, X_train, y_train,
+        cv=5, scoring='neg_mean_absolute_error'
+    )
+
+    mae = -scores.mean()
+    print(f"{name}: MAE = ${np.expm1(mae):,.0f}")
+```
+
+## Step 5: Final Model + Evaluation
+
+```python
+# Train best model
+final_model = Pipeline([
+    ('preprocessor', preprocessor),
+    ('model', xgb.XGBRegressor(n_estimators=300, learning_rate=0.05, max_depth=6, random_state=42))
+])
+
+final_model.fit(X_train, y_train)
+
+# Predict (in log scale, then exp to get actual prices)
+y_pred_log = final_model.predict(X_test)
+y_pred = np.expm1(y_pred_log)  # Inverse log transform
+y_true = np.expm1(y_test)
+
+# Errors in dollar terms
+errors = np.abs(y_pred - y_true)
+print(f"Mean Absolute Error: ${errors.mean():,.0f}")
+print(f"Median Absolute Error: ${np.median(errors):,.0f}")
+print(f"95th percentile error: ${np.percentile(errors, 95):,.0f}")
+
+# R² score
+from sklearn.metrics import r2_score
+r2 = r2_score(y_true, y_pred)
+print(f"R² Score: {r2:.4f}")
+```
+
+## Step 6: Feature Importance + SHAP
+
+```python
+import shap
+
+# SHAP values
+explainer = shap.TreeExplainer(final_model.named_steps['model'])
+shap_values = explainer.shap_values(
+    final_model.named_steps['preprocessor'].transform(X_test[:100])
+)
+
+# Plot summary
+shap.summary_plot(
+    shap_values,
+    final_model.named_steps['preprocessor'].transform(X_test[:100]),
+    feature_names=feature_names,
+    show=False
+)
+plt.tight_layout()
+plt.show()
+```
+
+<Tip>
+House Price Prediction insights:
+- **Location is king:** zipcode là most important feature (often >50% importance)
+- **Size matters:** sqft_living chiếm ~10-20%
+- **Renovations:** Cải tạo gần đây (yr_renovated) increases value đáng kể
+- **Multi-collinearity:** bedrooms và sqft_living tương quan cao → tree-based models handle tốt hơn
+</Tip>

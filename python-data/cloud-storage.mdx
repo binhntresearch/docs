@@ -1,0 +1,172 @@
+---
+title: "Cloud Storage cho Data"
+description: "AWS S3, Google Cloud Storage, Azure Blob — lưu trữ và truy cập data trên cloud"
+icon: "cloud"
+---
+
+Khi data lớn (> GB), cần **cloud storage** thay vì local disk — scalable, cheap, accessible from anywhere.
+
+## AWS S3
+
+```bash
+pip install boto3
+```
+
+### Upload/Download Files
+
+```python
+import boto3
+from botocore.client import Config
+
+# Setup
+s3 = boto3.client('s3')
+
+# Upload
+s3.upload_file('local.csv', 'my-bucket', 'data/sales.csv')
+
+# Download
+s3.download_file('my-bucket', 'data/sales.csv', 'local_copy.csv')
+
+# List
+response = s3.list_objects_v2(Bucket='my-bucket')
+for obj in response['Contents']:
+    print(obj['Key'])
+```
+
+### Read Directly into Pandas
+
+```python
+import pandas as pd
+import s3fs
+
+# Read Parquet from S3
+df = pd.read_parquet(
+    's3://my-bucket/data/sales.parquet',
+    storage_options={'anon': False}  # True for public
+)
+
+# Write to S3
+df.to_parquet(
+    's3://my-bucket/processed/sales_cleaned.parquet'
+)
+```
+
+## Google Cloud Storage (GCS)
+
+```bash
+pip install google-cloud-storage
+```
+
+```python
+from google.cloud import storage
+import pandas as pd
+
+client = storage.Client()
+bucket = client.bucket('my-bucket')
+
+# Upload
+blob = bucket.blob('data/sales.csv')
+blob.upload_from_filename('local.csv')
+
+# Download
+blob.download_to_filename('local_copy.csv')
+
+# Read as string
+content = bucket.blob('data.json').download_as_string()
+
+# Direct pandas integration with gcsfs
+df = pd.read_csv('gs://my-bucket/data/sales.csv')
+df.to_csv('gs://my-bucket/processed/sales.csv')
+```
+
+## Azure Blob Storage
+
+```bash
+pip install azure-storage-blob
+```
+
+```python
+from azure.storage.blob import BlobServiceClient
+import pandas as pd
+
+# Setup
+blob_service = BlobServiceClient.from_connection_string(AZURE_CONN_STRING)
+container = blob_service.get_container_client('my-container')
+
+# Upload
+with open('local.csv', 'rb') as f:
+    container.upload_blob('data/sales.csv', f)
+
+# Download
+with open('downloaded.csv', 'wb') as f:
+    container.download_blob('data/sales.csv').readinto(f)
+```
+
+## Database as a Service
+
+| Service | Description |
+|---|---|
+| **AWS RDS** | Managed Postgres, MySQL, Oracle |
+| **AWS Aurora** | Serverless compatible with MySQL/Postgres |
+| **Google Cloud SQL** | Managed SQL databases |
+| **Supabase** | Open source Firebase alternative |
+| **PlanetScale** | Serverless MySQL with branching |
+| **Neon** | Serverless Postgres with branching |
+| **MongoDB Atlas** | Managed MongoDB |
+
+## Data Warehouse (Analytical)
+
+```python
+# Snowflake / BigQuery / Redshift
+from google.cloud import bigquery
+
+client = bigquery.Client()
+
+# Query
+query = """
+SELECT date, SUM(amount) as total
+FROM `project.dataset.sales`
+WHERE date > '2024-01-01'
+GROUP BY date
+"""
+
+df = client.query(query).to_dataframe()
+
+# Insert (streaming)
+table = client.get_table('project.dataset.inserted_table')
+errors = client.insert_rows_from_dataframe(table, dataframe)
+```
+
+## Best Practices
+
+<Check>
+- **Use parquet/ORC thay vì CSV:** 10-100x faster, smaller files
+- **Partition large datasets:** Theo ngày, region, category
+- **Use lifecycle policies:** Auto-delete old data, move to cold storage
+- **Encrypt sensitive data:** Server-side encryption (SSE)
+- **Version data:** DVC, LakeFS cho data versioning
+- **Cost optimization:** S3 Intelligent-Tiering, lifecycle rules
+</Check>
+
+## Cost Optimization
+
+```python
+# S3 lifecycle policy: move old files to Glacier
+s3.put_bucket_lifecycle_configuration(
+    Bucket='my-bucket',
+    LifecycleConfiguration={
+        'Rules': [{
+            'ID': 'MoveOldToGlacier',
+            'Status': 'Enabled',
+            'Transitions': [{
+                'Days': 90,
+                'StorageClass': 'GLACIER'  # 90 days → Glacier
+            }]
+        }]
+    }
+)
+```
+
+<Tip>
+Thường dùng **S3/GCS/Azure Blob** cho files, **BigQuery/Snowflake/Redshift** cho analytics, **Postgres/MongoDB** cho transactional. Start với S3 + Postgres + BigQuery cho production-ready setup.
+</Tip>

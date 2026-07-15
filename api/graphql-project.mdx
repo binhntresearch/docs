@@ -1,0 +1,149 @@
+---
+title: "GraphQL API Project"
+description: "Xây dựng GraphQL API với Strawberry (Python) bằng Claude Code"
+icon: "diagram-project"
+---
+
+Dự án GraphQL API với Strawberry + FastAPI — Claude Code generate schema, resolvers, và queries.
+
+## Setup với Claude Code
+
+```
+Tạo GraphQL API với Strawberry + FastAPI:
+- GraphQL schema với types, queries, mutations
+- Strawberry FastAPI integration
+- SQLAlchemy async + PostgreSQL
+- JWT authentication
+- DataLoader cho N+1 problem prevention
+- GraphQL Playground tại /graphql
+- CORS support
+```
+
+## Schema Generation
+
+```
+Tạo GraphQL schema cho Blog Platform:
+
+Types:
+- User: id, name, email, posts, createdAt
+- Post: id, title, content, published, author, comments, createdAt
+- Comment: id, text, author, post, createdAt
+
+Queries:
+- posts(limit, offset): [Post!]!
+- post(id: ID!): Post
+- me: User
+
+Mutations:
+- createPost(input: CreatePostInput!): Post!
+- updatePost(id: ID!, input: UpdatePostInput!): Post!
+- deletePost(id: ID!): Boolean!
+- createComment(postId: ID!, text: String!): Comment!
+
+Subscriptions:
+- postCreated: Post!
+
+Include:
+- Authorization rules (owner-only mutations)
+- Custom scalars cho DateTime
+- Pagination (cursor-based)
+- Error handling với GraphQL errors
+```
+
+## Resolver Generation
+
+```python
+# Output từ Claude Code
+import strawberry
+from typing import Optional
+from datetime import datetime
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    async def posts(
+        self,
+        limit: int = 20,
+        offset: int = 0,
+        info: strawberry.types.Info = None
+    ) -> list["Post"]:
+        db = info.context["db"]
+        return await db.posts.find_many(skip=offset, take=limit)
+
+    @strawberry.field
+    async def post(self, id: int, info) -> Optional["Post"]:
+        db = info.context["db"]
+        return await db.posts.find_unique(where={"id": id})
+
+@strawberry.type
+class Mutation:
+    @strawberry.mutation
+    async def create_post(
+        self, input: CreatePostInput, info
+    ) -> "Post":
+        user = info.context["current_user"]
+        if not user:
+            raise Exception("Unauthorized")
+        db = info.context["db"]
+        return await db.posts.create(data={
+            **input.__dict__,
+            "authorId": user.id
+        })
+
+    @strawberry.mutation
+    async def update_post(
+        self, id: int, input: UpdatePostInput, info
+    ) -> "Post":
+        user = info.context["current_user"]
+        post = await info.context["db"].posts.find_unique(where={"id": id})
+        if post.authorId != user.id:
+            raise Exception("Not authorized")
+        return await info.context["db"].posts.update(
+            where={"id": id},
+            data=input.__dict__
+        )
+```
+
+## GraphQL Queries
+
+```graphql
+# Get posts with author info
+query {
+  posts(limit: 10) {
+    id
+    title
+    content
+    author {
+      name
+      email
+    }
+    comments {
+      text
+      author { name }
+    }
+  }
+}
+
+# Create post
+mutation {
+  createPost(input: {
+    title: "My First Post"
+    content: "Hello World!"
+    published: true
+  }) {
+    id
+    title
+    createdAt
+  }
+}
+```
+
+## DataLoader for N+1
+
+```
+Tạo DataLoader để batch loading:
+- PostLoader: load posts by authorId (batch load)
+- UserLoader: load users by id
+- CommentLoader: load comments by postId
+- Mỗi resolver dùng appropriate DataLoader
+```

@@ -1,0 +1,211 @@
+---
+title: "Coding Agent"
+description: "Xây dựng AI agent tự động viết, test, debug code"
+icon: "code"
+---
+
+Coding Agent tự động **viết code, chạy test, fix bugs** — như một junior developer hoạt động 24/7.
+
+## Kiến trúc
+
+```
+User: "Build a REST API for user management"
+    ↓
+Planner Agent → Phân tích requirements
+    ↓
+┌── Code Agent → Viết code
+├── Test Agent → Viết test
+├── Review Agent → Code review
+└── Fix Agent → Fix bugs nếu có
+    ↓
+Deploy Agent → Deploy lên server
+```
+
+## Claude Code — Coding Agent thực tế
+
+Claude Code (CLI tool mà bạn đang dùng) chính là coding agent hoàn chỉnh:
+
+<Check>
+- ✅ Đọc & hiểu toàn bộ codebase
+- ✅ Viết code theo best practices
+- ✅ Chạy terminal commands
+- ✅ Git operations (commit, push, branch)
+- ✅ Debug & fix errors
+- ✅ Tạo file mới, sửa file hiện tại
+</Check>
+
+## Custom Coding Agent
+
+```python
+import anthropic
+import subprocess
+
+client = anthropic.Anthropic()
+
+coding_tools = [
+    {
+        "name": "create_file",
+        "description": "Create a new file with content",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "content": {"type": "string"}
+            },
+            "required": ["path", "content"]
+        }
+    },
+    {
+        "name": "run_command",
+        "description": "Run a terminal command",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string"}
+            },
+            "required": ["command"]
+        }
+    },
+    {
+        "name": "read_file",
+        "description": "Read file contents",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"]
+        }
+    }
+]
+
+SYSTEM_PROMPT = """You are a senior software developer.
+
+## Workflow
+1. Analyze the requirements
+2. Plan the file structure
+3. Write code file by file
+4. Run tests after each module
+5. Fix any errors immediately
+6. Verify everything works
+
+## Rules
+- Write clean, documented code
+- Handle errors gracefully
+- Follow language conventions
+- Add comments for complex logic
+- Run tests before moving on
+"""
+```
+
+## Test-Driven Coding Agent
+
+```python
+def tdd_agent(requirement):
+    """Test-Driven Development agent."""
+    messages = [{"role": "user", "content": f"Build using TDD: {requirement}"}]
+
+    for _ in range(30):
+        response = client.messages.create(
+            model="claude-sonnet-5-20250514",
+            system="Always write tests FIRST, then implementation. Run tests after each step.",
+            tools=coding_tools,
+            messages=messages,
+            max_tokens=4096
+        )
+
+        if response.stop_reason == "end_turn":
+            return response.content[0].text
+
+        messages.append({"role": "assistant", "content": response.content})
+        # Execute tools and continue
+```
+
+## Debugging Agent
+
+```python
+def debug_agent(error_message, code_context):
+    messages = [{
+        "role": "user",
+        "content": f"""
+Error: {error_message}
+
+Code context:
+{code_context}
+
+Find and fix the bug. Explain what went wrong.
+"""
+    }]
+
+    response = client.messages.create(
+        model="claude-sonnet-5-20250514",
+        tools=coding_tools,
+        messages=messages,
+        max_tokens=4096
+    )
+    return response.content[0].text
+```
+
+## Code Review Agent
+
+```python
+REVIEW_PROMPT = """You are a senior code reviewer.
+
+Review the code for:
+1. **Bugs:** Logic errors, edge cases, race conditions
+2. **Security:** SQL injection, XSS, authentication issues
+3. **Performance:** N+1 queries, unnecessary loops, memory leaks
+4. **Maintainability:** Code clarity, naming, documentation
+5. **Best Practices:** Language conventions, design patterns
+
+Rate severity: 🔴 Critical | 🟡 Warning | 🟢 Suggestion
+"""
+```
+
+## Feature decomposition
+
+```python
+def implement_feature(feature_description):
+    # 1. Break feature into tasks
+    tasks = plan_tasks(feature_description)
+
+    results = []
+    for task in tasks:
+        # 2. Implement each task
+        code = write_code(task)
+
+        # 3. Test
+        test_result = run_tests(task)
+
+        # 4. Fix if failed
+        if test_result.failed:
+            code = fix_code(code, test_result.errors)
+
+        results.append({"task": task, "code": code, "status": "passed"})
+
+    # 5. Integration test
+    integration_result = run_integration_tests()
+    return results
+```
+
+## Agent + CI/CD
+
+```yaml
+# GitHub Actions — auto-fix PR
+name: AI Code Review
+on: [pull_request]
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: AI Review
+        run: |
+          python review_agent.py --diff "${{ github.event.pull_request.diff_url }}"
+      - name: Auto-fix
+        if: steps.review.outputs.has_critical
+        run: |
+          python fix_agent.py --diff "${{ github.event.pull_request.diff_url }}"
+```
+
+<Tip>
+Coding agent tốt nhất khi có feedback loop — vi��t code → chạy test → fix lỗi → lặp lại. Luôn verify output trước khi merge.
+</Tip>

@@ -1,0 +1,64 @@
+---
+title: "ClaudeCode Fundamentals"
+description: "Những khái niệm cốt lõi về Claude Code dành cho người mới bắt đầu"
+icon: "graduation-cap"
+---
+
+Claude Code là công cụ AI của Anthropic giúp bạn phát triển phần mềm bằng ngôn ngữ tự nhiên. Thay vì viết từng dòng code, bạn mô tả yêu cầu — Claude Code sẽ tạo code, cấu trúc dự án, và chạy lệnh terminal.
+
+## Claude Code là gì?
+
+<CardGroup>
+  <Card title="AI Engineer" icon="robot">
+    Claude Code được trang bị khả năng lập trình mạnh mẽ — hiểu yêu cầu bằng tiếng Việt và tạo code đúng cấu trúc
+  </Card>
+  <Card title="Multi-file Editor" icon="folder-tree">
+    Có thể tạo, sửa, xóa nhiều file cùng lúc trong dự án
+  </Card>
+  <Card title="Terminal Runner" icon="terminal">
+    Chạy lệnh terminal, cài đặt package, khởi tạo dự án tự động
+  </Card>
+  <Card title="Git Manager" icon="code-branch">
+    Quản lý git: commit, push, tạo branch, merge pull request
+  </Card>
+</CardGroup>
+
+## Tại sao dùng Claude Code?
+
+<Tabs>
+  <Tab title="Không cần biết code">
+    Bạn mô tả yêu cầu bằng ngôn ngữ tự nhiên — Claude Code viết code cho bạn. Phù hợp người mới, founder, product manager muốn build MVP nhanh.
+  </Tab>
+  <Tab title="Tăng tốc độ phát triển">
+    Thay vì mất hàng giờ debug một API call, bạn mô tả vấn đề — Claude Code tìm và sửa lỗi trong vài phút.
+  </Tab>
+  <Tab title="Best practices mặc định">
+    Claude Code luôn viết code theo best practices: TypeScript, Server Components, Security Rules, validation...
+  </Tab>
+</Tabs>
+
+## 3 khái niệm cốt lõi
+
+<Steps>
+  <Step title="Prompt — Mô tả yêu cầu">
+    Mọi thứ bắt đầu từ một prompt rõ ràng. Claude Code càng nhận được nhiều thông tin (URL, fields, behavior), code tạo ra càng đúng ý.
+  </Step>
+  <Step title="Context — Bối cảnh dự án">
+    Claude Code hiểu toàn bộ dự án: cấu trúc thư mục, file có sẵn, framework đang dùng. Cung cấp thêm cấu hình Firebase, design system, requirements càng tốt.
+  </Step>
+  <Step title="Iteration — Lặp lại cải tiến">
+    Không phải lúc nào cũng đúng ngay từ lần đầu. Bạn mô tả phần sai (hiện tại vs mong muốn), Claude Code sửa lại.
+  </Step>
+</Steps>
+
+## Quy trình làm việc điển hình
+
+<Tip>
+Quy trình mình khuyến nghị: **Setup → Thiết kế dữ liệu → Tính năng từng phần → Bảo mật → Deploy**
+</Tip>
+
+1. **Setup dự án** — Yêu cầu Claude Code khởi tạo với đầy đủ tech stack
+2. **Thiết kế dữ liệu** — Mô tả cấu trúc cần lưu, để Claude Code đề xuất Firestore schema
+3. **Xây từng tính năng** — Chia nhỏ thành các bước, kiểm tra sau mỗi bước
+4. **Thêm bảo mật** — Yêu cầu viết Security Rules
+5. **Deploy** — Kết nối Vercel và deploy

@@ -1,0 +1,117 @@
+---
+title: "OpenZeppelin Contracts"
+description: "Library smart contract tiêu chuẩn — ERC-20, ERC-721, Access Control, Security"
+icon: "shield-halved"
+---
+
+OpenZeppelin là library smart contract được audit rộng rãi nhất trong Ethereum ecosystem. Sử dụng OpenZeppelin giúp bạn viết contract an toàn, tiết kiệm gas, và tuân thủ tiêu chuẩn.
+
+## Cài đặt
+
+```bash
+npm install @openzeppelin/contracts
+```
+
+## ERC-20 Token
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyToken is ERC20, Ownable {
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply
+    ) ERC20(name, symbol) Ownable(msg.sender) {
+        _mint(msg.sender, initialSupply * 10 ** decimals());
+    }
+
+    function mint(address to, uint256 amount) external onlyOwner {
+        _mint(to, amount);
+    }
+}
+```
+
+## ERC-721 NFT
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyNFT is ERC721, ERC721URIStorage, Ownable {
+    uint256 private _tokenIdCounter;
+    uint256 public constant MAX_SUPPLY = 10000;
+
+    constructor() ERC721("MyNFT", "MNFT") Ownable(msg.sender) {}
+
+    function mint(address to, string memory uri) external onlyOwner {
+        require(_tokenIdCounter < MAX_SUPPLY, "Max supply reached");
+        uint256 tokenId = _tokenIdCounter++;
+        _safeMint(to, tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    // Required overrides
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
+        return super.tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+}
+```
+
+## Access Control
+
+```solidity
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+contract MyContract is AccessControl {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER");
+
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, msg.sender);
+    }
+
+    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
+        _mint(to, amount);
+    }
+
+    function pause() public onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+}
+```
+
+## Security
+
+```solidity
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+
+contract Vault is ReentrancyGuard, Pausable {
+    mapping(address => uint256) public balances;
+
+    function withdraw(uint256 amount) external nonReentrant whenNotPaused {
+        require(balances[msg.sender] >= amount, "Insufficient");
+        balances[msg.sender] -= amount;
+        payable(msg.sender).transfer(amount);
+    }
+}
+```
+
+<Tip>
+Luôn import OpenZeppelin contracts thay vì tự viết lại — chúng đã được audit bởi hàng trăm chuyên gia và sử dụng trong hàng nghìn dự án production.
+</Tip>

@@ -1,0 +1,121 @@
+---
+title: "Các loại tài sản"
+description: "Asset classes, legal framework và regulatory requirements cho RWA"
+icon: "balance-scale"
+---
+
+Trước khi token hóa bất kỳ tài sản nào, bạn cần hiểu rõ **legal framework** và **compliance requirements** cho từng loại tài sản.
+
+## Phân loại tài sản
+
+<Tabs>
+  <Tab title="Real Estate">
+    - **Types:** Căn hộ, văn phòng, warehouse, đất
+    - **Jurisdiction:** Quy định bất động sản theo từng quốc gia
+    - **Structure:** SPV (Special Purpose Vehicle) — công ty con sở hữu tài sản, token đại diện cho equity của SPV
+    - **Compliance:** KYC/AML bắt buộc, giới hạn số lượng investor (Reg D 506(c): tối đa 2000 accredited investors)
+    - **Income:** Thuê → distribute qua smart contract
+  </Tab>
+  <Tab title="Fixed Income (Bonds)">
+    - **Types:** Treasury bonds, Corporate bonds, Municipal bonds
+    - **Structure:** Bond tokenization — mỗi token = 1 phần của bond
+    - **Income:** Coupon payments định kỳ
+    - **Compliance:** Reg S (non-US), Reg D (US accredited)
+    - **Custody:** Third-party custodian giữ bond vật lý
+  </Tab>
+  <Tab title="Commodities">
+    - **Types:** Vàng, bạc, platinum, dầu
+    - **Structure:** 1 token = 1 oz vàng (hoặc fraction)
+    - **Compliance:** Đơn giản nhất — vàng không phải securities
+    - **Custody:** Vault storage (Brink's, Loomis)
+    - **Examples:** PAXG (Paxos Gold), XAUT (Tether Gold)
+  </Tab>
+  <Tab title="Private Credit">
+    - **Types:** Corporate loans, real estate loans, trade finance
+    - **Structure:** Fractional loan ownership — investor góp vốn, nhận interest
+    - **Compliance:** KYC/AML, accredited investor verification
+    - **Risk:** Credit risk — borrower default
+    - **Examples:** Centrifuge, Maple Finance, Goldfinch
+  </Tab>
+  <Tab title="Equity & IP">
+    - **Types:** Startup equity, music royalties, IP rights
+    - **Structure:** Tokenized equity — each token = share of company
+    - **Compliance:** Reg D (506b/506c), Reg CF (crowdfunding)
+    - **Complexity:** CA (Cap Table Management) on-chain
+    - **Examples:** Securitize, Republic, Republic Note
+  </Tab>
+</Tabs>
+
+## Legal Framework
+
+### Hoa Kỳ
+
+| Regulation | Mô tả | Investor limit |
+|---|---|---|
+| **Reg D 506(b)** | Private placement, no general solicitation | 35 non-accredited + unlimited accredited |
+| **Reg D 506(c)** | Private placement, general solicitation allowed | Accredited only |
+| **Reg S** | Offshore (non-US) offerings | Non-US persons only |
+| **Reg CF** | Crowdfunding | Up to $5M/year |
+| **Reg A+** | Mini-IPO | Up to $75M/year |
+
+### Việt Nam
+
+<Warning>
+Chưa có khung pháp lý rõ ràng cho tokenized securities tại Việt Nam. Dự thảo Luật Chứng khoán sửa đổi (2024-2025) đang xem xét. Hiện tại, token hóa tài sản thực cần thực hiện qua công ty offshore.
+</Warning>
+
+## KYC/AML Requirements
+
+```solidity
+// Compliance layer — kiểm tra investor trước khi mua token
+contract Compliance {
+    mapping(address => bool) public isKYCApproved;
+    mapping(address => AccreditationLevel) public accreditation;
+    mapping(address => uint256) public investmentLimit;
+    mapping(address => uint256) public currentInvestment;
+
+    enum AccreditationLevel { NONE, RETAIL, ACCREDITED, INSTITUTIONAL }
+
+    modifier onlyKYC(address investor) {
+        require(isKYCApproved[investor], "KYC not approved");
+        _;
+    }
+
+    function canTransfer(address from, address to, uint256 amount) external view returns (bool) {
+        if (!isKYCApproved[from] || !isKYCApproved[to]) return false;
+
+        // Reg D: max 2000 investors
+        if (totalInvestors >= 2000 && !isExistingInvestor[to]) return false;
+
+        // Investment limit per investor
+        if (currentInvestment[to] + amount > investmentLimit[to]) return false;
+
+        return true;
+    }
+}
+```
+
+## Off-chain Legal Structure
+
+```
+┌─────────────────────────────────────────┐
+│         Legal Structure (SPV)            │
+├─────────────────────────────────────────┤
+│                                         │
+│  Real Asset (Building, Bond, etc.)      │
+│         ↓                               │
+│  SPV (BVI/Cayman/Luxembourg)            │
+│  Company that owns the asset            │
+│         ↓                               │
+│  Token (ERC-3643)                       │
+│  Represents equity/debt of SPV          │
+│         ↓                               │
+│  Investors (KYC'd wallets)              │
+│  Hold tokens → proportional ownership   │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+<Tip>
+Luôn bắt đầu từ legal structure — không có SPV thì token không có giá trị pháp lý. Tham vấn luật sư chuyên về securities trước khi phát hành.
+</Tip>

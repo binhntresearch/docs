@@ -1,0 +1,147 @@
+---
+title: "LangChain & LangGraph"
+description: "Framework phổ biến nhất cho AI agents — LangChain basics và LangGraph orchestration"
+icon: "link"
+---
+
+LangChain là ecosystem lớn nhất cho LLM application development. **LangGraph** là extension giúp xây dựng stateful, multi-step agents.
+
+## Cài đặt
+
+```bash
+pip install langchain langchain-anthropic langgraph
+```
+
+## Agent cơ bản
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.tools import tool
+
+@tool
+def search_web(query: str) -> str:
+    """Search the internet for information."""
+    # Implementation here
+    return f"Results for: {query}"
+
+@tool
+def calculator(expression: str) -> str:
+    """Calculate mathematical expressions."""
+    return str(eval(expression))
+
+# Setup
+llm = ChatAnthropic(model="claude-sonnet-5-20250514")
+tools = [search_web, calculator]
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant. Use tools when needed."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}")
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# Run
+result = executor.invoke({"input": "What's the population of Vietnam times 2?"})
+print(result["output"])
+```
+
+## LangGraph — Stateful Agent
+
+```python
+from langgraph.graph import StateGraph, MessagesState, START, END
+from langchain_anthropic import ChatAnthropic
+
+llm = ChatAnthropic(model="claude-sonnet-5-20250514")
+
+# Define node
+def agent_node(state: MessagesState):
+    response = llm.invoke(state["messages"])
+    return {"messages": [response]}
+
+def tool_node(state: MessagesState):
+    # Execute tools based on last message
+    last_message = state["messages"][-1]
+    tool_calls = last_message.tool_calls
+    results = []
+    for tc in tool_calls:
+        result = execute_tool(tc["name"], tc["args"])
+        results.append({"role": "tool", "content": str(result), "tool_call_id": tc["id"]})
+    return {"messages": results}
+
+# Build graph
+graph = StateGraph(MessagesState)
+graph.add_node("agent", agent_node)
+graph.add_node("tools", tool_node)
+
+graph.add_edge(START, "agent")
+graph.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
+graph.add_edge("tools", "agent")
+
+app = graph.compile()
+
+# Run
+result = app.invoke({"messages": [{"role": "user", "content": "Research AI trends"}]})
+```
+
+## Memory với LangGraph
+
+```python
+from langgraph.checkpoint.memory import MemorySaver
+
+# Thêm memory checkpoint
+memory = MemorySaver()
+app = graph.compile(checkpointer=memory)
+
+# Run với thread_id (memory per conversation)
+config = {"configurable": {"thread_id": "user-123"}}
+result = app.invoke({"messages": [{"role": "user", "content": "Remember my name is Alice"}]}, config)
+result = app.invoke({"messages": [{"role": "user", "content": "What's my name?"}]}, config)
+# → "Your name is Alice"
+```
+
+## Human-in-the-Loop
+
+```python
+from langgraph.prebuilt import ToolNode
+
+# Agent asks for human approval trước khi thực hiện action
+def human_approval(state):
+    last_msg = state["messages"][-1]
+    if last_msg.tool_calls:
+        # Pause và chờ human approval
+        return "tools"  # Nếu approved
+    return END
+
+graph.add_conditional_edges("agent", human_approval)
+```
+
+## Multi-Agent với LangGraph
+
+```python
+# Supervisor agent điều phối worker agents
+from langgraph_supervisor import create_supervisor
+
+researcher = create_researcher_agent()
+analyst = create_analyst_agent()
+writer = create_writer_agent()
+
+supervisor = create_supervisor(
+    agents=[researcher, analyst, writer],
+    model=ChatAnthropic(model="claude-sonnet-5-20250514"),
+    prompt="You are a supervisor. Assign tasks to the right agent."
+)
+
+app = supervisor.compile()
+```
+
+## LangGraph vs LangChain Agent
+
+<Tip>
+- **Simple agent:** Dùng LangChain AgentExecutor — đủ cho single-agent với tools
+- **Complex workflow:** Dùng LangGraph — cần cycles, conditional logic, human-in-the-loop
+- **Production:** Luôn dùng LangGraph — better state management, persistence, observability
+</Tip>

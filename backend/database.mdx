@@ -1,0 +1,233 @@
+---
+title: "Database"
+description: "PostgreSQL, MongoDB, Redis, Prisma, Drizzle ORM cho backend"
+icon: "database"
+---
+
+Database là **trái tim của backend** — data được lưu, truy vấn, indexed để phục vụ API. Chọn đúng database là quyết định quan trọng nhất.
+
+## SQL vs NoSQL
+
+<Tabs>
+  <Tab title="SQL (PostgreSQL)">
+    **Relational database** — dữ liệu có cấu trúc, có relations.
+
+    ```sql
+    CREATE TABLE users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    ```
+
+    - ACID transactions
+    - Schema cố định
+    - JOIN queries mạnh
+    - Mature tooling
+  </Tab>
+  <Tab title="NoSQL (MongoDB)">
+    **Document database** — flexible schema, JSON-like.
+
+    ```javascript
+    {
+      _id: ObjectId("..."),
+      name: "Alice",
+      email: "alice@example.com",
+      preferences: { theme: "dark", lang: "vi" }
+    }
+    ```
+
+    - Schema flexible
+    - Horizontal scaling dễ
+    - No JOIN — embed thay vì reference
+    - Tốt cho unstructured data
+  </Tab>
+</Tabs>
+
+## PostgreSQL (Recommended)
+
+```sql
+-- Schema migration
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  email_verified BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at DESC);
+
+-- Foreign key
+CREATE TABLE posts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(200) NOT NULL,
+  content TEXT,
+  published BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_posts_user_id ON posts(user_id);
+CREATE INDEX idx_posts_published ON posts(published) WHERE published = TRUE;
+```
+
+## Prisma ORM (Node.js/TypeScript)
+
+```prisma
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(USER)
+  posts     Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  Int
+  createdAt DateTime @default(now())
+
+  @@index([authorId])
+  @@index([published])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+```
+
+```typescript
+// Prisma Client
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Create
+const user = await prisma.user.create({
+  data: { email: 'alice@example.com', name: 'Alice', password: hash }
+});
+
+// Read with relations
+const posts = await prisma.post.findMany({
+  where: { published: true },
+  include: { author: true },
+  orderBy: { createdAt: 'desc' },
+  take: 20
+});
+
+// Update
+await prisma.user.update({
+  where: { id: 1 },
+  data: { name: 'Alice Updated' }
+});
+
+// Delete
+await prisma.user.delete({ where: { id: 1 } });
+```
+
+## Drizzle ORM (Type-safe & Lightweight)
+
+```typescript
+import { pgTable, serial, varchar, integer, timestamp, boolean } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).unique().notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  role: varchar('role', { length: 20 }).default('user'),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const posts = pgTable('posts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  title: varchar('title', { length: 200 }).notNull(),
+  content: text('content'),
+  published: boolean('published').default(false),
+  createdAt: timestamp('created_at').defaultNow()
+});
+```
+
+```typescript
+// Type-safe queries
+import { db } from './db';
+import { users, posts } from './schema';
+import { eq } from 'drizzle-orm';
+
+const allUsers = await db.select().from(users);
+const user = await db.select().from(users).where(eq(users.id, 1));
+await db.insert(users).values({ email: 'bob@x.com', name: 'Bob' });
+```
+
+## Redis — Cache & Sessions
+
+```python
+import redis.asyncio as redis
+
+redis_client = redis.from_url("redis://localhost:6379")
+
+# Set cache
+await redis_client.set("user:1", '{"id": 1, "name": "Alice"}', ex=3600)
+
+# Get cache
+cached = await redis_client.get("user:1")
+if cached:
+    return json.loads(cached)
+
+# Session storage
+await redis_client.setex(f"session:{session_id}", 3600, user_data)
+```
+
+## Migrations
+
+```bash
+# Prisma
+npx prisma migrate dev --name init
+npx prisma generate
+
+# Drizzle
+npx drizzle-kit generate
+npx drizzle-kit migrate
+
+# Alembic (Python)
+alembic revision --autogenerate -m "init"
+alembic upgrade head
+```
+
+## Database Best Practices
+
+<Tip>
+- **Index wisely:** Index columns thường query (search, sort, foreign keys)
+- **Connection pooling:** Use PgBouncer cho PostgreSQL
+- **Migrations:** Always via migration tools — never edit production
+- **Transactions:** Wrap multi-step writes trong transaction
+- **Backups:** Daily automatic backups + point-in-time recovery
+- **N+1 query:** Watch for循环 queries — use JOIN/eager loading
+- **Soft delete:** Có thể dùng `deleted_at` thay vì xóa thật
+</Tip>

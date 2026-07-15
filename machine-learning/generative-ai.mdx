@@ -1,0 +1,157 @@
+---
+title: "Generative AI"
+description: "LLMs, Diffusion Models, GANs — AI tạo nội dung mới"
+icon: "wand-magic-sparkles"
+---
+
+Generative AI = AI **tạo nội dung mới** — text, images, audio, code — thay vì chỉ phân loại/ dự đoán.
+
+## LLM Fundamentals
+
+```python
+from transformers import pipeline
+
+# Text generation
+generator = pipeline("text-generation", model="gpt2-medium")
+output = generator("In the future, AI will", max_length=100)
+print(output[0]['generated_text'])
+
+# Code generation
+from transformers import pipeline
+code_gen = pipeline("text-generation", model="bigcode/starcoder")
+output = code_gen("def fibonacci(n):", max_length=100)
+print(output[0]['generated_text'])
+```
+
+## Diffusion Models — Image Generation
+
+```python
+# Stable Diffusion
+from diffusers import StableDiffusionPipeline
+
+pipe = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1")
+pipe = pipe.to("cuda")
+
+prompt = "A futuristic city skyline at sunset, digital art"
+image = pipe(prompt, num_inference_steps=50, guidance_scale=7.5).images[0]
+image.save("generated.png")
+```
+
+## GANs — Generative Adversarial Networks
+
+```python
+import torch
+import torch.nn as nn
+
+class Generator(nn.Module):
+    def __init__(self, latent_dim=100, img_dim=784):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(latent_dim, 128),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128, 256),
+            nn.BatchNorm1d(256),
+            nn.LeakyReLU(0.2),
+            nn.Linear(256, img_dim),
+            nn.Tanh()
+        )
+
+    def forward(self, z):
+        return self.model(z)
+
+class Discriminator(nn.Module):
+    def __init__(self, img_dim=784):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(img_dim, 256),
+            nn.LeakyReLU(0.2),
+            nn.Linear(256, 128),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, img):
+        return self.model(img)
+
+# Training loop
+G = Generator()
+D = Discriminator()
+opt_G = torch.optim.Adam(G.parameters(), lr=0.0002, betas=(0.5, 0.999))
+opt_D = torch.optim.Adam(D.parameters(), lr=0.0002, betas=(0.5, 0.999))
+criterion = nn.BCELoss()
+
+for epoch in range(100):
+    for real_imgs, _ in dataloader:
+        # Train Discriminator
+        z = torch.randn(batch_size, 100)
+        fake_imgs = G(z).detach()
+
+        real_loss = criterion(D(real_imgs), torch.ones(batch_size, 1))
+        fake_loss = criterion(D(fake_imgs), torch.zeros(batch_size, 1))
+        d_loss = (real_loss + fake_loss) / 2
+
+        opt_D.zero_grad()
+        d_loss.backward()
+        opt_D.step()
+
+        # Train Generator
+        z = torch.randn(batch_size, 100)
+        fake_imgs = G(z)
+        g_loss = criterion(D(fake_imgs), torch.ones(batch_size, 1))
+
+        opt_G.zero_grad()
+        g_loss.backward()
+        opt_G.step()
+```
+
+## Image Classification — Fine-tune Vision Models
+
+```python
+from transformers import pipeline
+
+classifier = pipeline("image-classification", model="google/vit-base-patch16-224")
+result = classifier("cat.jpg")
+# [{'label': 'tabby cat', 'score': 0.92}, ...]
+
+# Object detection
+detector = pipeline("object-detection", model="facebook/detr-resnet-50")
+results = detector("street.jpg")
+# [{'label': 'person', 'score': 0.98, 'box': {...}}, ...]
+```
+
+## LLM APIs — Claude
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+# Basic generation
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Write a poem about AI"}]
+)
+
+# With tools
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    tools=[{"name": "calculator", "description": "Calculate math"}],
+    messages=[{"role": "user", "content": "What is 2+2?"}]
+)
+```
+
+## When to Use What?
+
+| Task | Tool | Best For |
+|---|---|---|
+| Text generation | LLM (Claude, GPT) | Chatbots, writing, analysis |
+| Image generation | Diffusion, DALL-E | Art, design, content creation |
+| Image classification | ViT, EfficientNet | Product categorization, medical imaging |
+| Code generation | Claude, StarCoder | Writing, debugging, refactoring |
+| Voice | Whisper, Bark | Transcription, text-to-speech |
+
+<Tip>
+Generative AI trong 2025-2026 đã mature — không cần train LLMs hay diffusion models từ đầu. Dùng pre-trained models hoặc gọi API (Claude, OpenAI). Fine-tune chỉ khi cần custom behavior trên domain-specific data.
+</Tip>

@@ -1,0 +1,187 @@
+---
+title: "Token Standards cho RWA"
+description: "ERC-3643 (T-REX), ERC-1400, ERC-1404 — tiêu chuẩn token bảo mật"
+icon: "stamp"
+---
+
+Token bảo mật (Security Token) cần tiêu chuẩn đặc biệt — không phải ERC-20 thông thường. ERC-3643 (T-REX) là tiêu chuẩn phổ biến nhất cho RWA.
+
+## ERC-20 vs Security Token
+
+| Feature | ERC-20 | Security Token (ERC-3643) |
+|---|---|---|
+| Transfer | Free, anyone | Restricted, KYC required |
+| Supply | Fixed/mintable | Controlled, regulated |
+| Compliance | None built-in | Built-in KYC/AML |
+| Dividends | Manual | Auto-distribution |
+| Recovery | No | Yes (lost key recovery) |
+| Identity | Anonymous | On-chain identity |
+
+## ERC-3643 (T-REX)
+
+ERC-3643 = **Transfer Restriction EXchange** — token standards cho security tokens với compliance built-in.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│         ERC-3643 Token Contract          │
+├─────────────────────────────────────────┤
+│  ┌─────────────────────────────────┐    │
+│  │  Identity Registry (ONCHAINID)  │    │
+│  │  → Maps wallet → KYC status     │    │
+│  └─────────────────────────────────┘    │
+│  ┌─────────────────────────────────┐    │
+│  │  Compliance Module               │    │
+│  │  → Transfer restrictions         │    │
+│  │  → Investment limits             │    │
+│  │  → Lock-up periods               │    │
+│  └─────────────────────────────────┘    │
+│  ┌─────────────────────────────────┐    │
+│  │  Controllers                     │    │
+│  │  → freeze, pause, recovery      │    │
+│  └─────────────────────────────────┘    │
+└─────────────────────────────────────────┘
+```
+
+### Smart Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract SecurityToken is ERC20, Ownable {
+    struct Investor {
+        bool isKYCApproved;
+        uint256 accreditationLevel; // 0=none, 1=retail, 2=accredited, 3=institutional
+        uint256 investmentAmount;
+        uint256 lockUntil;         // Unix timestamp
+    }
+
+    struct ComplianceRule {
+        uint256 maxInvestors;       // Max token holders (e.g., 2000 for Reg D)
+        uint256 maxInvestment;      // Per investor limit (USD)
+        uint256 lockupPeriod;       // Seconds after purchase
+        bool requiresAccredited;   // Accredited investor only
+    }
+
+    mapping(address => Investor) public investors;
+    mapping(address => bool) public isWhitelisted;
+    uint256 public totalInvestors;
+    ComplianceRule public complianceRule;
+
+    event InvestorApproved(address investor, uint256 level);
+    event TransferRestricted(address from, address to, string reason);
+
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
+        complianceRule = ComplianceRule(2000, 100_000e6, 31536000, false); // 1 year lockup
+    }
+
+    function approveInvestor(address investor, uint256 level) external onlyOwner {
+        investors[investor] = Investor(true, level, 0, 0);
+        isWhitelisted[investor] = true;
+        emit InvestorApproved(investor, level);
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
+        if (from == address(0) || to == address(0)) return; // Mint/burn
+
+        // KYC check
+        require(investors[to].isKYCApproved, "Receiver not KYC approved");
+        require(investors[from].isKYCApproved, "Sender not KYC approved");
+
+        // Accredited check
+        if (complianceRule.requiresAccredited) {
+            require(investors[to].accreditationLevel >= 2, "Must be accredited");
+        }
+
+        // Lockup check
+        require(block.timestamp >= investors[to].lockUntil, "In lockup period");
+
+        // Investment limit
+        require(
+            investors[to].investmentAmount + amount <= complianceRule.maxInvestment * 1e6,
+            "Exceeds investment limit"
+        );
+
+        // Max investors
+        if (investors[to].investmentAmount == 0 && from != address(0)) {
+            require(totalInvestors + 1 <= complianceRule.maxInvestors, "Max investors reached");
+        }
+
+        super._beforeTokenTransfer(from, to, amount);
+    }
+
+    function _afterTokenTransfer(address from, address to, uint256 amount) internal override {
+        super._afterTokenTransfer(from, to, amount);
+
+        if (investors[to].investmentAmount == 0 && from != address(0) && to != address(0)) {
+            totalInvestors++;
+        }
+        investors[to].investmentAmount += amount;
+        if (investors[from].investmentAmount >= amount) {
+            investors[from].investmentAmount -= amount;
+        }
+    }
+
+    // Dividend distribution
+    function distributeDividends(uint256 totalAmount) external onlyOwner {
+        uint256 totalSupply_ = totalSupply();
+        for (uint i = 0; i < totalInvestors; i++) {
+            address investor = getInvestorByIndex(i);
+            if (investor != address(0)) {
+                uint256 share = (investors[investor].investmentAmount * totalAmount) / totalSupply_;
+                payable(investor).transfer(share);
+            }
+        }
+    }
+
+    function getInvestorByIndex(uint256) internal view returns (address) {
+        // Implementation depends on storage pattern
+        return address(0);
+    }
+
+    receive() external payable {}
+}
+```
+
+## ERC-1400
+
+ERC-1400 là tiêu chuẩn earlier, tương tự ERC-3643 nhưng phức tạp hơn.
+
+| Feature | ERC-1400 | ERC-3643 |
+|---|---|---|
+| Complexity | Higher | Lower (cleaner) |
+| Adoption | Legacy projects | Newer projects |
+| Identity | Separate standard | Integrated ONCHAINID |
+| Transfer | Partition-based | Direct restriction |
+| Docs | Sparse | Well-documented |
+
+## ERC-1404
+
+<Callout type="info">
+ERC-1404 = "Simple Restricted Token" — phiên bản nhẹ nhất. Chỉ cần 1 function `canTransfer()` trả về bool. Phù hợp cho MVP.
+</Callout>
+
+```solidity
+interface IERC1404 {
+    function canTransfer(address from, address to, uint256 amount) external view returns (bool);
+    function detectTransferRestriction(address from, address to, uint256 amount) external view returns (uint8);
+    function messageForTransferRestriction(uint8 restrictionCode) external view returns (string memory);
+}
+```
+
+## So sánh 3 tiêu chuẩn
+
+| Tiêu chuẩn | Phức tạp | Adoption | Phù hợp |
+|---|---|---|---|
+| **ERC-1404** | Đơn giản | Thấp | MVP, proof-of-concept |
+| **ERC-1400** | Cao | Trung bình | Legacy projects |
+| **ERC-3643** | Trung bình | Cao nhất | Production RWA |
+
+<Tip>
+ERC-3643 (T-REX) là tiêu chuẩn nên dùng cho mọi dự án RWA mới — được hỗ trợ bởi Securitize, Centrifuge, và nhiều protocol lớn. Sử dụng ONCHAINID cho on-chain identity.
+</Tip>

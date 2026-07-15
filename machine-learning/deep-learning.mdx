@@ -1,0 +1,145 @@
+---
+title: "Deep Learning"
+description: "CNN, RNN, LSTM, Transformers — architectures cho vision, NLP, sequence"
+icon: "rocket"
+---
+
+Deep Learning sử dụng **deep neural networks** (nhiều layers) — đã revolution hóa Computer Vision, NLP, Speech.
+
+## CNN — Convolutional Neural Networks (Vision)
+
+```python
+import torch
+import torch.nn as nn
+
+class CNN(nn.Module):
+    def __init__(self, num_classes=10):
+        super().__init__()
+        # Conv layers
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.relu = nn.ReLU()
+
+        # FC layers
+        self.fc1 = nn.Linear(128 * 4 * 4, 512)
+        self.fc2 = nn.Linear(512, num_classes)
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        # x: (batch, 3, 32, 32)
+        x = self.pool(self.relu(self.conv1(x)))  # (32, 16, 16)
+        x = self.pool(self.relu(self.conv2(x)))  # (64, 8, 8)
+        x = self.pool(self.relu(self.conv3(x)))  # (128, 4, 4)
+        x = x.view(x.size(0), -1)
+        x = self.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
+# Use pre-trained (better than training from scratch!)
+import torchvision.models as models
+resnet = models.resnet50(pretrained=True)
+```
+
+## RNN — Recurrent Neural Networks (Sequences)
+
+```python
+class RNN(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, num_classes):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, num_classes)
+
+    def forward(self, x):
+        # x: (batch, seq_len, input_size)
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        out, _ = self.rnn(x, h0)
+        # Use last timestep
+        out = self.fc(out[:, -1, :])
+        return out
+```
+
+## LSTM — Long Short-Term Memory
+
+<Tip>
+LSTM giải quyết **vanishing gradient** problem của RNN — nhớ context dài hơn. Essential cho text, time series.
+</Tip>
+
+```python
+class LSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, num_classes):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, num_classes)
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return out
+```
+
+## Transformers — State-of-the-Art
+
+```python
+from transformers import AutoModel, AutoTokenizer
+
+# Use pre-trained transformer (BERT, GPT, etc.)
+model = AutoModel.from_pretrained("bert-base-uncased")
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+# Tokenize + forward
+text = "Hello, world!"
+inputs = tokenizer(text, return_tensors="pt")
+outputs = model(**inputs)
+
+# Last hidden states
+last_hidden_states = outputs.last_hidden_state  # (1, seq_len, hidden_size)
+```
+
+## Hugging Face — Pre-trained Models
+
+```python
+# Use pre-trained models directly
+from transformers import pipeline
+
+# Sentiment analysis
+classifier = pipeline("sentiment-analysis")
+result = classifier("I love this product!")
+print(result)  # [{'label': 'POSITIVE', 'score': 0.9998}]
+
+# Text generation
+generator = pipeline("text-generation", model="gpt2")
+output = generator("Once upon a time", max_length=50, num_return_sequences=1)
+print(output[0]["generated_text"])
+```
+
+## Computer Vision Tasks
+
+| Task | Architecture | Pre-trained |
+|---|---|---|
+| Image classification | ResNet, EfficientNet | ImageNet |
+| Object detection | YOLO, Faster R-CNN | COCO |
+| Segmentation | U-Net, Mask R-CNN | Cityscapes |
+| Face recognition | FaceNet, ArcFace | VGGFace2 |
+
+## NLP Tasks
+
+| Task | Architecture | Pre-trained |
+|---|---|---|
+| Text classification | BERT, RoBERTa | HuggingFace |
+| Translation | T5, mBART | Marian |
+| Summarization | BART, PEGASUS | CNN/DailyMail |
+| Question answering | BERT, ALBERT | SQuAD |
+| Chat | GPT, LLaMA, Claude | API |
+
+<Tip>
+Hugging Face là cách nhanh nhất để dùng state-of-the-art models mà không cần train từ đầu. Hầu hết tasks đều có pre-trained models — fine-tune trên data riêng nếu cần.
+</Tip>

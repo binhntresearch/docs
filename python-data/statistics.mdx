@@ -1,0 +1,170 @@
+---
+title: "Thống kê cơ bản"
+description: "Kiến thức thống kê cần thiết cho phân tích dữ liệu"
+icon: "chart-mixed"
+---
+
+Thống kê là ngôn ngữ chung của phân tích dữ liệu. Nắm vững thống kê giúp bạn hiểu sâu hơn về dữ liệu và đưa ra kết luận chính xác hơn.
+
+## Thống kê mô tả
+
+<Tabs>
+  <Tab title="Central Tendency">
+    Các thước đo xu hướng trung tâm:
+
+    | Measure | Cách tính | Khi nào dùng |
+    |---|---|---|
+    | **Mean** | Tổng / số phần tử | Phân phối đối xứng, không có outlier |
+    | **Median** | Giá trị giữa | Có outlier hoặc phân phối lệch |
+    | **Mode** | Giá trị xuất hiện nhiều nhất | Dữ liệu categorical |
+
+    ```python
+    import numpy as np
+
+    data = [85, 92, 78, 90, 88, 95, 82, 1000]
+
+    np.mean(data)     # 188.75 — bị kéo bởi outlier 1000
+    np.median(data)   # 88.0   — ổn định hơn
+    ```
+  </Tab>
+  <Tab title="Dispersion">
+    Các thước đo sự phân tán:
+
+    ```python
+    data = [85, 92, 78, 90, 88, 95, 82]
+
+    # Variance
+    np.var(data)      # 27.35
+
+    # Standard Deviation
+    np.std(data)       # 5.23
+
+    # Range
+    data.max() - data.min()  # 13
+
+    # Percentiles
+    np.percentile(data, 25)  # Q1 = 82.0
+    np.percentile(data, 50)  # Q2 = 88.0 (median)
+    np.percentile(data, 75)  # Q3 = 92.0
+
+    # IQR
+    Q1, Q3 = np.percentile(data, [25, 75])
+    IQR = Q3 - Q1            # 10.0
+    ```
+  </Tab>
+</Tabs>
+
+## Phân phối
+
+```python
+import seaborn as sns
+
+# Normal distribution (Gaussian)
+data_normal = np.random.normal(loc=85, scale=10, size=1000)
+
+sns.histplot(data_normal, kde=True)
+plt.axvline(x=np.mean(data_normal), color='red', linestyle='--')
+plt.axvline(x=np.mean(data_normal) + np.std(data_normal), color='gray', linestyle=':')
+plt.axvline(x=np.mean(data_normal) - np.std(data_normal), color='gray', linestyle=':')
+plt.title('Phân phối chuẩn với mean ± 1 std')
+plt.show()
+```
+
+### Quy tắc 68-95-99.7
+
+<Check>
+- **68%** dữ liệu nằm trong ±1σ từ mean
+- **95%** dữ liệu nằm trong ±2σ từ mean
+- **99.7%** dữ liệu nằm trong ±3σ từ mean
+</Check>
+
+## Tương quan (Correlation)
+
+```python
+# Ma trận tương quan
+corr = df[['age', 'salary', 'experience', 'satisfaction']].corr()
+
+# Heatmap
+sns.heatmap(corr, annot=True, cmap='coolwarm', center=0, vmin=-1, vmax=1)
+plt.title('Ma trận tương quan')
+plt.show()
+```
+
+| Giá trị | Ý nghĩa |
+|---|---|
+| **+1** | Tương quan dương hoàn hảo |
+| **+0.7** | Tương quan dương mạnh |
+| **0** | Không tương quan |
+| **-0.7** | Tương quan âm mạnh |
+| **-1** | Tương quan âm hoàn hảo |
+
+<Warning>
+Correlation **không** đồng nghĩa với causation. Hai biến có thể tương quan cao mà không có quan hệ nhân quả.
+</Warning>
+
+## Thống kê suy luận
+
+### Confidence Interval
+
+```python
+from scipy import stats
+
+# 95% CI cho mean
+sample = df['salary']
+mean = sample.mean()
+sem = stats.sem(sample)
+ci = stats.t.interval(0.95, len(sample)-1, loc=mean, scale=sem)
+
+print(f"Mean: {mean:,.0f}")
+print(f"95% CI: ({ci[0]:,.0f}, {ci[1]:,.0f})")
+```
+
+### T-test
+
+```python
+# So sánh 2 nhóm
+group_a = df[df['department'] == 'Tech']['salary']
+group_b = df[df['department'] == 'Marketing']['salary']
+
+t_stat, p_value = stats.ttest_ind(group_a, group_b)
+print(f"p-value: {p_value:.4f}")
+
+if p_value < 0.05:
+    print("Có sự khác biệt có ý nghĩa thống kê (p < 0.05)")
+else:
+    print("Không có sự khác biệt có ý nghĩa thống kê")
+```
+
+## Áp dụng với Pandas
+
+```python
+# Thống kê nhanh
+df.describe()
+
+# Thống kê riêng cho từng cột
+df['salary'].agg(['mean', 'median', 'std', 'min', 'max', 'quantile'])
+
+# Thống kê theo nhóm
+df.groupby('department')['salary'].agg(['mean', 'median', 'count'])
+
+# Tính correlation nhanh
+df.corr(numeric_only=True)['salary'].sort_values(ascending=False)
+```
+
+<Tip>
+Khi presenting kết quả phân tích cho business stakeholders, đ���ng nói "p-value = 0.03". Hãy nói: "Dữ liệu cho thấy nhóm A có doanh thu cao hơn nhóm B với độ tin cậy 95%."
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Tính descriptive statistics cho dataset `employees.csv`: mean, median, std, quartiles cho cột salary.
+  </Step>
+  <Step title="Bài 2">
+    Vẽ heatmap correlation cho dataset Iris. Tìm 2 biến tương quan mạnh nhất.
+  </Step>
+  <Step title="Bài 3">
+    So sánh salary giữa 2 phòng ban bằng t-test. Kết luận với language business.
+  </Step>
+</Steps>

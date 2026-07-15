@@ -1,0 +1,294 @@
+---
+title: "Dự án Microservices"
+description: "Tách monolith thành microservices với API Gateway, message queue, inter-service communication"
+icon: "users"
+---
+
+Dự án nâng cao — tách monolith Task Management thành **microservices**: User Service, Task Service, Notification Service.
+
+## Kiến trúc
+
+```
+                    ┌─────────────┐
+                    │  API Gateway │
+                    │  (Express/Kong) │
+                    └──────┬───────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+   ┌────▼─────┐      ┌────▼─────┐      ┌─────▼────┐
+   │  User    │      │   Task   │      │ Notification│
+   │  Service │◄────►│  Service │      │  Service  │
+   └────┬─────┘      └────┬─────┘      └─────┬────┘
+        │                 │                  │
+   ┌────▼─────┐      ┌───▼──────┐       ┌─────▼────┐
+   │  User DB │      │ Task DB │       │ Notif DB │
+   │ Postgres  │      │ Postgres │       │ Postgres  │
+   └──────────┘      └──────────┘       └──────────┘
+                            │
+                    ┌───────▼──────┐
+                    │  RabbitMQ    │
+                    │  (Message Q) │
+                    └──────────────┘
+```
+
+## Service Structure
+
+```
+microservices/
+├── api-gateway/              ← Routes, auth, rate limiting
+├── services/
+│   ├── user-service/         ← Auth, user management
+│   ├── task-service/         ← Tasks CRUD
+│   └── notification-service/ ← Email, push
+├── shared/                   ← Shared types, utilities
+├── docker-compose.yml
+└── k8s/                      ← Kubernetes manifests
+```
+
+## API Gateway
+
+```typescript
+// api-gateway/src/server.ts
+import express from 'express';
+import httpProxy from 'http-proxy-middleware';
+
+const app = express();
+
+const SERVICES = {
+  users: 'http://user-service:3001',
+  tasks: 'http://task-service:3002',
+  notifications: 'http://notification-service:3003'
+};
+
+// Verify JWT at gateway
+const verifyJWT = (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// Proxy routes
+app.use('/api/users', verifyJWT, httpProxy(SERVICES.users));
+app.use('/api/tasks', verifyJWT, httpProxy(SERVICES.tasks));
+app.use('/api/notifications', verifyJWT, httpProxy(SERVICES.notifications));
+
+app.listen(3000, () => console.log('Gateway on port 3000'));
+```
+
+## User Service
+
+```typescript
+// user-service/src/index.ts
+import Fastify from 'fastify';
+import { userRoutes } from './routes/users';
+import { authRoutes } from './routes/auth';
+
+const app = Fastify({ logger: true });
+
+app.register(userRoutes, { prefix: '/users' });
+app.register(authRoutes, { prefix: '/auth' });
+
+app.get('/health', async () => ({ status: 'ok', service: 'user' }));
+
+app.listen({ port: 3001, host: '0.0.0.0' }, (err, address) => {
+  if (err) throw err;
+  app.log.info(`User service on ${address}`);
+});
+```
+
+```typescript
+// user-service/src/routes/users.ts
+export const userRoutes = async (app: Fastify) => {
+  app.get('/me', { preHandler: app.authenticate }, async (request) => {
+    return await db.users.findById(request.user.id);
+  });
+
+  app.put<{ Body: UpdateUserRequest }>('/me', async (request) => {
+    return await userService.update(request.user.id, request.body);
+  });
+};
+```
+
+## Task Service
+
+```typescript
+// task-service với RabbitMQ event publishing
+import amqp from 'amqplib';
+
+class TaskService {
+  async createTask(userId: number, taskData: any) {
+    const task = await db.tasks.insert({ ...taskData, owner_id: userId });
+
+    // Publish event
+    await this.publishEvent('task.created', {
+      taskId: task.id,
+      ownerId: userId,
+      task
+    });
+
+    return task;
+  }
+
+  private async publishEvent(eventName: string, data: any) {
+    const connection = await amqp.connect(process.env.RABBITMQ_URL);
+    const channel = await connection.createChannel();
+    await channel.assertExchange('tasks', 'topic');
+    channel.publish('tasks', eventName, Buffer.from(JSON.stringify(data)));
+    await channel.close();
+    await connection.close();
+  }
+}
+```
+
+## Notification Service
+
+```typescript
+// notification-service consumes events
+import amqp from 'amqplib';
+
+class NotificationService {
+  async start() {
+    const connection = await amqp.connect(process.env.RABBITMQ_URL);
+    const channel = await connection.createChannel();
+
+    await channel.assertExchange('tasks', 'topic');
+    const queue = await channel.assertQueue('notifications');
+    await channel.bindQueue(queue.queue, 'tasks', 'task.#');
+
+    channel.consume(queue.queue, async (msg) => {
+      const event = JSON.parse(msg.content.toString());
+      const routingKey = msg.fields.routingKey;
+
+      if (routingKey === 'task.created') {
+        await this.sendEmail(event.ownerId, 'New task created', event.task);
+      }
+      if (routingKey === 'task.completed') {
+        await this.sendEmail(event.ownerId, 'Task completed!', event.task);
+      }
+
+      channel.ack(msg);
+    });
+  }
+
+  async sendEmail(userId: number, subject: string, task: any) {
+    const user = await fetch(`http://user-service:3001/users/${userId}`).then(r => r.json());
+    await emailService.send(user.email, subject, task);
+  }
+}
+```
+
+## Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  api-gateway:
+    build: ./api-gateway
+    ports: ["3000:3000"]
+    depends_on: [user-service, task-service]
+
+  user-service:
+    build: ./services/user-service
+    environment:
+      - DATABASE_URL=postgresql://user:pass@user-db:5432/users
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on: [user-db]
+
+  task-service:
+    build: ./services/task-service
+    environment:
+      - DATABASE_URL=postgresql://user:pass@task-db:5432/tasks
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on: [task-db, rabbitmq]
+
+  notification-service:
+    build: ./services/notification-service
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - SMTP_HOST=smtp.sendgrid.net
+
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=users
+    volumes: [user_data:/var/lib/postgresql/data]
+
+  task-db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=tasks
+    volumes: [task_data:/var/lib/postgresql/data]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672", "15672:15672"]
+```
+
+## Service Discovery
+
+```typescript
+// Simple service registry
+const SERVICE_REGISTRY = {
+  'user-service': ['http://user-service-1:3001', 'http://user-service-2:3001'],
+  'task-service': ['http://task-service-1:3002']
+};
+
+class ServiceRegistry {
+  static getInstance(serviceName: string): string {
+    const instances = SERVICE_REGISTRY[serviceName];
+    return instances[Math.floor(Math.random() * instances.length)];
+  }
+}
+
+// Load balancing
+const userUrl = ServiceRegistry.getInstance('user-service');
+const response = await fetch(`${userUrl}/users/${userId}`);
+```
+
+## Saga Pattern cho Distributed Transactions
+
+```typescript
+// Distributed transaction cho create order (task + payment)
+class OrderSaga {
+  async execute(orderData: any) {
+    try {
+      // Step 1: Create task
+      const task = await taskService.createTask(orderData);
+
+      // Step 2: Process payment
+      const payment = await paymentService.charge(orderData.payment);
+
+      // Step 3: Confirm task
+      await taskService.confirmTask(task.id, payment.id);
+
+      return { task, payment };
+    } catch (error) {
+      // Compensating actions
+      if (error.step === 1) throw error;
+      if (error.step === 2) await taskService.cancelTask(orderData.taskId);
+      throw error;
+    }
+  }
+}
+```
+
+## Best Practices
+
+<Tip>
+- **Database per service:** Microservices có database riêng
+- **API contracts:** OpenAPI spec cho mỗi service
+- **Async communication:** Message queue cho cross-service events
+- **Circuit breaker:** Fail fast khi service down
+- **Distributed tracing:** Track request across services (Jaeger)
+- **Container orchestration:** Use Kubernetes từ 5+ services
+</Tip>

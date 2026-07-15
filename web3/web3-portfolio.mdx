@@ -1,0 +1,200 @@
+---
+title: "Web3 Portfolio"
+description: "Xây dựng portfolio on-chain — hiển thị NFT, tokens, transactions"
+icon: "user-tie"
+---
+
+Portfolio on-chain là một DApp đơn giản nhưng minh họa đầy đủ stack Web3 — kết nối wallet, đọc NFTs, hiển thị tokens, transaction history.
+
+## Tech Stack
+
+```json
+{
+  "frontend": "Next.js 14 + TypeScript",
+  "styling": "Tailwind CSS + shadcn/ui",
+  "wallet": "wagmi + viem",
+  "ui-wallet": "RainbowKit",
+  "data": "Alchemy SDK + The Graph"
+}
+```
+
+## Setup
+
+```bash
+npx create-next-app web3-portfolio --typescript --tailwind
+cd web3-portfolio
+npm install wagmi viem @rainbow-me/rainbowkit
+```
+
+## Providers
+
+```tsx
+// app/providers.tsx
+import '@rainbow-me/rainbowkit/styles.css';
+import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { WagmiProvider } from 'wagmi';
+import { mainnet, sepolia, optimism, base, polygon } from 'wagmi/chains';
+
+const config = getDefaultConfig({
+  appName: 'Web3 Portfolio',
+  projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID!,
+  chains: [mainnet, sepolia, optimism, base, polygon],
+  ssr: true
+});
+
+export function Providers({ children }) {
+  return (
+    <WagmiProvider config={config}>
+      <RainbowKitProvider>{children}</RainbowKitProvider>
+    </WagmiProvider>
+  );
+}
+```
+
+## Wallet Stats Component
+
+```tsx
+'use client';
+import { useAccount, useBalance, useEnsName } from 'wagmi';
+import { mainnet } from 'wagmi/chains';
+
+export function WalletStats() {
+  const { address, chain } = useAccount();
+  const { data: balance } = useBalance({ address });
+  const { data: ensName } = useEnsName({ address, chainId: mainnet.id });
+
+  return (
+    <div className="card">
+      <h2>{ensName || `${address?.slice(0, 8)}...`}</h2>
+      <p>{balance?.formatted} {balance?.symbol}</p>
+      <p>Network: {chain?.name}</p>
+    </div>
+  );
+}
+```
+
+## NFT Gallery
+
+```tsx
+import { useAccount, useReadContracts } from 'wagmi';
+import { erc721Abi } from 'viem';
+
+const NFT_CONTRACTS = [
+  { address: '0xBC4CA0EdA7647A8aB7C2061c2E118A18a948f137', name: 'BAYC' },
+  { address: '0x60E4d786628Fea6478F785A6d7e704777c86a7c6', name: 'MAYC' }
+];
+
+export function NFTGallery() {
+  const { address } = useAccount();
+
+  const { data: nfts } = useReadContracts({
+    contracts: NFT_CONTRACTS.flatMap(nft =>
+      Array(20).fill(0).map((_, i) => ({
+        address: nft.address,
+        abi: erc721Abi,
+        functionName: 'tokenOfOwnerByIndex',
+        args: [address!, BigInt(i)]
+      }))
+    )
+  });
+
+  // Filter NFTs owned by user
+  const ownedNFTs = nfts?.filter(nft => nft.result !== 0n);
+
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {ownedNFTs?.map((nft, i) => (
+        <NFTCard key={i} contract={nft.address} tokenId={nft.result} />
+      ))}
+    </div>
+  );
+}
+```
+
+## Token Holdings
+
+```tsx
+import { useReadContracts } from 'wagmi';
+import { erc20Abi, formatUnits } from 'viem';
+
+const TOKENS = [
+  { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', decimals: 6 },
+  { address: '0xC02aaA39b223FE8D0A0e8C4F27eadD892DbbD091', symbol: 'WETH', decimals: 18 }
+];
+
+export function TokenHoldings() {
+  const { address } = useAccount();
+
+  const { data: balances } = useReadContracts({
+    contracts: TOKENS.map(token => ({
+      address: token.address,
+      abi: erc20Abi,
+      functionName: 'balanceOf',
+      args: [address!]
+    }))
+  });
+
+  return (
+    <table>
+      {TOKENS.map((token, i) => {
+        const balance = balances?.[i]?.result as bigint | undefined;
+        return (
+          <tr key={token.symbol}>
+            <td>{token.symbol}</td>
+            <td>{balance ? formatUnits(balance, token.decimals) : '0'}</td>
+          </tr>
+        );
+      })}
+    </table>
+  );
+}
+```
+
+## Transaction History
+
+```tsx
+import { Alchemy, Network } from 'alchemy-sdk';
+
+const alchemy = new Alchemy({
+  apiKey: process.env.ALCHEMY_API_KEY,
+  network: Network.ETH_MAINNET
+});
+
+export async function getTransactionHistory(address: string) {
+  const transfers = await alchemy.core.getAssetTransfers({
+    fromBlock: '0x0',
+    toBlock: 'latest',
+    fromAddress: address,
+    category: ['external', 'token', 'nft']
+  });
+
+  return transfers.transfers;
+}
+```
+
+## Deploy
+
+```bash
+# Build
+npm run build
+
+# Deploy Vercel
+vercel deploy --prod
+```
+
+## Features to add
+
+<CardGroup>
+  <Card title="Portfolio value chart" icon="chart-line">
+    Total value over time, token breakdown pie chart
+  </Card>
+  <Card title="Token swap" icon="arrows-rotate">
+    Swap tokens từ portfolio UI (1inch API)
+  </Card>
+  <Card title="DeFi positions" icon="piggy-bank">
+    Show staking, lending positions từ protocols
+  </Card>
+  <Card title="ENS avatar" icon="image">
+    Hiển thị ENS avatar + cover
+  </Card>
+</CardGroup>

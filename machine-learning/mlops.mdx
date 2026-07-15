@@ -1,0 +1,176 @@
+---
+title: "MLOps"
+description: "Experiment tracking, model registry, CI/CD, monitoring cho ML systems"
+icon: "gears"
+---
+
+MLOps = DevOps cho Machine Learning — manage toàn bộ ML lifecycle từ experiment đến production.
+
+## MLOps Stack
+
+```
+┌──────────────────────────────────────────┐
+│              MLOps Pipeline               │
+├──────────────────────────────────────────┤
+│  Experiment    → MLflow, Weights&Biases   │
+│  Feature Store → Feast, Tecton            │
+│  Model Registry → MLflow, HuggingFace    │
+│  Serving      → TF Serving, Triton        │
+│  Monitoring   → Evidently, WhyLabs        │
+│  CI/CD        → GitHub Actions, Jenkins   │
+│  Data Version → DVC, LakeFS               │
+└──────────────────────────────────────────┘
+```
+
+## MLflow — Experiment Tracking
+
+```python
+import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import f1_score, accuracy_score
+
+mlflow.set_experiment("customer_churn")
+
+# Run training
+with mlflow.start_run(run_name="RF_v1"):
+    # Log params
+    mlflow.log_params({
+        "n_estimators": 100,
+        "max_depth": 10,
+        "random_state": 42
+    })
+
+    # Train
+    model = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
+    model.fit(X_train, y_train)
+
+    # Predict + metrics
+    y_pred = model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+
+    mlflow.log_metric("accuracy", accuracy)
+    mlflow.log_metric("f1", f1)
+
+    # Log model
+    mlflow.sklearn.log_model(model, "model")
+
+    print(f"Accuracy: {accuracy:.4f}, F1: {f1:.4f}")
+```
+
+## Data Versioning — DVC
+
+```bash
+# Initialize DVC
+dvc init
+dvc add data/train.csv
+
+# Push data to remote storage
+dvc remote add -d storage s3://my-bucket/dvc
+dvc push
+
+# Pull data
+dvc pull
+
+# Version data with git
+git add data/train.csv.dvc
+git commit -m "v1 train data"
+```
+
+## Model Registry
+
+```python
+# Register model in MLflow
+import mlflow.pyfunc
+
+# Register
+model_uri = mlflow.sklearn.log_model(model, "model").model_uri
+mlflow.register_model(model_uri, "CustomerChurnModel")
+
+# Transition to production
+client = mlflow.tracking.MlflowClient()
+client.transition_model_version_stage(
+    name="CustomerChurnModel",
+    version=1,
+    stage="Production"
+)
+
+# Load production model
+model = mlflow.pyfunc.load_model("models:/CustomerChurnModel/Production")
+```
+
+## Model Monitoring
+
+```python
+from evidently import Report
+from evidently.metrics import (
+    DataDriftMetric,
+    DatasetSummaryMetric,
+    ClassificationQualityMetric
+)
+
+# Detect data drift
+report = Report(metrics=[
+    DataDriftMetric(),
+    DatasetSummaryMetric(),
+])
+
+report.run(
+    reference_data=train_df,
+    current_data=production_df
+)
+report.save_html("monitoring_report.html")
+
+# Alerting
+drift_results = report.as_dict()
+if drift_results['metrics'][0]['result']['dataset_drift']:
+    send_alert("⚠️ Data drift detected!")
+```
+
+## CI/CD for ML
+
+```yaml
+# .github/workflows/ml-pipeline.yml
+name: ML Pipeline
+on:
+  push:
+    paths: ['data/**', 'src/**']
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - run: python src/train.py
+      - run: python src/evaluate.py
+      - name: Check metrics threshold
+        run: python -c "
+          import json
+          metrics = json.load(open('metrics.json'))
+          assert metrics['f1'] > 0.85, 'F1 score below threshold!'
+          "
+
+  deploy:
+    needs: train
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - run: python src/deploy.py
+```
+
+## Best Practices
+
+<Check>
+- **Version everything:** Code, data, models, configs
+- **Track experiments:** MLflow, W&B,或者 TensorBoard
+- **Model registry:** Stage models (staging → production)
+- **Monitor drift:** Automated data drift detection
+- **Rollback plan:** Always keep previous model version
+- **Reproducible:** Seed + environment = same results
+</Check>
+
+<Tip>
+Bắt đầu với MLflow (free, open-source, easy). Khi team lớn hơn → thêm feature store (Feast) + orchestration (Airflow) + model registry.
+</Tip>

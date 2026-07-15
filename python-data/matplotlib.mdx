@@ -1,0 +1,153 @@
+---
+title: "Trực quan hóa với Matplotlib"
+description: "Vẽ biểu đồ cơ bản với Matplotlib"
+icon: "chart-bar"
+---
+
+Matplotlib là thư viện vẽ biểu đồ nền tảng của Python. Hầu hết các thư viện visualization khác (Seaborn, Plotly, Pandas plotting) đều xây trên Matplotlib.
+
+## Khởi động nhanh
+
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Dữ liệu mẫu
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+# Vẽ biểu đồ đường
+plt.plot(x, y)
+plt.title('Hàm sine')
+plt.xlabel('x')
+plt.ylabel('sin(x)')
+plt.grid(True)
+plt.show()
+```
+
+## Các loại biểu đồ phổ biến
+
+<CodeGroup>
+```python Line plot (đường)
+# Biểu đồ đường — thường dùng cho time series
+months = ['Jan', 'Feb', 'Mar', 'Apr', 'May']
+sales = [100, 120, 145, 130, 160]
+
+plt.plot(months, sales, marker='o', color='blue')
+plt.title('Doanh thu theo tháng')
+plt.ylabel('Triệu VNĐ')
+plt.show()
+```
+
+```python Bar chart (cột)
+# So sánh giữa các nhóm
+products = ['A', 'B', 'C', 'D']
+revenue = [250, 180, 320, 290]
+
+plt.bar(products, revenue, color=['#16A34A', '#FBBF24', '#3B82F6', '#EF4444'])
+plt.title('Doanh thu theo sản phẩm')
+plt.ylabel('Triệu VNĐ')
+plt.show()
+```
+
+```python Scatter (phân tán)
+# Mối quan hệ giữa 2 biến
+height = np.random.normal(170, 10, 200)
+weight = height * 0.8 + np.random.normal(0, 5, 200)
+
+plt.scatter(height, weight, alpha=0.6, color='purple')
+plt.title('Chiều cao vs Cân nặng')
+plt.xlabel('Chiều cao (cm)')
+plt.ylabel('Cân nặng (kg)')
+plt.show()
+```
+
+```python Histogram
+# Phân phối dữ liệu
+scores = np.random.normal(85, 10, 500)
+
+plt.hist(scores, bins=20, color='steelblue', edgecolor='black')
+plt.title('Phân phối điểm số')
+plt.xlabel('Điểm')
+plt.ylabel('Số lượng')
+plt.show()
+```
+
+```python Pie chart (tròn)
+# Tỷ lệ phần trăm
+labels = ['iPhone', 'Samsung', 'Anthropic', 'Khác']
+sizes = [45, 30, 15, 10]
+colors = ['#3B82F6', '#10B981', '#F59E0B', '#6B7280']
+
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%')
+plt.title('Thị phần smartphone')
+plt.show()
+```
+</CodeGroup>
+
+## Subplots — Nhiều biểu đồ cùng lúc
+
+```python
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+
+# Biểu đồ 1
+axes[0].plot(x, np.sin(x))
+axes[0].set_title('Sine')
+
+# Biểu đồ 2
+axes[1].plot(x, np.cos(x))
+axes[1].set_title('Cosine')
+
+# Biểu đồ 3
+axes[2].plot(x, np.tan(x))
+axes[2].set_title('Tangent')
+axes[2].set_ylim(-5, 5)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Lưu biểu đồ
+
+```python
+# Lưu thành file
+plt.savefig('chart.png', dpi=300, bbox_inches='tight')
+plt.savefig('chart.pdf')  # Vector format
+
+# Định dạng hỗ trợ: png, jpg, svg, pdf
+```
+
+<Tip>
+Khi làm báo cáo, dùng `dpi=300` để có hình ảnh chất lượng cao. Khi hiển thị web, dùng `dpi=100` để file nhẹ hơn.
+</Tip>
+
+## Customization
+
+```python
+plt.figure(figsize=(10, 6))  # Kích thước
+
+# Style — có nhiều style có sẵn
+plt.style.use('seaborn-v0_8-whitegrid')
+
+# Tiếng Việt trong biểu đồ cần font hỗ trợ
+plt.rcParams['font.family'] = 'DejaVu Sans'
+
+# Chú thích
+plt.annotate('Đỉnh cao nhất',
+             xy=(3, 9), xytext=(4, 8),
+             arrowprops=dict(arrowstyle='->'))
+```
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Vẽ biểu đồ đường doanh thu 12 tháng trong năm.
+  </Step>
+  <Step title="Bài 2">
+    Vẽ bar chart so sánh 5 sản phẩm bán chạy nhất.
+  </Step>
+  <Step title="Bài 3">
+    Tạo subplot 2x2 với 4 loại biểu đồ khác nhau từ cùng dataset.
+  </Step>
+</Steps>

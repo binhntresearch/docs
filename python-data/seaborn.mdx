@@ -1,0 +1,138 @@
+---
+title: "Seaborn"
+description: "Biểu đồ thống kê đẹp mắt với Seaborn"
+icon: "chart-area"
+---
+
+Seaborn là thư viện xây trên Matplotlib, cung cấp các biểu đồ thống kê đẹp mắt với code ngắn gọn. Đặc biệt mạnh khi visualize dữ liệu dạng DataFrame.
+
+## Seaborn vs Matplotlib
+
+<Tabs>
+  <Tab title="Matplotlib">
+    ```python
+    # Phải vẽ từng layer
+    plt.scatter(x, y)
+    plt.title('Title')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.show()
+    ```
+
+    Linh hoạt nhưng verbose.
+  </Tab>
+  <Tab title="Seaborn">
+    ```python
+    sns.scatterplot(data=df, x='age', y='income')
+    ```
+
+    Gọn hơn, đẹp mặc định, tích hợp tốt với DataFrame.
+  </Tab>
+</Tabs>
+
+## Biểu đồ phân phối
+
+<CodeGroup>
+```python Histplot
+import seaborn as sns
+
+# Phân phối điểm thi
+sns.histplot(data=df, x='score', bins=20, kde=True)
+plt.title('Phân phối điểm')
+```
+
+```python Boxplot
+# So sánh phân phối giữa các nhóm
+sns.boxplot(data=df, x='department', y='salary')
+plt.title('Lương theo phòng ban')
+```
+
+```python Violin plot
+# Boxplot + phân phối mật độ
+sns.violinplot(data=df, x='department', y='salary')
+```
+</CodeGroup>
+
+## Biểu đồ mối quan hệ
+
+```python
+# Scatter với hue (màu theo category)
+sns.scatterplot(
+    data=df,
+    x='height',
+    y='weight',
+    hue='gender',
+    size='age',
+    alpha=0.7
+)
+plt.title('Chiều cao vs Cân nặng')
+```
+
+## Heatmap — Biểu đồ nhiệt
+
+```python
+# Correlation matrix
+corr = df.corr()
+sns.heatmap(corr, annot=True, cmap='coolwarm', center=0)
+plt.title('Ma trận tương quan')
+```
+
+## Categorical plots
+
+<CodeGroup>
+```python Countplot
+# Đếm số lượng theo category
+sns.countplot(data=df, x='city', order=df['city'].value_counts().index)
+plt.xticks(rotation=45)
+```
+
+```python Barplot
+# Trung bình của biến số theo category
+sns.barplot(data=df, x='city', y='revenue', estimator=np.sum)
+```
+
+```python Swarmplot
+# Phân tán từng điểm dữ liệu
+sns.swarmplot(data=df, x='city', y='score')
+```
+</CodeGroup>
+
+## Pairplot — Ma trận scatter
+
+```python
+# Hiển thị mối quan hệ giữa tất cả cặp biến số
+sns.pairplot(df, hue='department', diag_kind='kde')
+plt.show()
+```
+
+## Style & Theme
+
+```python
+# Các theme có sẵn
+sns.set_style('darkgrid')      # dark + grid (mặc định)
+sns.set_style('whitegrid')     # sáng + grid
+sns.set_style('dark')
+sns.set_style('white')
+sns.set_style('ticks')
+
+# Theme tổng thể
+sns.set_theme(style='whitegrid', palette='pastel')
+```
+
+<Tip>
+Pairplot là cách tuyệt vời để khám phá dataset lần đầu — hiển thị mọi mối quan hệ giữa các biến số chỉ với 1 dòng code.
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Vẽ heatmap correlation cho dataset sales.csv.
+  </Step>
+  <Step title="Bài 2">
+    Tạo boxplot so sánh lương giữa các phòng ban.
+  </Step>
+  <Step title="Bài 3">
+    Sử dụng pairplot để khám phá dataset iris hoặc tips.
+  </Step>
+</Steps>

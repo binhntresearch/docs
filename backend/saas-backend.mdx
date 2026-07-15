@@ -1,0 +1,255 @@
+---
+title: "SaaS Backend"
+description: "Multi-tenant SaaS backend — tenant isolation, billing, subscription management"
+icon: "building"
+---
+
+SaaS backend yêu cầu **multi-tenancy** — nhiều khách hàng dùng chung 1 hạ tầng nhưng data hoàn toàn tách biệt.
+
+## Multi-tenancy Architecture
+
+<Tabs>
+  <Tab title="Database per Tenant">
+    - Mỗi tenant có database riêng
+    - **Strongest isolation**
+    - Phức tạp cho migrations, expensive
+    - Phù hợp: Enterprise customers
+  </Tab>
+  <Tab title="Schema per Tenant">
+    - Mỗi tenant có schema riêng trong shared DB
+    - Medium isolation
+    - Schema migrations phải apply cho tất cả tenants
+    - Phù hợp: Mid-market SaaS
+  </Tab>
+  <Tab title="Shared Schema with tenant_id">
+    - Tất cả tenants dùng chung tables, có tenant_id column
+    - **Most common, easiest**
+    - Row-level security (RLS) trong Postgres
+    - **Phù hợp: Most SaaS applications**
+  </Tab>
+</Tabs>
+
+## Tenant Model
+
+```python
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), nullable=False)
+    slug = Column(String(50), unique=True, nullable=False)
+    plan = Column(String(20), default="free")  # free, pro, enterprise
+    status = Column(String(20), default="active")
+    trial_ends_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    settings = Column(JSON, default=dict)
+
+    users = relationship("User", back_populates="tenant")
+    subscription = relationship("Subscription", uselist=False)
+
+# Add tenant_id to all tables
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(UUID, ForeignKey("tenants.id"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+```
+
+## Tenant Middleware
+
+```python
+from fastapi import Header, HTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+import jwt
+
+class TenantMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Extract tenant from JWT or header
+        token = request.headers.get("authorization", "").replace("Bearer ", "")
+
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            tenant_id = payload.get("tenant_id")
+            request.state.tenant_id = tenant_id
+            request.state.user = payload
+        except:
+            request.state.tenant_id = None
+
+        return await call_next(request)
+
+
+# Dependency
+async def get_current_tenant(request: Request) -> Tenant:
+    tenant_id = request.state.tenant_id
+    if not tenant_id:
+        raise HTTPException(401, "No tenant context")
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant or tenant.status != "active":
+        raise HTTPException(403, "Tenant not active")
+
+    return tenant
+
+
+async def get_tenant_db(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db)
+):
+    # All queries automatically filtered by tenant_id
+    return TenantScopedSession(db, tenant.id)
+```
+
+## Tenant-Scoped Queries
+
+```python
+class TenantScopedSession:
+    def __init__(self, db, tenant_id):
+        self.db = db
+        self.tenant_id = tenant_id
+
+    def query(self, model):
+        # Automatically filter by tenant_id
+        return self.db.query(model).filter(model.tenant_id == self.tenant_id)
+
+    def add(self, instance):
+        if hasattr(instance, 'tenant_id') and not instance.tenant_id:
+            instance.tenant_id = self.tenant_id
+        self.db.add(instance)
+
+# All endpoints now automatically tenant-scoped
+@app.get("/projects")
+async def list_projects(ts: TenantScopedSession = Depends(get_tenant_db)):
+    return ts.query(Project).all()  # Auto filtered by tenant
+```
+
+## Subscription & Billing
+
+```python
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID, ForeignKey("tenants.id"), unique=True)
+    plan = Column(String(20))  # free, pro, enterprise
+    status = Column(String(20))  # active, past_due, canceled, trialing
+    seats = Column(Integer, default=5)
+    stripe_subscription_id = Column(String(100))
+    current_period_start = Column(DateTime)
+    current_period_end = Column(DateTime)
+    cancel_at_period_end = Column(Boolean, default=False)
+
+PLAN_LIMITS = {
+    "free": {"seats": 5, "projects": 3, "storage_gb": 1},
+    "pro": {"seats": 25, "projects": 50, "storage_gb": 50},
+    "enterprise": {"seats": -1, "projects": -1, "storage_gb": -1}
+}
+
+
+def check_plan_limit(tenant_id, resource: str, requested: int):
+    """Check if tenant can create more resources."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    sub = tenant.subscription
+    limit = PLAN_LIMITS[sub.plan][resource]
+
+    if limit == -1:  # Unlimited
+        return True
+
+    current = db.query(Project).filter(Project.tenant_id == tenant_id).count()
+    return current + requested <= limit
+
+
+@app.post("/projects")
+async def create_project(
+    project_data: ProjectCreate,
+    tenant: Tenant = Depends(get_current_tenant)
+):
+    if not check_plan_limit(tenant.id, "projects", 1):
+        raise HTTPException(402, "Plan limit reached. Upgrade to create more projects.")
+
+    return db.projects.insert(Project(
+        **project_data.model_dump(),
+        tenant_id=tenant.id
+    ))
+```
+
+## Stripe Webhook Handler
+
+```python
+@app.post("/webhooks/stripe")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: str = Header(...)
+):
+    payload = await request.body()
+    event = stripe.Webhook.construct_event(
+        payload, stripe_signature, STRIPE_WEBHOOK_SECRET
+    )
+
+    if event.type == "customer.subscription.created":
+        handle_subscription_created(event.data.object)
+    elif event.type == "customer.subscription.updated":
+        handle_subscription_updated(event.data.object)
+    elif event.type == "invoice.payment_succeeded":
+        handle_payment_succeeded(event.data.object)
+    elif event.type == "invoice.payment_failed":
+        handle_payment_failed(event.data.object)
+        # Trigger dunning email
+
+    return {"received": True}
+
+
+def handle_payment_failed(invoice):
+    subscription = db.query(Subscription).filter(
+        Subscription.stripe_subscription_id == invoice.subscription
+    ).first()
+
+    if subscription:
+        subscription.status = "past_due"
+        # Notify tenant admin via email
+```
+
+## Usage Metering
+
+```python
+@app.post("/usage/events")
+async def track_event(
+    event: UsageEvent,
+    tenant: Tenant = Depends(get_current_tenant)
+):
+    db.add(UsageRecord(
+        tenant_id=tenant.id,
+        metric=event.metric,  # "api_calls", "storage_mb", "emails_sent"
+        quantity=event.quantity,
+        timestamp=datetime.utcnow()
+    ))
+    db.commit()
+    return {"tracked": True}
+
+
+@app.get("/admin/usage")
+async def current_usage(tenant: Tenant = Depends(get_current_tenant)):
+    """Get usage for current billing period."""
+    start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0)
+
+    usage = db.query(
+        UsageRecord.metric,
+        func.sum(UsageRecord.quantity)
+    ).filter(
+        UsageRecord.tenant_id == tenant.id,
+        UsageRecord.timestamp >= start_of_month
+    ).group_by(UsageRecord.metric).all()
+
+    return {metric: total for metric, total in usage}
+```
+
+<Tip>
+Multi-tenancy best practices:
+- **Tenant ID on EVERY table:** No exceptions
+- **Test isolation:** Verify one tenant không thấy data của tenant khác
+- **Background jobs:** Pass tenant_id explicitly (no global state)
+- **Audit logs:** Track WHO/WHAT/WHEN/WHICH_TENANT
+- **Plan limits:** Enforce server-side, not just UI
+- **Trial management:** Auto-convert trial → paying after deadline
+- **Data export:** GDPR/CCPA — export all tenant data on request
+</Tip>

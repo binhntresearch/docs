@@ -1,0 +1,171 @@
+---
+title: "Dự án Task Management"
+description: "Xây dựng ứng dụng quản lý công việc hoàn chỉnh với Next.js + Firebase"
+icon: "list-check"
+---
+
+Dự án tổng hợp — ứng dụng quản lý công việc (Task Management) với Next.js 15 + Firebase, áp dụng toàn bộ kiến thức từ các phần trước.
+
+## Tổng quan tính năng
+
+<CardGroup>
+  <Card title="Đăng nhập" icon="right-to-bracket">
+    Google + Email/Password, phân quyền admin/member
+  </Card>
+  <Card title="Dashboard" icon="chart-line">
+    Thống kê tasks, pie chart, tasks gần đây
+  </Card>
+  <Card title="CRUD Tasks" icon="list-check">
+    Tạo, xem, sửa, xóa tasks với realtime
+  </Card>
+  <Card title="Bộ lọc & Tìm kiếm" icon="magnifying-glass">
+    Lọc theo status, assignee, deadline
+  </Card>
+  <Card title="Projects" icon="folder-open">
+    Quản lý projects, thành viên, gán tasks
+  </Card>
+  <Card title="Notifications" icon="bell">
+    Hệ thống thông báo realtime
+  </Card>
+</CardGroup>
+
+## Kiến trúc dự án
+
+```
+my-task-app/
+├── app/
+│   ├── (auth)/login/page.tsx
+│   ├── (auth)/register/page.tsx
+│   ├── dashboard/
+│   │   ├── layout.tsx               ← Sidebar navigation
+│   │   ├── page.tsx                 ← Dashboard tổng quan
+│   │   ├── tasks/
+│   │   │   ├── page.tsx             ← Danh sách tasks
+│   │   │   └── [id]/page.tsx        ← Chi tiết task
+│   │   ├── projects/
+│   │   │   ├── page.tsx             ← Danh sách projects
+│   │   │   └── [id]/page.tsx        ← Chi tiết project
+│   │   └── settings/page.tsx
+│   ├── api/
+│   │   ├── send-email/route.ts
+│   │   └── webhooks/route.ts
+│   ├── layout.tsx
+│   └── page.tsx
+│
+├── components/
+│   ├── ui/                          ← shadcn/ui
+│   ├── layout/                      ← AppHeader, AppSidebar
+│   ├── tasks/                       ← TaskCard, TaskTable, TaskForm
+│   ├── projects/                    ← ProjectCard, ProjectForm
+│   └── shared/                      ← UserAvatar, EmptyState
+│
+├── services/
+│   ├── firebase.ts
+│   ├── auth.ts
+│   ├── tasks.ts
+│   ├── projects.ts
+│   └── notifications.ts
+│
+├── functions/                       ← Cloud Functions
+│   ├── src/
+│   │   ├── triggers/
+│   │   └── scheduled/
+│   └── package.json
+│
+├── firestore.rules
+└── .env.local
+```
+
+## Quy trình xây dựng theo từng bước
+
+<Steps>
+  <Step title="Setup dự án">
+    ```
+    Tạo dự án Next.js 15 với TypeScript, Tailwind CSS 4, shadcn/ui.
+    Firebase config: [dán config]
+    Tạo cấu trúc thư mục: components/, services/, types/, functions/
+    ```
+  </Step>
+  <Step title="Authentication">
+    ```
+    Tạo trang /login với 2 tab: Google và Email/Password.
+    Trang /register tương tự.
+    Sau login: lưu user vào Firestore (nếu mới), redirect /dashboard.
+    Layout /dashboard kiểm tra auth — chưa login thì redirect /login.
+    ```
+  </Step>
+  <Step title="Dashboard tổng quan">
+    ```
+    Tạo trang /dashboard với 4 card thống kê:
+    Tổng tasks · Đang làm · Hoàn thành · Quá hạn
+    + Biểu đồ tròn tỷ lệ status
+    + Danh sách 5 tasks gần đây nhất
+    ```
+  </Step>
+  <Step title="Quản lý Tasks (CRUD)">
+    Tạo trang danh sách → modal thêm → modal sửa → dialog xác nhận xóa → bộ lọc + search. Mỗi bước 1 prompt riêng.
+  </Step>
+  <Step title="Quản lý Projects">
+    ```
+    Tạo trang /dashboard/projects tương tự /dashboard/tasks.
+    Collection: 'projects', fields: name, description, status, members.
+    Thêm multi-select chọn thành viên từ collection 'users'.
+    ```
+  </Step>
+  <Step title="Notifications & Cloud Functions">
+    ```
+    Thêm hệ thống thông báo:
+    - Bell icon trên header hiển thị số chưa đọc
+    - Cloud Function onTaskCreated: tạo notification cho assignee
+    - Cloud Function dailyReminder: nhắc tasks sắp deadline
+    ```
+  </Step>
+  <Step title="Security Rules & Deploy">
+    ```
+    Viết Security Rules:
+    - users: ai đọc name/avatar, chỉ owner sửa data
+    - tasks: members trong project đọc/ghi, admin xóa
+    - notifications: user chỉ đọc của mình
+    Sau khi xong, deploy lên Vercel.
+    ```
+  </Step>
+</Steps>
+
+## Security Rules
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth.uid == resource.data.assigneeId
+                 || request.auth.uid == resource.data.createdBy;
+      allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+                 || request.auth.uid == resource.data.createdBy;
+    }
+
+    match /projects/{projectId} {
+      allow read: if request.auth.uid in resource.data.members;
+      allow write: if request.auth.uid == resource.data.ownerId;
+    }
+
+    match /notifications/{notifId} {
+      allow read: if request.auth.uid == resource.data.userId;
+      allow create: if false; // Chỉ Cloud Functions tạo được
+      allow update: if request.auth.uid == resource.data.userId;
+    }
+  }
+}
+```
+
+<Tip>
+Sau khi hoàn thành dự án, bạn sẽ có template để build bất kỳ ứng dụng quản lý nội bộ nào — chỉ thay đổi tên collection và logic nghiệp vụ.
+</Tip>

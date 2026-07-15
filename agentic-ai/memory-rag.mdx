@@ -1,0 +1,139 @@
+---
+title: "Memory & RAG"
+description: "Short-term memory, long-term memory, Vector DB và Retrieval Augmented Generation"
+icon: "memory"
+---
+
+Memory cho agent = khả năng **nhớ** thông tin qua nhiều interactions và **tra cứu** knowledge từ external sources.
+
+## Types of Memory
+
+<CodeGroup>
+```python Short-term (Conversation Memory)
+# Lưu conversation hiện tại
+conversation_history = []
+
+def chat(user_message):
+    conversation_history.append({"role": "user", "content": user_message})
+    response = llm.invoke(conversation_history)
+    conversation_history.append({"role": "assistant", "content": response.content})
+    return response
+
+# Khi conversation dài quá context window → compact
+def compact_history(history, max_tokens=100000):
+    if count_tokens(history) > max_tokens:
+        summary = llm.invoke([{"role": "user", "content": f"Summarize: {history}"}])
+        return [{"role": "user", "content": f"Previous context: {summary.content}"}]
+    return history
+```
+
+```python Long-term (Persistent Memory)
+# Lưu facts, preferences vào DB
+import chromadb
+
+client = chromadb.Client()
+collection = client.create_collection("agent_memory")
+
+def save_memory(key, value, metadata=None):
+    collection.add(
+        documents=[value],
+        metadatas=[metadata or {}],
+        ids=[key]
+    )
+
+def recall_memory(query, n_results=5):
+    results = collection.query(query_texts=[query], n_results=n_results)
+    return results["documents"][0]
+
+# Agent tự quyết định khi nào nhớ
+def agent_with_memory(user_message):
+    # Recall relevant memories
+    memories = recall_memory(user_message)
+
+    response = llm.invoke([{
+        "role": "user",
+        "content": f"Context from memory: {memories}\n\nUser: {user_message}"
+    }])
+
+    # Save new important information
+    if is_important(user_message):
+        save_memory(f"fact_{timestamp}", user_message)
+
+    return response
+```
+</CodeGroup>
+
+## RAG — Retrieval Augmented Generation
+
+<Callout type="info">
+RAG = Tra cứu documents relevant trước khi generate. LLM có thêm context từ knowledge base → trả lời chính xác hơn, có citations.
+</Callout>
+
+```python
+from langchain_anthropic import ChatAnthropic
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+
+# 1. Tạo vector store
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+vectorstore = Chroma.from_documents(documents, embeddings)
+
+# 2. RAG pipeline
+def rag_query(question):
+    # Retrieve relevant docs
+    docs = vectorstore.similarity_search(question, k=5)
+    context = "\n\n".join([doc.page_content for doc in docs])
+
+    # Generate với context
+    response = llm.invoke([{
+        "role": "user",
+        "content": f"Context: {context}\n\nQuestion: {question}\n\nAnswer based on context:"
+    }])
+
+    return response.content
+```
+
+## Agent + RAG
+
+```python
+# Agent tự quyết định khi nào cần tra cứu
+@tool
+def search_knowledge_base(query: str) -> str:
+    """Search the company knowledge base for relevant information."""
+    docs = vectorstore.similarity_search(query, k=3)
+    return "\n\n".join([doc.page_content for doc in docs])
+
+# Agent dùng tool khi cần
+agent = create_agent(tools=[search_knowledge_base, web_search, calculator])
+result = agent.invoke("What's our company's refund policy?")
+# Agent tự gọi search_knowledge_base
+```
+
+## Embedding Models
+
+| Model | Dimension | Speed | Quality |
+|---|---|---|---|
+| all-MiniLM-L6-v2 | 384 | Fast | Good |
+| text-embedding-3-small | 1536 | Medium | Great |
+| text-embedding-3-large | 3072 | Slow | Best |
+| BGE-M3 | 1024 | Medium | Great (multilingual) |
+
+## Vector Databases
+
+| DB | Type | Suitable for |
+|---|---|---|
+| **ChromaDB** | Embedded | MVP, local dev |
+| **Pinecone** | Cloud | Production, managed |
+| **Weaviate** | Self-hosted/Cloud | Advanced filtering |
+| **Qdrant** | Self-hosted/Cloud | High performance |
+| **pgvector** | Extension | Already using PostgreSQL |
+
+## Best Practices
+
+<Tip>
+- **Chunk wisely:** Split documents thành chunks 200-500 tokens, overlap 50 tokens
+- **Metadata:** Index metadata (source, date, category) cho filtering
+- **Reranking:** Dùng cross-encoder reranker sau initial retrieval
+- **Hybrid search:** Kết hợp vector search + keyword search
+- **Citations:** Luôn track source document cho mỗi answer
+</Tip>

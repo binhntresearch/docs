@@ -1,37 +1,682 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "theme": "maple",
+  "name": "Claude Code Docs",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#FF6B35",
+    "light": "#FFB088",
+    "dark": "#C1390B"
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "pages": [
+    "tabs": [
       {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
+        "tab": "Getting Started",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "icon": "book-open",
+            "pages": [
+              "index",
+              "quickstart"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Claude Code",
+        "groups": [
+          {
+            "group": "Onboarding & Setup",
+            "icon": "book-open",
+            "pages": [
+              "claude-code/index",
+              "claude-code/overview",
+              {
+                "group": "Tài khoản & Cài đặt",
+                "icon": "user-plus",
+                "pages": [
+                  "claude-code/accounts",
+                  "claude-code/tools"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Development Tools",
+            "icon": "code",
+            "pages": [
+              "claude-code/nodejs",
+              "claude-code/vscode",
+              "claude-code/claude-code-vscode"
+            ]
+          },
+          {
+            "group": "Nền tảng Claude Code",
+            "icon": "graduation-cap",
+            "pages": [
+              "claude-code/fundamentals",
+              "claude-code/skills",
+              "claude-code/mcp-servers"
+            ]
+          },
+          {
+            "group": "Tech Stack",
+            "icon": "microchip",
+            "pages": [
+              "claude-code/firebase",
+              "claude-code/nextjs"
+            ]
+          },
+          {
+            "group": "Kiến trúc phần mềm",
+            "icon": "sitemap",
+            "pages": [
+              "claude-code/architecture-overview",
+              "claude-code/architecture-frontend",
+              "claude-code/architecture-backend-api",
+              "claude-code/architecture-backend-firebase",
+              "claude-code/prompt-rules"
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "claude-code/practice-getting-started",
+              "claude-code/practice-landing-page",
+              "claude-code/practice-nextjs",
+              "claude-code/practice-firebase",
+              "claude-code/practice-telegram-bot",
+              "claude-code/practice-email",
+              "claude-code/practice-task-management",
+              "claude-code/practice-crm",
+              "claude-code/practice-lms",
+              "claude-code/practice-english-app"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Python + Data + AI",
+        "groups": [
+          {
+            "group": "Kiến thức nền tảng Python",
+            "icon": "book",
+            "pages": [
+              "python-data/index",
+              "python-data/overview",
+              "python-data/setup",
+              "python-data/python-basics",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "python-data/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Thu thập dữ liệu, Làm sạch & Cloud Storage",
+            "icon": "cloud",
+            "pages": [
+              {
+                "group": "Thu thập dữ liệu",
+                "icon": "database",
+                "pages": [
+                  "python-data/data-collection-overview",
+                  "python-data/data-collection-rest",
+                  "python-data/data-collection-graphql",
+                  "python-data/data-collection-sql",
+                  "python-data/data-collection-nosql",
+                  "python-data/data-collection-files",
+                  {
+                    "group": "Thu thập dữ liệu từ Web",
+                    "icon": "globe",
+                    "pages": [
+                      "python-data/web-scraping"
+                    ]
+                  },
+                  "python-data/data-collection-streaming"
+                ]
+              },
+              {
+                "group": "Làm sạch dữ liệu",
+                "icon": "broom",
+                "pages": [
+                  "python-data/data-cleaning"
+                ]
+              },
+              {
+                "group": "Cloud Storage",
+                "icon": "cloud",
+                "pages": [
+                  "python-data/cloud-storage"
+                ]
+              },
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "python-data/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Phân tích dữ liệu với Python",
+            "icon": "chart-line",
+            "pages": [
+              "python-data/numpy",
+              "python-data/pandas",
+              "python-data/matplotlib",
+              "python-data/seaborn",
+              "python-data/statistics",
+              {
+                "group": "Thực chiến",
+                "icon": "flask-conical",
+                "pages": [
+                  "python-data/sales-analysis",
+                  "python-data/dashboard"
+                ]
+              },
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "python-data/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Machine Learning",
+            "icon": "brain",
+            "pages": [
+              "machine-learning/index",
+              {
+                "group": "Tổng quan & Nền tảng",
+                "icon": "layers",
+                "pages": [
+                  "machine-learning/overview",
+                  "machine-learning/math"
+                ]
+              },
+              {
+                "group": "Classical ML",
+                "icon": "gear",
+                "pages": [
+                  "machine-learning/scikit-learn",
+                  "machine-learning/ensemble",
+                  "machine-learning/evaluation",
+                  "machine-learning/feature-engineering"
+                ]
+              },
+              {
+                "group": "Deep Learning",
+                "icon": "network-wired",
+                "pages": [
+                  "machine-learning/neural-networks",
+                  "machine-learning/deep-learning"
+                ]
+              },
+              {
+                "group": "Production",
+                "icon": "cloud",
+                "pages": [
+                  "machine-learning/deploy"
+                ]
+              },
+              {
+                "group": "Thực chiến",
+                "icon": "flask-conical",
+                "pages": [
+                  "machine-learning/classification-project",
+                  "machine-learning/regression-project",
+                  "machine-learning/timeseries-project"
+                ]
+              },
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "machine-learning/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "AI Nâng cao",
+            "icon": "star",
+            "pages": [
+              {
+                "group": "NLP — Xử lý ngôn ngữ",
+                "icon": "language",
+                "pages": [
+                  "machine-learning/nlp"
+                ]
+              },
+              {
+                "group": "Computer Vision",
+                "icon": "eye",
+                "pages": [
+                  "machine-learning/computer-vision"
+                ]
+              },
+              {
+                "group": "Generative AI",
+                "icon": "wand-magic-sparkles",
+                "pages": [
+                  "machine-learning/generative-ai"
+                ]
+              },
+              {
+                "group": "Transfer Learning & Fine-tuning",
+                "icon": "arrow-right-arrow-left",
+                "pages": [
+                  "machine-learning/transfer-learning"
+                ]
+              },
+              {
+                "group": "AutoML",
+                "icon": "robot",
+                "pages": [
+                  "machine-learning/automl"
+                ]
+              },
+              {
+                "group": "Reinforcement Learning",
+                "icon": "gamepad",
+                "pages": [
+                  "machine-learning/reinforcement-learning"
+                ]
+              },
+              {
+                "group": "MLOps",
+                "icon": "gears",
+                "pages": [
+                  "machine-learning/mlops"
+                ]
+              },
+              {
+                "group": "Edge AI",
+                "icon": "mobile",
+                "pages": [
+                  "machine-learning/edge-ai"
+                ]
+              },
+              {
+                "group": "AI Safety & Ethics",
+                "icon": "shield-halved",
+                "pages": [
+                  "machine-learning/ai-safety"
+                ]
+              },
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "machine-learning/security"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Blockchain",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "blockchain/index",
+              "blockchain/overview",
+              "blockchain/blockchain-basics"
+            ]
+          },
+          {
+            "group": "Smart Contracts",
+            "icon": "file-contract",
+            "pages": [
+              "blockchain/solidity",
+              "blockchain/solidity-advanced",
+              "blockchain/openzeppelin",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "blockchain/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Developer Tools",
+            "icon": "wrench",
+            "pages": [
+              "blockchain/hardhat",
+              "blockchain/metamask-wallet"
+            ]
+          },
+          {
+            "group": "DApp Development",
+            "icon": "layer-group",
+            "pages": [
+              "blockchain/dapp"
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "blockchain/defi",
+              "blockchain/nft-marketplace",
+              "blockchain/dao",
+              "blockchain/dapp-project"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Web3",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "web3/index",
+              "web3/overview",
+              "web3/roadmap",
+              "web3/web2-vs-web3"
+            ]
+          },
+          {
+            "group": "Web3 Infrastructure",
+            "icon": "plug",
+            "pages": [
+              "web3/decentralized-identity",
+              "web3/ipfs-storage",
+              "web3/the-graph",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "web3/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Frontend Web3",
+            "icon": "code",
+            "pages": [
+              "web3/wagmi-viem",
+              "web3/account-abstraction",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "web3/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "web3/web3-social",
+              "web3/subscription-dapp",
+              "web3/web3-portfolio"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "RWA",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "rwa/index",
+              "rwa/overview",
+              "rwa/asset-classes",
+              "rwa/erc3643"
+            ]
+          },
+          {
+            "group": "Smart Contracts & Infrastructure",
+            "icon": "file-contract",
+            "pages": [
+              "rwa/token-issuance",
+              "rwa/chainlink",
+              "rwa/securitize",
+              "rwa/compliance-engine",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "rwa/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "rwa/real-estate-token",
+              "rwa/bond-token",
+              "rwa/art-token"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Agentic AI",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "agentic-ai/index",
+              "agentic-ai/overview",
+              "agentic-ai/llm-fundamentals",
+              "agentic-ai/prompt-engineering"
+            ]
+          },
+          {
+            "group": "Frameworks",
+            "icon": "wrench",
+            "pages": [
+              "agentic-ai/langchain",
+              "agentic-ai/claude-agent-sdk"
+            ]
+          },
+          {
+            "group": "Agent Architecture",
+            "icon": "sitemap",
+            "pages": [
+              "agentic-ai/agent-patterns",
+              "agentic-ai/memory-rag",
+              "agentic-ai/multi-agent",
+              "agentic-ai/guardrails-safety",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "agentic-ai/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "agentic-ai/research-agent",
+              "agentic-ai/coding-agent",
+              "agentic-ai/trading-agent"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Development",
+        "groups": [
+          {
+            "group": "Onboarding & Design",
+            "icon": "book-open",
+            "pages": [
+              "api/index",
+              "api/overview",
+              "api/rest-design"
+            ]
+          },
+          {
+            "group": "Frameworks",
+            "icon": "code",
+            "pages": [
+              "api/express",
+              "api/fastapi",
+              "api/nestjs"
+            ]
+          },
+          {
+            "group": "Data & Security",
+            "icon": "shield-halved",
+            "pages": [
+              "api/database",
+              "api/auth",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "api/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Quality & Operations",
+            "icon": "vial",
+            "pages": [
+              "api/openapi",
+              "api/testing",
+              "api/devops",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "api/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "api/rest-api-project",
+              "api/graphql-project",
+              "api/microservices-project",
+              "api/saas-api-project"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Backend",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "backend/index",
+              "backend/overview"
+            ]
+          },
+          {
+            "group": "Tech Stack",
+            "icon": "code",
+            "pages": [
+              "backend/nodejs",
+              "backend/python",
+              "backend/database"
+            ]
+          },
+          {
+            "group": "Bảo mật & Chất lượng",
+            "icon": "shield-halved",
+            "pages": [
+              "backend/auth",
+              "backend/testing",
+              "backend/devops"
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "backend/rest-api-project",
+              "backend/microservices-project",
+              "backend/admin-dashboard",
+              "backend/saas-backend"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Mobile",
+        "groups": [
+          {
+            "group": "Onboarding & Nền tảng",
+            "icon": "book-open",
+            "pages": [
+              "mobile/index",
+              "mobile/overview"
+            ]
+          },
+          {
+            "group": "Frameworks",
+            "icon": "code",
+            "pages": [
+              "mobile/react-native",
+              "mobile/flutter"
+            ]
+          },
+          {
+            "group": "Mobile Fundamentals",
+            "icon": "palette",
+            "pages": [
+              "mobile/ui-ux",
+              "mobile/api-integration",
+              "mobile/testing",
+              {
+                "group": "Bảo mật",
+                "icon": "shield-halved",
+                "pages": [
+                  "mobile/security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Thực chiến",
+            "icon": "flask-conical",
+            "pages": [
+              "mobile/todo-app",
+              "mobile/ecommerce-app",
+              "mobile/social-app",
+              "mobile/chat-app"
+            ]
+          }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
+    ]
   },
   "logo": {
     "light": "/logo/light.svg",

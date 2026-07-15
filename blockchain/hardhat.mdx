@@ -1,0 +1,126 @@
+---
+title: "Hardhat"
+description: "IDE, test framework và deployment tool cho Ethereum development"
+icon: "hard-hat"
+---
+
+Hardhat là development environment chính cho Ethereum — compile, test, debug và deploy smart contract.
+
+## Setup
+
+```bash
+mkdir my-dapp && cd my-dapp
+npm init -y
+npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
+npx hardhat init
+```
+
+## Cấu trúc dự án
+
+```
+my-dapp/
+├── contracts/          ← Solidity contracts
+│   └── MyContract.sol
+├── test/               ← Unit tests
+│   └── MyContract.test.js
+├── scripts/            ← Deploy scripts
+│   └── deploy.js
+├── hardhat.config.js   ← Configuration
+└── package.json
+```
+
+## Hardhat config
+
+```javascript
+require("@nomicfoundation/hardhat-toolbox");
+
+module.exports = {
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      optimizer: { enabled: true, runs: 200 }
+    }
+  },
+  networks: {
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY]
+    }
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY
+  }
+};
+```
+
+## Test với Chai
+
+```javascript
+const { expect } = require("chai");
+const { ethers } = require("hardhat");
+
+describe("MyToken", function () {
+  let token, owner, addr1, addr2;
+
+  beforeEach(async function () {
+    [owner, addr1, addr2] = await ethers.getSigners();
+    const Token = await ethers.getContractFactory("MyToken");
+    token = await Token.deploy("MyToken", "MTK", 1000000);
+    await token.waitForDeployment();
+  });
+
+  it("Should assign initial supply to owner", async function () {
+    expect(await token.balanceOf(owner.address))
+      .to.equal(1000000n * 10n ** 18n);
+  });
+
+  it("Should transfer tokens correctly", async function () {
+    await token.transfer(addr1.address, ethers.parseEther("100"));
+    expect(await token.balanceOf(addr1.address))
+      .to.equal(ethers.parseEther("100"));
+  });
+
+  it("Should fail if insufficient balance", async function () {
+    await expect(
+      token.connect(addr1).transfer(addr2.address, 1)
+    ).to.be.reverted;
+  });
+});
+```
+
+## Run
+
+```bash
+npx hardhat test           # Run all tests
+npx hardhat test --grep "transfer"  # Run specific test
+npx hardhat compile        # Compile contracts
+npx hardhat node           # Run local blockchain
+```
+
+## Deploy
+
+```javascript
+// scripts/deploy.js
+async function main() {
+  const Token = await ethers.getContractFactory("MyToken");
+  const token = await Token.deploy("MyToken", "MTK", 1000000);
+  await token.waitForDeployment();
+  console.log("Token deployed to:", await token.getAddress());
+}
+
+main().catch(console.error);
+```
+
+```bash
+npx hardhat run scripts/deploy.js --network sepolia
+```
+
+## Verify on Etherscan
+
+```bash
+npx hardhat verify --network sepolia DEPLOYED_ADDRESS "MyToken" "MTK" 1000000
+```
+
+<Tip>
+Luôn test trước khi deploy. Hardhat cho phép fork mainnet để test trên dữ liệu production mà không tốn gas.
+</Tip>

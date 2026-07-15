@@ -1,0 +1,167 @@
+---
+title: "Bond Token"
+description: "Token hóa trái phiếu — coupon payments và maturity redemption"
+icon: "coins"
+---
+
+Token hóa trái phiếu (Bond Tokenization) cho phép发行 trái phiếu on-chain — coupon payments tự động, minh bạch, có thể giao dịch secondary market.
+
+## Bond Token Architecture
+
+```
+Issuer (Company/Government)
+    ↓ phát hành Bond Token
+Smart Contract
+    ├── Face Value: $1000 per token
+    ├── Coupon Rate: 5% annually (paid quarterly)
+    ├── Maturity: 2 years
+    └── Maturity Value: Face Value + last coupon
+```
+
+## Smart Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract BondToken is ERC20, Ownable {
+    struct BondDetails {
+        uint256 faceValue;        // USD (6 decimals)
+        uint256 couponRate;       // bps (100 = 1%)
+        uint256 maturityDate;     // Unix timestamp
+        uint256 issueDate;
+        bool matured;
+        bool redeemed;
+    }
+
+    struct Investor {
+        bool isKYCApproved;
+        uint256 bondAmount;
+        uint256 lastCouponClaim;
+    }
+
+    BondDetails public bond;
+    mapping(address => Investor) public investors;
+    mapping(address => bool) public isWhitelisted;
+    uint256 public totalDistributed;
+
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 _faceValue,
+        uint256 _couponRate,
+        uint256 _maturityDate
+    ) ERC20(name, symbol) {
+        bond = BondDetails(_faceValue, _couponRate, _maturityDate, block.timestamp, false, false);
+    }
+
+    // KYC approval
+    function approveInvestor(address investor) external onlyOwner {
+        investors[investor] = Investor(true, 0, 0);
+        isWhitelisted[investor] = true;
+    }
+
+    // Issue bonds to investor
+    function issueBonds(address investor, uint256 amount) external onlyOwner {
+        require(isWhitelisted[investor], "Not whitelisted");
+        _mint(investor, amount);
+        investors[investor].bondAmount += amount;
+    }
+
+    // Claim quarterly coupon
+    function claimCoupon() external {
+        Investor storage inv = investors[msg.sender];
+        require(inv.bondAmount > 0, "No bonds");
+
+        uint256 elapsed = block.timestamp - inv.lastCouponClaim;
+        uint256 couponInterval = 90 days;
+
+        if (elapsed >= couponInterval) {
+            uint256 periods = elapsed / couponInterval;
+            uint256 couponPerToken = (bond.faceValue * bond.couponRate * periods) / (10000 * 4);
+            uint256 totalCoupon = inv.bondAmount * couponPerToken;
+
+            inv.lastCouponClaim += periods * couponInterval;
+            payable(msg.sender).transfer(totalCoupon);
+        }
+    }
+
+    // Redeem at maturity
+    function redeem() external {
+        require(block.timestamp >= bond.maturityDate, "Not matured");
+        require(!bond.redeemed, "Already redeemed");
+
+        Investor storage inv = investors[msg.sender];
+        require(inv.bondAmount > 0, "No bonds");
+
+        uint256 redemptionValue = inv.bondAmount * bond.faceValue;
+        inv.bondAmount = 0;
+        _burn(msg.sender, inv.bondAmount);
+
+        payable(msg.sender).transfer(redemptionValue);
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256) internal override {
+        require(isWhitelisted[from] && isWhitelisted[to], "Not whitelisted");
+    }
+
+    receive() external payable {}
+}
+```
+
+## Bond Pricing
+
+```javascript
+// Tính giá bond dựa trên time to maturity và interest rate
+function calculateBondPrice(faceValue, couponRate, yearsToMaturity, marketRate) {
+  let price = 0;
+  const coupon = faceValue * couponRate / 100;
+
+  for (let i = 1; i <= yearsToMaturity; i++) {
+    price += coupon / Math.pow(1 + marketRate, i);
+  }
+  price += faceValue / Math.pow(1 + marketRate, yearsToMaturity);
+
+  return price; // Price < Face Value when marketRate > couponRate
+}
+```
+
+## Use Cases
+
+| Bond Type | Ví dụ | Yield |
+|---|---|---|
+| **Treasury** | US Treasury, UK Gilts | 4-5% APY |
+| **Corporate** | Apple, Tesla bonds | 5-7% APY |
+| **Green Bond** | Renewable energy | 4-6% APY |
+| **Convertible** | Startup convertible notes | Variable |
+
+## Secondary Market
+
+```solidity
+// Bond DEX — secondary trading
+contract BondMarket {
+    struct BondListing {
+        address seller;
+        address bondContract;
+        uint256 amount;
+        uint256 pricePerToken; // Discount to face value
+        bool active;
+    }
+
+    function listBond(address bondContract, uint256 amount, uint256 pricePerToken) external {
+        // ...
+    }
+
+    function buyBond(uint256 listingId) external payable {
+        // Buyer pays price, receives bond tokens
+        // Seller receives payment
+    }
+}
+```
+
+<Tip>
+Bond tokenization giúp retail investors tiếp cận trái phiếu — thường cần $100K+ minimum investment. Fractional ownership = đầu tư từ $10.
+</Tip>

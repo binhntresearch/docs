@@ -1,0 +1,87 @@
+---
+title: "Next.js"
+description: "Thực hành các khái niệm cốt lõi của Next.js: routing, pages, layouts, components"
+icon: "react"
+---
+
+Bài thực hành giúp bạn làm chủ các khái niệm cốt lõi của Next.js App Router thông qua xây dựng một blog cá nhân đơn giản.
+
+## Mục tiêu
+
+<Check>Làm chủ App Router (file-based routing) · Sử dụng Layouts lồng nhau · Hiểu Server vs Client Components · Làm việc với dynamic routes và metadata</Check>
+
+## Các bước thực hành
+
+<Steps>
+  <Step title="Khởi tạo dự án blog">
+    Yêu cầu Claude Code tạo Next.js 15 với TypeScript, Tailwind, App Router.
+  </Step>
+  <Step title="Tạo Layout chính">
+    Layout gốc có Header (logo, nav) và Footer. Áp dụng cho mọi trang.
+  </Step>
+  <Step title="Tạo layout cho /blog">
+    Layout con với sidebar categories, áp dụng riêng cho mọi trang `/blog/*`.
+  </Step>
+  <Step title="Trang chủ và danh sách bài viết">
+    - `/` — Landing page
+    - `/blog` — Danh sách bài viết dạng grid
+    - `/blog/[slug]` — Chi tiết 1 bài viết (dynamic route)
+  </Step>
+  <Step title="Thêm tương tác Client Component">
+    Nút "Like" và "Bookmark" — là Client Component với state.
+  </Step>
+  <Step title="Metadata cho SEO">
+    Thêm `generateMetadata` cho mỗi page — title, description, Open Graph.
+  </Step>
+</Steps>
+
+## Cấu trúc thư mục kết quả
+
+```
+app/
+├── layout.tsx                 ← Layout gốc với Header, Footer
+├── page.tsx                   ← /
+├── globals.css
+│
+├── blog/
+│   ├── layout.tsx             ← Sidebar categories
+│   ├── page.tsx               ← /blog (danh sách)
+│   └── [slug]/
+│       └── page.tsx           ← /blog/[slug] (chi tiết)
+│
+└── about/
+    └── page.tsx               ← /about
+```
+
+## Prompt mẫu
+
+```
+Tạo blog cá nhân với Next.js 15.
+
+Yêu cầu:
+- Layout gốc: Header (logo + nav), Footer
+- Layout /blog: Sidebar với categories
+- Trang chủ: Hero + danh sách bài viết mới nhất
+- /blog: Grid 2 cột hiển thị tất cả bài viết
+- /blog/[slug]: Trang chi tiết với markdown content
+- /blog/category/[name]: Lọc bài viết theo category
+
+Dữ liệu:
+- Tạm thời hard-code trong data/posts.ts
+- Mỗi post: { slug, title, excerpt, content, category, author, publishedAt }
+
+Server Component cho phần lấy data,
+Client Component cho Like/Bookmark buttons.
+```
+
+## Kiến thức cốt lõi cần nắm
+
+- **File-based routing** — URL = cấu trúc thư mục
+- **Layouts** — Header/Footer/Sidebar không reload khi đổi trang
+- **Server Components** — Render HTML trên server, SEO tốt
+- **Dynamic routes** — `[slug]`, `[id]` cho nội dung động
+- **generateMetadata** — SEO cho từng trang
+
+<Tip>
+Sau khi hoàn thành, thử chuyển sang dùng MDX để viết bài — Claude Code có thể hỗ trợ cài đặt và tích hợp `@next/mdx`.
+</Tip>

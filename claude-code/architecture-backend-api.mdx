@@ -1,0 +1,205 @@
+---
+title: "Backend - Next.js API Routes"
+description: "Cách tổ chức Backend API trong Next.js cho các tác vụ cần bảo mật"
+icon: "route"
+---
+
+Một số tác vụ không thể hoặc không nên chạy trong trình duyệt — chúng cần chạy phía server vì lý do bảo mật.
+
+## Tại sao cần Backend API riêng?
+
+<CardGroup>
+  <Card title="Browser (client)" icon="browser">
+    Mọi người đều có thể xem code và logic. Không thể giấu API keys, passwords, hoặc quy tắc tính toán.
+  </Card>
+  <Card title="Server (API Route)" icon="server">
+    Code chỉ chạy trên server. Người dùng nhận kết quả mà không thấy logic bên trong.
+  </Card>
+</CardGroup>
+
+<Tip>
+**Phép so sánh ATM:** Browser là màn hình và bàn phím · Server là bộ xử lý bên trong · Bạn nhập PIN → gửi lên server → server kiểm tra → trả "Đúng/Sai".
+</Tip>
+
+### Những nghiệp vụ cần chạy ở server
+
+| Nghiệp vụ | Tại sao cần server |
+|---|---|
+| **Gửi email** | Cần API key SendGrid/Resend — không thể expose client |
+| **Thanh toán** | Cần VNPay/Stripe secret key — expose = mất tiền |
+| **Tạo PDF, Excel** | Thư viện nặng, không chạy tốt trong browser |
+| **Tính điểm, xếp hạng** | Logic kinh doanh — không muốn exploit |
+| **Gọi API bên ngoài** | Tránh key exposure, kiểm soát quota |
+| **Phân quyền phức tạp** | Verify roles, multi-level authorization |
+| **Nhận webhooks** | Stripe, Zalo, Facebook gửi events — cần URL cố định |
+
+## Next.js API Route là gì?
+
+API Route là tính năng của Next.js cho phép viết backend server trong cùng dự án frontend — không cần server riêng.
+
+<Tip>
+**Phép so sánh quán cà phê:** Phòng khách (Frontend) là chỗ khách ngồi · Bếp (API Route) là nơi pha chế · Bồi bàn (HTTP Request) mang order từ khách vào bếp và mang kết quả ra.
+</Tip>
+
+## Cấu trúc thư mục
+
+```
+my-app/
+├── app/
+│   ├── api/                          ← 🔒 BACKEND API DIRECTORY
+│   │   ├── send-email/
+│   │   │   └── route.ts              → URL: /api/send-email
+│   │   ├── payment/
+│   │   │   ├── create/route.ts       → URL: /api/payment/create
+│   │   │   └── verify/route.ts       → URL: /api/payment/verify
+│   │   ├── ai/
+│   │   │   └── generate/route.ts     → URL: /api/ai/generate
+│   │   └── webhooks/
+│   │       ├── stripe/route.ts       → URL: /api/webhooks/stripe
+│   │       └── zalo/route.ts         → URL: /api/webhooks/zalo
+│   │
+│   ├── (pages)/                      ← 🖥️ FRONTEND PAGES
+│   └── layout.tsx
+│
+├── lib/                              ← 🔧 SHARED LIBRARY
+│   ├── email.ts
+│   ├── pdf.ts
+│   └── auth.ts
+│
+└── .env.local                        ← 🔑 ENVIRONMENT VARIABLES
+```
+
+<Note>
+Mỗi thư mục trong `app/api/` cần file `route.ts` — file xử lý request. Tên thư mục trở thành URL path.
+</Note>
+
+## Biến môi trường — Nơi cất giữ bí mật
+
+Environment variables là cách an toàn để lưu API keys và thông tin nhạy cảm.
+
+```bash
+# .env.local (file NÀY KHÔNG upload lên GitHub)
+SENDGRID_API_KEY=SG.xxxxxxxxxxxx      # Email sending key
+VNPAY_SECRET_KEY=abc123xyz            # Payment key
+OPENAI_API_KEY=sk-xxxxxxxxxxxx        # AI key
+DATABASE_URL=postgresql://...         # Database connection
+JWT_SECRET=my-super-secret-key        # Token encryption
+```
+
+<Warning>
+`.env.local` phải được thêm vào `.gitignore` — tuyệt đối không push lên GitHub. Nếu API key bị lộ, kẻ tấn công có thể dùng dịch vụ và bạn phải trả chi phí.
+</Warning>
+
+## Các nghiệp vụ phổ biến
+
+<AccordionGroup>
+  <Accordion title="1. Gửi email">
+    Cần API key từ **SendGrid**, **Resend**, hoặc **Nodemailer**.
+
+    **Các loại email phổ biến trong LMS:**
+
+    - **Email xác nhận đăng ký** — Khi học viên đăng ký khóa học, server gửi email với thông tin khóa, lịch học, link tham gia
+    - **Email nhắc thanh toán** — Tự động gửi khi học phí sắp đến/quá hạn
+    - **Email chứng chỉ** — Server tạo PDF chứng chỉ và gửi qua email khi hoàn thành khóa học
+  </Accordion>
+  <Accordion title="2. Thanh toán">
+    Tích hợp **VNPay**, **MoMo**, hoặc **Stripe** đòi hỏi Secret Key phải ở server.
+
+    **Luồng thanh toán:**
+    1. API tại `/api/payment/create` — tạo URL thanh toán VNPay bằng secret key, lưu order vào Firestore 'pending'
+    2. Webhook `/api/webhooks/vnpay` — nhận kết quả, verify HMAC, cập nhật Firestore
+  </Accordion>
+  <Accordion title="3. Xuất báo cáo PDF/Excel">
+    Tạo báo cáo phức tạp cần thư viện nặng — chạy trên server tránh làm chậm browser.
+
+    **Các loại báo cáo:** Danh sách học viên · Kết quả thi · Chứng chỉ hoàn thành · Báo cáo doanh thu · Lịch học
+  </Accordion>
+  <Accordion title="4. Tích hợp AI">
+    Gọi OpenAI, Gemini, Claude cần secret keys. Prompt logic cũng là tài sản cần bảo vệ.
+
+    **Ứng dụng AI trong LMS:** Chấm bài tự động · Tạo câu hỏi · Chatbot hỗ trợ học viên
+  </Accordion>
+  <Accordion title="5. Webhook">
+    URL mà dịch vụ bên ngoài gọi khi có sự kiện. Zalo gọi khi có tin nhắn mới, Stripe gọi khi thanh toán xong.
+
+    **Ví dụ các webhook phổ biến:**
+
+    | Service | Event | Xử lý |
+    |---|---|---|
+    | VNPay / MoMo | Thanh toán thành công/thất bại | Kích hoạt tài khoản, gửi email |
+    | Zalo OA | Học viên gửi tin nhắn | Auto-reply, chuyển admin |
+    | Zoom | Lớp học kết thúc | Log attendance, save recording |
+    | Google Forms | Học viên đăng ký | Tạo account, welcome email |
+  </Accordion>
+</AccordionGroup>
+
+## Bảo mật API Routes
+
+API Routes là backend — nhưng vẫn cần bảo vệ. Bất kỳ ai có URL đều có thể gọi.
+
+<Steps>
+  <Step title="Kiểm tra xác thực">
+    Trước khi xử lý, luôn kiểm tra **ai đang gọi** và **có quyền không**.
+
+    ```
+    API Route /api/reports/export-students phải:
+    1. Kiểm tra Firebase Auth token trong Authorization header
+    2. Verify token hợp lệ (Firebase Admin SDK)
+    3. Lấy role user từ Firestore
+    4. Chỉ cho phép role 'admin' hoặc 'teacher'
+    5. Trả 403 nếu thiếu quyền
+    ```
+  </Step>
+  <Step title="Giới hạn tần suất (Rate Limiting)">
+    Ngăn user gọi API quá nhiều lần.
+
+    **Ví dụ:** API `/api/ai/chat` tối đa 20 lần/học viên/ngày.
+  </Step>
+  <Step title="Xác minh Webhook">
+    Webhooks phải verify request đến từ **đúng service** — không phải kẻ mạo danh.
+
+    **Ví dụ:** Webhook `/api/webhooks/vnpay` verify HMAC signature bằng VNPAY_SECRET_KEY.
+  </Step>
+</Steps>
+
+## Mô tả API Route cho Claude Code
+
+Khi yêu cầu Claude Code tạo API Route, mô tả đầy đủ **4 thành phần**:
+
+| # | Thành phần | Ví dụ |
+|---|-----------|-------|
+| 1 | **URL và method** | API Route tại `/api/email/enrollment-confirm` chấp nhận POST |
+| 2 | **Input data** | Body: studentId, courseId, startDate |
+| 3 | **Processing steps** | 1) Check auth token → 2) Read Firestore → 3) Send email |
+| 4 | **Return value** | Success: `{ success: true }` · Error: `{ error: '...' }` với HTTP status |
+
+### Ví dụ prompt đầy đủ
+
+```
+Tạo API Route tại /api/email/enrollment-confirm
+
+Phương thức: POST
+Xác thực: Yêu cầu Firebase Auth token (Bearer token trong header)
+
+Input body:
+- studentId: string
+- courseId: string
+
+Quy trình:
+1. Xác minh Firebase token → lấy UID người gọi
+2. Kiểm tra UID có phải admin hoặc giáo viên không
+3. Đọc thông tin học viên từ Firestore
+4. Đọc thông tin khóa học từ Firestore
+5. Kiểm tra học viên đã đăng ký chưa (tránh gửi 2 lần)
+6. Gửi email qua Resend với HTML template
+7. Cập nhật Firestore: confirmationEmailSent = true
+
+Trả về:
+- Thành công: { success: true }
+- Lỗi xác thực: 401 { error: 'Unauthorized' }
+- Học viên không tồn tại: 404 { error: 'Student not found' }
+```
+
+<Tip>
+API Routes không chạy liên tục — chỉ chạy khi có request, sau đó tắt. Trên Vercel: gói miễn phí có 100GB bandwidth, 100K function invocations/tháng — đủ cho ứng dụng vừa và nhỏ.
+</Tip>

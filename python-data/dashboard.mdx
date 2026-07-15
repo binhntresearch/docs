@@ -1,0 +1,142 @@
+---
+title: "Xây dựng Dashboard"
+description: "Tạo dashboard phân tích dữ liệu đẹp mắt với Matplotlib và Streamlit"
+icon: "gauge-high"
+---
+
+Dashboard là cách trực quan nhất để trình bày kết quả phân tích dữ liệu. Bạn sẽ học cách tạo dashboard bằng Matplotlib subplots và Streamlit — framework Python tạo web app đơn giản.
+
+## Dashboard với Matplotlib Subplots
+
+```python
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+fig = plt.figure(figsize=(16, 12))
+fig.suptitle('SALES DASHBOARD — Q1 2026', fontsize=16, fontweight='bold')
+
+# Layout 2x3
+axes = fig.subplots(3, 2)
+
+# 1. Doanh thu theo tháng (line)
+axes[0, 0].plot(months, revenue, marker='o', color='#16A34A')
+axes[0, 0].set_title('Doanh thu theo tháng')
+
+# 2. Top sản phẩm (barh)
+axes[0, 1].barh(top_products.index, top_products.values, color='#3B82F6')
+axes[0, 1].set_title('Top 5 sản phẩm')
+
+# 3. Phân phối giá (hist)
+axes[1, 0].hist(df['price'], bins=20, color='#8B5CF6', edgecolor='white')
+axes[1, 0].set_title('Phân phối giá')
+
+# 4. Doanh thu theo city (bar)
+axes[1, 1].bar(city_rev.index, city_rev.values, color='#F59E0B')
+axes[1, 1].set_title('Doanh thu theo thành phố')
+
+# 5. Pie chart category
+axes[2, 0].pie(cat_rev.values, labels=cat_rev.index, autopct='%1.1f%%')
+axes[2, 0].set_title('Tỷ lệ danh mục')
+
+# 6. KPI cards (text)
+axes[2, 1].text(0.5, 0.7, f'Tổng doanh thu', fontsize=12, ha='center')
+axes[2, 1].text(0.5, 0.5, f'{total:,.0f} VNĐ', fontsize=20, ha='center', fontweight='bold', color='#16A34A')
+axes[2, 1].axis('off')
+
+plt.tight_layout()
+plt.savefig('dashboard.png', dpi=200, bbox_inches='tight')
+plt.show()
+```
+
+## Dashboard với Streamlit
+
+Streamlit cho phép tạo dashboard interactive chỉ bằng Python thuần — không cần HTML/CSS/JS.
+
+### Cài đặt
+
+```bash
+pip install streamlit
+```
+
+### Code mẫu
+
+```python
+# app.py
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+st.set_page_config(layout='wide')
+st.title('📊 Sales Dashboard')
+
+# Đọc dữ liệu
+df = pd.read_csv('sales.csv')
+
+# Sidebar
+st.sidebar.header('Bộ lọc')
+city = st.sidebar.multiselect(
+    'Chọn thành phố',
+    df['city'].unique(),
+    default=df['city'].unique()
+)
+
+df_filtered = df[df['city'].isin(city)]
+
+# KPI Row
+col1, col2, col3, col4 = st.columns(4)
+col1.metric('Tổng doanh thu', f'{df_filtered["revenue"].sum():,.0f} VNĐ')
+col2.metric('Số đơn hàng', f'{df_filtered["order_id"].nunique():,}')
+col3.metric('Giá trị TB', f'{df_filtered["revenue"].mean():,.0f} VNĐ')
+col4.metric('Khách hàng', f'{df_filtered["customer_id"].nunique():,}')
+
+# Charts
+st.divider()
+
+chart_col1, chart_col2 = st.columns(2)
+
+with chart_col1:
+    st.subheader('Doanh thu theo tháng')
+    monthly = df_filtered.groupby(df_filtered['date'].str[:7])['revenue'].sum()
+    st.bar_chart(monthly)
+
+with chart_col2:
+    st.subheader('Top sản phẩm')
+    top = df_filtered.groupby('product')['revenue'].sum().nlargest(10)
+    st.bar_chart(top)
+
+# Table
+st.subheader('Chi tiết đơn hàng')
+st.dataframe(df_filtered.head(100))
+```
+
+### Chạy app
+
+```bash
+streamlit run app.py
+```
+
+Dashboard sẽ mở tại `http://localhost:8501` với giao diện interactive.
+
+## Storytelling với dữ liệu
+
+<Tip>
+Dashboard không chỉ là số liệu — đó là câu chuyện. Sắp xếp dashboard theo flow:
+1. **KPI Summary** — Con số quan trọng nhất ở trên cùng
+2. **Drill-down** — Biểu đồ chi tiết bên dưới
+3. **Filters** — Để người xem tự khám phá
+4. **Insight text** — Ghi chú key findings
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Tạo Matplotlib dashboard 3x2 subplots với 6 biểu đồ khác nhau từ dataset `sales.csv`.
+  </Step>
+  <Step title="Bài 2">
+    Tạo Streamlit dashboard với sidebar filter và 4 KPI cards.
+  </Step>
+  <Step title="Bài 3">
+    Deploy Streamlit app lên Streamlit Cloud (miễn phí).
+  </Step>
+</Steps>

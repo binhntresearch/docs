@@ -1,0 +1,247 @@
+---
+title: "Thu thập dữ liệu từ GraphQL API"
+description: "GraphQL queries — flexible, declarative queries cho modern APIs"
+icon: "diagram-project"
+---
+
+GraphQL cho phép **chỉ lấy data cần** với **1 endpoint duy nhất** — flexible hơn REST.
+
+## Setup
+
+```bash
+pip install gql httpx pandas
+```
+
+## Basic GraphQL Query
+
+```python
+from gql import gql, Client
+from gql.transport.requests import RequestsHTTPTransport
+
+# Setup transport
+transport = RequestsHTTPTransport(
+    url="https://api.github.com/graphql",
+    headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
+    use_json=True
+)
+
+client = Client(transport=transport, fetch_schema_from_transport=True)
+
+# Define query
+query = gql("""
+    query GetUser($login: String!) {
+        user(login: $login) {
+            name
+            login
+            bio
+            avatarUrl
+            followers(first: 5) {
+                nodes {
+                    login
+                    name
+                }
+            }
+            repositories(first: 10, privacy: PUBLIC) {
+                nodes {
+                    name
+                    description
+                    stargazerCount
+                    primaryLanguage { name }
+                }
+            }
+        }
+    }
+""")
+
+# Execute với variables
+result = client.execute(
+    query,
+    variable_values={"login": "octocat"}
+)
+
+user = result["user"]
+print(f"{user['name']} - {user['repositories']['nodes']}")
+```
+
+## Async GraphQL with httpx
+
+```python
+import httpx
+import asyncio
+
+async def graphql_request(client, endpoint, query, variables=None):
+    response = await client.post(
+        endpoint,
+        json={"query": query, "variables": variables or {}}
+    )
+    data = response.json()
+
+    if "errors" in data:
+        raise Exception(data["errors"])
+
+    return data["data"]
+
+async def fetch_multiple_users():
+    async with httpx.AsyncClient() as client:
+        query = """
+            query GetUsers($logins: [String!]!) {
+                users(first: 100) {
+                    nodes {
+                        login
+                        name
+                        followers { totalCount }
+                    }
+                }
+            }
+        """
+
+        tasks = [
+            graphql_request(
+                client,
+                "https://api.github.com/graphql",
+                query
+            )
+            for i in range(10)  # 10 concurrent requests
+        ]
+        results = await asyncio.gather(*tasks)
+        return results
+
+users = asyncio.run(fetch_multiple_users())
+```
+
+## Pagination với GraphQL
+
+```python
+def fetch_all_repos(owner):
+    repos = []
+    has_next_page = True
+    cursor = None
+
+    while has_next_page:
+        query = """
+            query GetRepos($owner: String!, $cursor: String) {
+                repositoryOwner(login: $owner) {
+                    repositories(
+                        first: 50,
+                        after: $cursor,
+                        ownerAffiliations: OWNER
+                    ) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        nodes {
+                            name
+                            stargazerCount
+                            url
+                        }
+                    }
+                }
+            }
+        """
+
+        variables = {"owner": owner, "cursor": cursor}
+        result = client.execute(query, variable_values=variables)
+
+        repo_data = result["repositoryOwner"]["repositories"]
+        repos.extend(repo_data["nodes"])
+
+        page_info = repo_data["pageInfo"]
+        has_next_page = page_info["hasNextPage"]
+        cursor = page_info["endCursor"]
+
+    return repos
+```
+
+## Fragments — Reusable Selections
+
+```python
+query = gql("""
+    fragment UserInfo on User {
+        id
+        login
+        name
+        avatarUrl
+    }
+
+    fragment RepoInfo on Repository {
+        id
+        name
+        description
+        stargazerCount
+        url
+    }
+
+    query GetUserWithRepos {
+        user(login: "octocat") {
+            ...UserInfo
+            repositories(first: 10) {
+                nodes {
+                    ...RepoInfo
+                }
+            }
+        }
+    }
+""")
+```
+
+## Mutations
+
+```python
+# Create issue
+mutation = gql("""
+    mutation CreateIssue($repoId: ID!, $title: String!, $body: String!) {
+        createIssue(input: {
+            repositoryId: $repoId,
+            title: $title,
+            body: $body
+        }) {
+            issue {
+                id
+                number
+                url
+            }
+        }
+    }
+""")
+
+result = client.execute(
+    mutation,
+    variable_values={
+        "repoId": "R_kgDON...",
+        "title": "New issue",
+        "body": "Description"
+    }
+)
+```
+
+## Using Anthropic API with GraphQL-like patterns
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+# Cấu trúc tương tự GraphQL
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    max_tokens=1024,
+    system="Trả lời bằng JSON với schema định sẵn",
+    # "Schema" như GraphQL — chỉ lấy data mong muốn
+    messages=[{
+        "role": "user",
+        "content": """
+            Trả về JSON:
+            {
+              "summary": "string",
+              "keyPoints": ["string"],
+              "sentiment": "positive|negative|neutral"
+            }
+        """
+    }]
+)
+```
+
+<Tip>
+GraphQL tốt cho: flexible schemas, single endpoint, tránh over/under-fetching. REST tốt cho: simple CRUD, public APIs, caching. Choose based on use case.
+</Tip>

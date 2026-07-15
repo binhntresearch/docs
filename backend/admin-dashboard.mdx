@@ -1,0 +1,187 @@
+---
+title: "Admin Dashboard Backend"
+description: "Xây dựng admin panel với authentication, RBAC, CRUD operations"
+icon: "user-gear"
+---
+
+Admin Dashboard yêu cầu backend **bảo mật cao** với **RBAC** — mỗi role chỉ thấy và thực hiện được actions cho phép.
+
+## Roles & Permissions
+
+```python
+from enum import Enum
+
+class Role(str, Enum):
+    ADMIN = "admin"               # Full access
+    SUPER_ADMIN = "super_admin"   # Manage admins
+    MODERATOR = "moderator"       # Content moderation
+    SUPPORT = "support"           # User support only
+    USER = "user"                 # Regular user
+
+PERMISSIONS = {
+    Role.SUPER_ADMIN: ["*"],
+    Role.ADMIN: [
+        "users:read", "users:write", "users:delete",
+        "posts:read", "posts:write", "posts:delete",
+        "settings:read", "settings:write"
+    ],
+    Role.MODERATOR: [
+        "posts:read", "posts:write",  # Cannot delete
+        "comments:read", "comments:write"
+    ],
+    Role.SUPPORT: [
+        "users:read",  # Read only
+        "tickets:read", "tickets:write"
+    ],
+    Role.USER: [
+        "posts:read"
+    ]
+}
+```
+
+## Admin Routes
+
+```python
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
+import jwt
+
+admin_router = APIRouter(prefix="/admin", tags=["Admin"])
+
+def require_permission(permission: str):
+    def check(current_user: User = Depends(get_current_user)):
+        if permission not in current_user.permissions and "*" not in current_user.permissions:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return current_user
+    return check
+
+
+# User management
+@admin_router.get("/users", response_model=List[UserResponse])
+async def list_all_users(
+    skip: int = 0,
+    limit: int = 50,
+    search: str | None = None,
+    role: Role | None = None,
+    user: User = Depends(require_permission("users:read"))
+):
+    query = db.query(AdminUser)
+    if search:
+        query = query.filter(AdminUser.email.contains(search))
+    if role:
+        query = query.filter(AdminUser.role == role)
+    return query.offset(skip).limit(limit).all()
+
+
+@admin_router.put("/users/{user_id}/role")
+async def update_user_role(
+    user_id: int,
+    new_role: Role,
+    user: User = Depends(require_permission("users:write"))
+):
+    target = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    # Don't allow super admin role change unless super admin
+    if new_role == Role.SUPER_ADMIN and user.role != Role.SUPER_ADMIN:
+        raise HTTPException(403, "Cannot assign super admin role")
+
+    target.role = new_role
+    db.commit()
+    db.commit()
+
+    # Audit log
+    log_action(user_id=user.id, action="update_role",
+               target_id=user_id, details={"new_role": new_role})
+
+    return {"updated": True}
+
+
+@admin_router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    user: User = Depends(require_permission("users:delete"))
+):
+    if user_id == user.id:
+        raise HTTPException(400, "Cannot delete yourself")
+
+    target = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    db.delete(target)
+    db.commit()
+
+    log_action(user_id=user.id, action="delete_user", target_id=user_id)
+    return {"deleted": True}
+```
+
+## Dashboard Statistics
+
+```python
+@admin_router.get("/stats")
+async def dashboard_stats(user: User = Depends(require_permission("settings:read"))):
+    return {
+        "users": {
+            "total": db.query(AdminUser).count(),
+            "active_today": db.query(AdminUser).filter(
+                AdminUser.last_login_at > datetime.utcnow() - timedelta(days=1)
+            ).count(),
+            "new_this_week": db.query(AdminUser).filter(
+                AdminUser.created_at > datetime.utcnow() - timedelta(days=7)
+            ).count()
+        },
+        "content": {
+            "posts": db.query(Post).count(),
+            "comments": db.query(Comment).count(),
+            "pending_moderation": db.query(Post).filter(
+                Post.status == "pending"
+            ).count()
+        },
+        "revenue": {
+            "total": db.query(Payment).with_entities(
+                func.sum(Payment.amount)
+            ).scalar() or 0,
+            "this_month": ...
+        }
+    }
+```
+
+## Audit Logging
+
+```python
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True)
+    actor_id = Column(Integer, ForeignKey("admin_users.id"))
+    action = Column(String(50))      # "user.create", "role.update"
+    target_type = Column(String(50))  # "user", "post"
+    target_id = Column(Integer)
+    details = Column(JSON)
+    ip_address = Column(String(45))
+    user_agent = Column(String(255))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+def log_action(actor_id: int, action: str, **kwargs):
+    db.add(AuditLog(actor_id=actor_id, action=action, **kwargs))
+    db.commit()
+```
+
+## Feature Flags
+
+```python
+FEATURE_FLAGS = {
+    "new_dashboard": True,
+    "beta_search": False,
+    "experimental_charts": True
+}
+
+@admin_router.get("/features")
+async def get_features(user: User = Depends(get_current_user)):
+    flags = FEATURE_FLAGS.copy()
+    if user.role in [Role.ADMIN, Role.SUPER_ADMIN]:
+        flags["admin_beta"] = True
+    return flags
+```

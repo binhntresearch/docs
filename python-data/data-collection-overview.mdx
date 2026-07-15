@@ -1,0 +1,80 @@
+---
+title: "Tổng quan thu thập dữ liệu"
+description: "Data sources, ETL pipeline và best practices cho data collection"
+icon: "database"
+---
+
+Trước khi phân tích data, cần **thu thập dữ liệu** từ nhiều nguồn khác nhau — mỗi nguồn có workflow riêng.
+
+## Data Sources
+
+<Tip>
+Mỗi Data Source có một trang chi tiết dưới đây. Click để xem cách cài đặt và lấy data.
+</Tip>
+
+<CardGroup>
+  <Card title="REST APIs" icon="cloud" href="/python-data/data-collection-rest">
+    Thu thập data từ third-party services (GitHub, Stripe, OpenWeather...)
+  </Card>
+  <Card title="GraphQL APIs" icon="diagram-project" href="/python-data/data-collection-graphql">
+    Modern APIs với flexible queries, dùng GraphQL schema
+  </Card>
+  <Card title="SQL Databases" icon="database" href="/python-data/data-collection-sql">
+    Từ Postgres, MySQL, SQLite, MS SQL Server
+  </Card>
+  <Card title="NoSQL Databases" icon="server" href="/python-data/data-collection-nosql">
+    MongoDB, Redis, Cassandra, Elasticsearch
+  </Card>
+  <Card title="Files" icon="file-lines" href="/python-data/data-collection-files">
+    CSV, Excel, JSON, Parquet, Avro files
+  </Card>
+  <Card title="Web Scraping" icon="globe" href="/python-data/web-scraping">
+    HTML pages, dynamic content, JS-rendered sites
+  </Card>
+  <Card title="Cloud Storage" icon="cloud" href="/python-data/cloud-storage">
+    AWS S3, Google Cloud Storage, Azure Blob
+  </Card>
+  <Card title="Streaming Data" icon="stream" href="/python-data/data-collection-streaming">
+    Real-time với Kafka, RabbitMQ, Pub/Sub
+  </Card>
+</CardGroup>
+
+## Cấu trúc Data Sources
+
+| Source | Tool | Trang |
+|---|---|---|
+| **REST APIs** | requests, httpx | [Chi tiết](/python-data/data-collection-rest) |
+| **GraphQL** | gql, httpx | [Chi tiết](/python-data/data-collection-graphql) |
+| **SQL** | SQLAlchemy, psycopg2 | [Chi tiết](/python-data/data-collection-sql) |
+| **NoSQL** | pymongo, redis | [Chi tiết](/python-data/data-collection-nosql) |
+| **Files** | pandas, openpyxl, pyarrow | [Chi tiết](/python-data/data-collection-files) |
+| **Web** | BeautifulSoup, Scrapy, Playwright | [Chi tiết](/python-data/web-scraping) |
+| **Cloud** | boto3, gcsfs, azure-storage | [Chi tiết](/python-data/cloud-storage) |
+| **Streaming** | kafka-python, redis-py | [Chi tiết](/python-data/data-collection-streaming) |
+
+## Common Workflow
+
+```
+Data Source
+    │
+    ├── Connect (auth, credentials)
+    │
+    ├── Extract (query, request, stream)
+    │
+    ├── Validate (schema, types, ranges)
+    │
+    ├── Transform (clean, enrich, aggregate)
+    │
+    └── Load (CSV, DB, DataFrame, Parquet)
+```
+
+## Best Practices
+
+<Check>
+- **Log metadata:** Source, fetch time, schema version
+- **Version data:** DVC, LakeFS cho reproducibility
+- **Handle rate limits:** Retry, backoff, caching
+- **Secure credentials:** Environment variables, never in code
+- **Validate early:** Fail fast on bad data
+- **Document schemas:** JSON Schema, OpenAPI specs
+</Check>

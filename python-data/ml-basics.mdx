@@ -1,0 +1,158 @@
+---
+title: "Machine Learning cơ bản"
+description: "Giới thiệu ML với Scikit-learn — Regression, Classification, Clustering"
+icon: "brain"
+---
+
+Machine Learning cho phép máy tính **học từ dữ liệu** để dự đoán hoặc phân loại — mà không cần viết rule thủ công.
+
+## Các loại ML chính
+
+<CardGroup>
+  <Card title="Supervised Learning" icon="tag">
+    Dữ liệu có label: dự đoán số (Regression), phân loại (Classification)
+  </Card>
+  <Card title="Unsupervised Learning" icon="network-wired">
+    Dữ liệu không label: tìm nhóm (Clustering), giảm chiều (Dimensionality Reduction)
+  </Card>
+  <Card title="Reinforcement Learning" icon="robot">
+    Agent học qua trial-and-error (game, robotics)
+  </Card>
+</CardGroup>
+
+## Quy trình ML cơ bản
+
+<Steps>
+  <Step title="Thu thập & Chuẩn bị dữ liệu">
+    Đọc CSV, làm sạch, xử lý missing, encode categorical
+  </Step>
+  <Step title="Split train/test">
+    Chia dữ liệu thành tập huấn luyện (80%) và kiểm tra (20%)
+  </Step>
+  <Step title="Chọn model">
+    Linear Regression (dự đoán số) · Random Forest (phân loại) · K-Means (clustering)
+  </Step>
+  <Step title="Huấn luyện (fit)">
+    `model.fit(X_train, y_train)`
+  </Step>
+  <Step title="Đánh giá (evaluate)">
+    Kiểm tra trên test set: accuracy, MAE, RMSE, F1-score
+  </Step>
+  <Step title="Tuning & Deploy">
+    Tối ưu hyperparameters, deploy mô hình
+  </Step>
+</Steps>
+
+## Regression — Dự đoán số
+
+```python
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Dữ liệu
+X = df[['age', 'experience']]  # Features
+y = df['salary']                # Target
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Predict
+y_pred = model.predict(X_test)
+
+# Evaluate
+print(f"R² Score: {r2_score(y_test, y_pred):.4f}")
+print(f"RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):,.0f}")
+```
+
+## Classification — Phân loại
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+# Dữ liệu iris
+from sklearn.datasets import load_iris
+iris = load_iris()
+X, y = iris.data, iris.target
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train
+clf = RandomForestClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+
+# Predict
+y_pred = clf.predict(X_test)
+
+# Evaluate
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print(classification_report(y_test, y_pred))
+```
+
+## Clustering — Tìm nhóm
+
+```python
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+
+# Chuẩn hóa dữ liệu
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# K-Means với 3 nhóm
+kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+df['cluster'] = kmeans.fit_predict(X_scaled)
+
+# Visualize
+sns.scatterplot(data=df, x='feature1', y='feature2', hue='cluster', palette='viridis')
+plt.title('K-Means Clustering')
+plt.show()
+```
+
+## Feature Engineering
+
+```python
+# Encoding categorical
+df = pd.get_dummies(df, columns=['city', 'gender'])
+
+# Scaling
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+scaler = StandardScaler()
+df[['age', 'salary']] = scaler.fit_transform(df[['age', 'salary']])
+
+# Polynomial features
+from sklearn.preprocessing import PolynomialFeatures
+poly = PolynomialFeatures(degree=2)
+X_poly = poly.fit_transform(X)
+```
+
+## Tips khi làm ML
+
+<Warning>
+- **Overfitting:** Model quá tốt trên train nhưng xấu trên test → dùng regularization, tăng dữ liệu
+- **Underfitting:** Model quá đơn giản → tăng complexity, thêm features
+- **Data leakage:** Thông tin test bị leak vào train → luôn split TRƯỚC khi preprocess
+</Warning>
+
+<Tip>
+Dùng `Pipeline` của Scikit-learn để tránh data leakage và giữ code gọn gàng.
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Dự đoán giá nhà bằng Linear Regression — train/test split, evaluate RMSE.
+  </Step>
+  <Step title="Bài 2">
+    Phân loại khách hàng rời bỏ (churn) bằng Random Forest — đánh giá accuracy và F1.
+  </Step>
+  <Step title="Bài 3">
+    Áp dụng K-Means cho dataset Mall Customers — tìm segments khách hàng.
+  </Step>
+</Steps>

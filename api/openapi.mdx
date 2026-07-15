@@ -1,0 +1,123 @@
+---
+title: "API Documentation"
+description: "OpenAPI, Swagger — tự động generate documentation với Claude Code"
+icon: "file-code"
+---
+
+API documentation tự động với OpenAPI/Swagger giúp frontend developer biết cách dùng API mà không cần hỏi backend.
+
+## FastAPI — Auto OpenAPI
+
+```python
+# FastAPI tự generate OpenAPI
+app = FastAPI(
+    title="My API",
+    version="1.0.0",
+    docs_url="/docs",         # Swagger UI
+    redoc_url="/redoc",       # ReDoc
+    openapi_url="/openapi.json"
+)
+
+# Visit: http://localhost:8000/docs
+```
+
+## NestJS — Swagger Setup
+
+```
+Setup Swagger cho NestJS:
+- Install @nestjs/swagger
+- Configure DocumentBuilder với version, tags, bearer auth
+- Auto generate từ decorators trên controller
+- Include DTOs schemas, examples, descriptions
+- Custom response models
+- API grouping theo tags
+- Enable tại /api/docs
+```
+
+```typescript
+// main.ts
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+const app = await NestFactory.create(AppModule);
+
+const config = new DocumentBuilder()
+  .setTitle('Task Management API')
+  .setDescription('REST API for managing tasks and projects')
+  .setVersion('1.0')
+  .addBearerAuth()
+  .addTag('Auth', 'Authentication endpoints')
+  .addTag('Users', 'User management')
+  .addTag('Tasks', 'Task CRUD operations')
+  .build();
+
+const document = SwaggerModule.createDocument(app, config);
+SwaggerModule.setup('api/docs', app, document);
+
+await app.listen(3000);
+```
+
+## OpenAPI YAML Spec
+
+```
+Tạo OpenAPI 3.1 spec cho Task Management API:
+
+Paths:
+- POST /api/v1/auth/register (Auth)
+- POST /api/v1/auth/login (Auth)
+- GET /api/v1/users (Users, Admin)
+- GET /api/v1/users/:id (Users)
+- GET /api/v1/tasks (Tasks, Pagination)
+- POST /api/v1/tasks (Tasks)
+- PUT /api/v1/tasks/:id (Tasks)
+- DELETE /api/v1/tasks/:id (Tasks)
+
+Include:
+- Authentication schemas (Bearer JWT)
+- Request/Response schemas (Component definitions)
+- Error responses (400, 401, 403, 404, 422, 500)
+- Pagination schemas
+- Examples for each endpoint
+```
+
+## Auto-generate from Code
+
+```python
+# FastAPI: Tự generate từ pydantic models
+from pydantic import BaseModel, Field
+
+class TaskCreate(BaseModel):
+    """Create a new task"""
+    title: str = Field(..., min_length=1, description="Task title")
+    description: str | None = Field(None, description="Task description")
+    priority: str = Field("medium", description="low, medium, high")
+
+# FastAPI tự generate schema từ Pydantic model
+@app.post("/tasks", response_model=TaskResponse, status_code=201)
+async def create_task(data: TaskCreate):
+    """Create a new task"""
+    pass
+```
+
+## API Documentation Best Practices
+
+<Check>
+- **Examples:** Include example request/response cho mỗi endpoint
+- **Error docs:** Document all error codes và messages
+- **Auth guide:** Clear instructions cho API key / OAuth setup
+- **Rate limits:** Document limits và headers (X-RateLimit-*)
+- **Versioning:** Track changes theo version
+- **SDK:** Auto-generate client libraries từ OpenAPI spec
+</Check>
+
+## Generate Client SDK
+
+```bash
+# Generate TypeScript client
+npx @openapitools/openapi-generator-cli generate \
+  -i openapi.yaml -g typescript-fetch -o ./client
+
+# Generate Python client
+openapi-generator-cli generate \
+  -i openapi.yaml -g python -o ./python_client
+```

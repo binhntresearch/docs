@@ -1,0 +1,115 @@
+---
+title: "Firebase"
+description: "Thực hành tích hợp Firebase: Firestore CRUD, Authentication, Storage, Security Rules"
+icon: "fire"
+---
+
+Bài thực hành giúp bạn làm chủ Firebase — xây dựng một ứng dụng ghi chú (notes) cá nhân với đầy đủ CRUD, authentication và security rules.
+
+## Mục tiêu
+
+<Check>Tích hợp Firebase SDK vào Next.js · Firestore CRUD với realtime · Đăng nhập Google · Storage cho ảnh đính kèm · Security Rules bảo vệ dữ liệu</Check>
+
+## Quy trình thực hành
+
+<Steps>
+  <Step title="Tạo Firebase project">
+    Vào console.firebase.google.com → Add project → Lấy firebaseConfig.
+  </Step>
+  <Step title="Khởi tạo dự án Next.js">
+    Yêu cầu Claude Code tạo Next.js 15 + Firebase SDK + tailwind.
+  </Step>
+  <Step title="Cấu hình kết nối">
+    Tạo `lib/firebase.ts`, lưu config vào `.env.local`.
+  </Step>
+  <Step title="CRUD Notes với Firestore">
+    - Tạo note mới (form: title, content, tags)
+    - Hiển thị danh sách notes (realtime)
+    - Sửa/Xóa note
+  </Step>
+  <Step title="Đăng nhập Google">
+    Trang `/login` với nút "Sign in with Google".
+  </Step>
+  <Step title="Upload ảnh đính kèm">
+    Mỗi note có thể có 1 ảnh đính kèm, lưu trên Cloud Storage.
+  </Step>
+  <Step title="Viết Security Rules">
+    User chỉ đọc/ghi được notes của chính mình.
+  </Step>
+</Steps>
+
+## Cấu trúc dữ liệu
+
+```
+📁 Firestore
+└── notes/ (collection)
+    ├── note_001/
+    │   ├── title: "Ý tưởng dự án"
+    │   ├── content: "Xây app quản lý..."
+    │   ├── tags: ["work", "idea"]
+    │   ├── imageUrl: "https://..."
+    │   ├── userId: "xK9mNp2Q..."
+    │   ├── createdAt: Timestamp
+    │   └── updatedAt: Timestamp
+    └── note_002/
+```
+
+## Security Rules mẫu
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /notes/{noteId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.userId;
+    }
+  }
+}
+```
+
+## Prompt mẫu cho từng bước
+
+### Bước 1: Setup
+
+```
+Tạo Next.js 15 với TypeScript, Tailwind CSS 4.
+Tạo file lib/firebase.ts để kết nối Firebase.
+Firebase config của tôi: [dán config]
+```
+
+### Bước 2: Authentication
+
+```
+Tạo trang /login với nút 'Sign in with Google'.
+Sau khi đăng nhập → lưu user vào Firestore collection 'users'
+(nếu chưa có) → redirect về /dashboard.
+```
+
+### Bước 3: CRUD notes
+
+```
+Tạo trang /dashboard/notes hiển thị danh sách notes cá nhân.
+Mỗi note hiển thị: title, content ngắn, tags, ngày tạo.
+Có nút '+ New Note' mở modal form.
+Modal form có: title, content (textarea), tags (input),
+upload 1 ảnh đính kèm.
+Lưu xong: đóng modal, hiển thị ngay trong danh sách (realtime).
+```
+
+## Kiến thức cốt lõi
+
+- **Firebase SDK initialization** trong Next.js
+- **Firestore CRUD + realtime listeners**
+- **Authentication providers** (Google, Email)
+- **Cloud Storage** upload/download
+- **Security Rules** — bảo mật tầng server
+
+<Tip>
+Thử deploy lên Vercel sau khi hoàn thành — chỉ cần thêm biến môi trường `NEXT_PUBLIC_FIREBASE_*` vào Vercel dashboard.
+</Tip>

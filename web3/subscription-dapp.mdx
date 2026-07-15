@@ -1,0 +1,166 @@
+---
+title: "Subscription DApp"
+description: "Xây dựng subscription on-chain — thanh toán định kỳ bằng crypto"
+icon: "credit-card"
+---
+
+Subscription DApp cho phép user subscribe và nhận nội dung premium — thanh toán định kỳ bằng crypto, transparent và không cần trung gian.
+
+## Smart Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+contract SubscriptionManager {
+    struct Plan {
+        address merchant;
+        uint256 price;       // USD price (scaled by 1e6)
+        uint256 interval;    // seconds between payments
+        bool active;
+    }
+
+    struct Subscription {
+        address subscriber;
+        uint256 planId;
+        uint256 nextPayment;
+        uint256 paidUntil;
+        bool active;
+    }
+
+    IERC20 public paymentToken; // USDC, DAI, etc.
+    mapping(uint256 => Plan) public plans;
+    mapping(address => Subscription) public subscriptions;
+    uint256 private _planIdCounter;
+
+    event PlanCreated(uint256 planId, address merchant, uint256 price);
+    event Subscribed(address subscriber, uint256 planId);
+    event PaymentReceived(address subscriber, uint256 planId, uint256 amount);
+
+    function createPlan(uint256 price, uint256 interval) external {
+        require(interval > 0, "Interval > 0");
+        uint256 id = _planIdCounter++;
+        plans[id] = Plan(msg.sender, price, interval, true);
+        emit PlanCreated(id, msg.sender, price);
+    }
+
+    function subscribe(uint256 planId) external {
+        Plan storage plan = plans[planId];
+        require(plan.active, "Plan not active");
+
+        // Approve & pay first period
+        paymentToken.transferFrom(msg.sender, plan.merchant, plan.price);
+
+        subscriptions[msg.sender] = Subscription(
+            msg.sender, planId,
+            block.timestamp + plan.interval,
+            block.timestamp + plan.interval,
+            true
+        );
+
+        emit Subscribed(msg.sender, planId);
+    }
+
+    function payNext() external {
+        Subscription storage sub = subscriptions[msg.sender];
+        require(sub.active, "Not subscribed");
+        require(block.timestamp >= sub.nextPayment, "Too early");
+
+        Plan storage plan = plans[sub.planId];
+        paymentToken.transferFrom(msg.sender, plan.merchant, plan.price);
+
+        sub.nextPayment += plan.interval;
+        sub.paidUntil = sub.nextPayment;
+
+        emit PaymentReceived(msg.sender, sub.planId, plan.price);
+    }
+
+    function cancelSubscription() external {
+        subscriptions[msg.sender].active = false;
+    }
+}
+```
+
+## Frontend — Subscription UI
+
+```tsx
+import { useReadContract, useWriteContract } from 'wagmi';
+
+export function SubscriptionCard({ planId, merchant, price }) {
+  const { data: plan } = useReadContract({
+    address: subscriptionManagerAddress,
+    abi: subscriptionAbi,
+    functionName: 'plans',
+    args: [planId]
+  });
+
+  const { writeContract: subscribe } = useWriteContract();
+
+  async function handleSubscribe() {
+    // Approve first
+    await writeContract({
+      address: usdcAddress,
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [subscriptionManagerAddress, price]
+    });
+
+    // Then subscribe
+    await writeContract({
+      address: subscriptionManagerAddress,
+      abi: subscriptionAbi,
+      functionName: 'subscribe',
+      args: [planId]
+    });
+  }
+
+  return (
+    <div className="card">
+      <h3>{merchant.name}</h3>
+      <p>${(Number(price) / 1e6).toFixed(2)}/month</p>
+      <button onClick={handleSubscribe}>Subscribe</button>
+    </div>
+  );
+}
+```
+
+## Auto-renewal Pattern
+
+<Warning>
+Subscription không thể tự động charge user (cần signature mới mỗi lần). Giải pháp:
+
+1. **EIP-7715 / Session Keys:** Cho phép DApp auto-pay trong subscription window
+2. **Account Abstraction:** Smart wallet với logic auto-pay
+3. **Streaming payments:** Trả tiền theo giây (không cần renew)
+</Warning>
+
+## Streaming Payment với Superfluid
+
+```solidity
+// Superfluid - trả tiền theo giây
+import "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
+
+contract StreamingSubscription {
+    function createFlow(address merchant, int96 flowRate) external {
+        // Trả tiền liên tục theo giây
+        // flowRate = 100 USDC/month = 100/2592000 per second
+        superfluid.cfaV1.c.createFlow(
+            usdcx,
+            merchant,
+            flowRate,
+            "0x"
+        );
+    }
+
+    function stopFlow(address merchant) external {
+        // Dừng stream — user ngừng sub
+        superfluid.cfaV1.c.deleteFlow(usdcx, msg.sender, merchant, "0x");
+    }
+}
+```
+
+<Tip>
+Streaming payment giải quyết triệt để vấn đề subscription renewal — user thanh toán theo giây, dừng stream bất cứ lúc nào. Superfluid là protocol leader trong lĩnh vực này.
+</Tip>

@@ -1,0 +1,368 @@
+---
+title: "Bảo mật Web3"
+description: "Bảo mật DApps — wallet security, transaction signing, MEV protection, approval management"
+icon: "shield-halved"
+---
+
+Web3 frontend cần bảo vệ **user funds** — connect wallet, sign transactions, manage approvals. Một bug = mất tiền user.
+
+## Các mối đe dọa chính
+
+| Mối đe dọa | Mô tả | Tác động |
+|---|---|---|
+| **Phishing** | Fake DApp, malicious signatures | Wallet drained |
+| **Approval abuse** | Unlimited token approvals | Tokens stolen |
+| **Malicious transactions** | Hidden contract calls | State manipulation |
+| **Private key theft** | Local storage, browser extension | Total loss |
+| **MEV attacks** | Front-running, sandwich | Trade losses |
+| **Cross-site scripting** | XSS in DApp | Wallet theft |
+| **DNS hijacking** | Wrong domain | Phishing |
+
+## Wallet Connection Best Practices
+
+```tsx
+// ✅ CORRECT - Validate connection request
+import { useAccount, useDisconnect } from 'wagmi';
+
+function ConnectWallet() {
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+
+  // Verify contract address before sending transactions
+  const verifyContract = (addr: string): boolean => {
+    const EXPECTED = '0x1234...abcd';
+    return addr.toLowerCase() === EXPECTED.toLowerCase();
+  };
+
+  const handleTransaction = async () => {
+    if (!isConnected) {
+      alert('Please connect wallet first');
+      return;
+    }
+
+    if (!verifyContract(CONTRACT_ADDRESS)) {
+      throw new Error('Invalid contract address');
+    }
+
+    // Display clear transaction details before signing
+    showTransactionPreview({
+      contract: CONTRACT_ADDRESS,
+      method: 'swap',
+      amount: inputAmount,
+      slippage: '0.5%'
+    });
+  };
+
+  return (
+    <div>
+      {isConnected ? (
+        <>
+          <span>{address.slice(0, 6)}...{address.slice(-4)}</span>
+          <button onClick={disconnect}>Disconnect</button>
+        </>
+      ) : (
+        <w3m-button />
+      )}
+    </div>
+  );
+}
+```
+
+## Token Approvals — Biggest Attack Surface
+
+<Warning>
+**80% DeFi hacks liên quan đến token approvals!** Default unlimited approval là rủi ro lớn nhất.
+</Warning>
+
+```solidity
+// ❌ BAD - unlimited approval
+IERC20(token).approve(spender, type(uint256).max);
+
+// ✅ GOOD - exact amount
+IERC20(token).approve(spender, amount);
+
+// ✅ BETTER - use permit (EIP-2612)
+function swapWithPermit(
+    uint256 amount,
+    uint256 deadline,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+) external {
+    // No approve needed, single transaction
+    IERC20Permit(token).permit(msg.sender, address(this), amount, deadline, v, r, s);
+    // ... swap logic
+}
+```
+
+### Manage Approvals với wagmi
+
+```tsx
+import { useAccount, useWriteContract } from 'wagmi';
+
+function TokenApproval() {
+  const { address } = useAccount();
+  const { writeContract } = useWriteContract();
+
+  // ❌ Avoid - unlimited approval
+  const approveUnlimited = () => {
+    writeContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [spenderAddress, BigInt(2) ** BigInt(256) - BigInt(1)]
+    });
+  };
+
+  // ✅ GOOD - exact amount only
+  const approveExact = (amount: bigint) => {
+    writeContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [spenderAddress, amount]
+    });
+  };
+
+  // ✅ BEST - revoke after use
+  const revokeApproval = () => {
+    writeContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [spenderAddress, 0n]  // 0 = revoke
+    });
+  };
+}
+```
+
+## Transaction Preview
+
+```tsx
+function TransactionModal({ txData, onConfirm, onCancel }) {
+  return (
+    <Modal>
+      <h3>⚠️ Confirm Transaction</h3>
+
+      {/* Display ALL transaction details clearly */}
+      <div className="tx-details">
+        <Row label="Action">{txData.action}</Row>
+        <Row label="Contract">
+          <code>{txData.contract}</code>
+        </Row>
+        <Row label="From">
+          <AddressText address={txData.from} />
+        </Row>
+        <Row label="To">
+          <AddressText address={txData.to} />
+        </Row>
+        <Row label="Value">{txData.value} ETH</Row>
+        <Row label="Gas estimate">{txData.gasEstimate} ETH</Row>
+        <Row label="Function">
+          <code>{txData.functionName}</code>
+        </Row>
+        <Row label="Arguments">
+          <pre>{JSON.stringify(txData.args, null, 2)}</pre>
+        </Row>
+
+        {/* ⚠️ WARN for high-risk operations */}
+        {txData.method === 'setApprovalForAll' && (
+          <Alert severity="high">
+            ⚠️ This grants unlimited access to your NFTs!
+            Make sure you trust this contract.
+          </Alert>
+        )}
+      </div>
+
+      <button onClick={onConfirm}>Confirm in Wallet</button>
+      <button onClick={onCancel}>Cancel</button>
+    </Modal>
+  );
+}
+```
+
+## XSS Prevention
+
+```tsx
+// ❌ DANGEROUS - rendering untrusted content
+<div dangerouslySetInnerHTML={{ __html: userInput }} />
+
+// ✅ SAFE - sanitize with DOMPurify
+import DOMPurify from 'dompurify';
+
+function SafeComment({ content }) {
+  const clean = DOMPurify.sanitize(content);
+  return <div dangerouslySetInnerHTML={{ __html: clean }} />;
+}
+
+// ✅ BETTER - use markdown library that handles XSS
+import ReactMarkdown from 'react-markdown';
+
+function MarkdownComment({ content }) {
+  return (
+    <ReactMarkdown
+      skipHtml
+      components={{
+        // Custom component for links - force noopener
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {children}
+          </a>
+        )
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+```
+
+## Phishing Protection
+
+```tsx
+function useDomainVerification() {
+  const EXPECTED = 'app.uniswap.org';
+  const current = window.location.hostname;
+
+  // ⚠️ Always verify you're on the real domain
+  const isValid = current === EXPECTED ||
+    current.endsWith('.uniswap.org');
+
+  return isValid;
+}
+
+function App() {
+  const valid = useDomainVerification();
+
+  if (!valid) {
+    return (
+      <ErrorPage>
+        ⚠️ PHISHING WARNING
+        You're on "{window.location.hostname}" but expected "{EXPECTED}".
+        Please verify the URL in your browser address bar.
+      </ErrorPage>
+    );
+  }
+
+  return <MainApp />;
+}
+```
+
+## CSRF Protection for Signatures
+
+```tsx
+// ❌ VULNERABLE - signature can be replayed
+async function signMessage(message: string) {
+  const signature = await signer.signMessage(message);
+  return signature;  // Attacker can replay on different action!
+}
+
+// ✅ SAFE - include nonce + domain + version
+async function safeSignMessage(action: string) {
+  const message = [
+    'MyDApp Auth',
+    'Version: 1',
+    `Domain: ${window.location.host}`,
+    `Action: ${action}`,
+    `Nonce: ${nonce}`,        // Unique per request
+    `Timestamp: ${Date.now()}` // Expiry check
+  ].join('\n');
+
+  const signature = await signer.signMessage(message);
+  return { signature, message };
+}
+```
+
+## MEV Protection
+
+```tsx
+// Use Flashbots / private mempool to avoid front-running
+import { FlashbotsBundleProvider } from '@flashbots/ethers-provider-bundle';
+
+async function executeSwapPrivate(router, params, signer) {
+  const flashbots = await FlashbotsProvider.create(
+    provider,
+    signer
+  );
+
+  const txBundle = [
+    {
+      transaction: {
+        to: router.address,
+        data: router.interface.encodeFunctionData('swapExactTokensForETH', params),
+        gasLimit: '300000',
+        chainId: 1,
+        maxFeePerGas: ...,
+        maxPriorityFeePerGas: ...,
+        type: 2
+      },
+      signer
+    }
+  ];
+
+  const bundleReceipt = await flashbots.sendBundle(txBundle);
+  return bundleReceipt;
+}
+```
+
+## Storage Security
+
+```tsx
+// ❌ BAD - Store sensitive in localStorage
+localStorage.setItem('private_key', userPrivateKey);
+
+// ✅ GOOD - Use sessionStorage cho non-sensitive
+sessionStorage.setItem('last_tx_hash', hash);
+
+// ✅ FOR WALLET - Use wallet providers, never store keys
+import { useWalletClient } from 'wagmi';
+
+function Sign() {
+  const { data: walletClient } = useWalletClient();
+  // Wallet (MetaMask) handles keys - DApp just requests signature
+  const signature = await walletClient.signMessage({ message: 'Hello' });
+}
+```
+
+## Frontend Security Checklist
+
+<Check>
+- [ ] No private keys stored in browser
+- [ ] All token approvals use exact amounts (not unlimited)
+- [ ] Transaction details displayed before signing
+- [ ] Contract addresses verified (whitelist known addresses)
+- [ ] Domain verification on app load
+- [ ] CSP headers set (no inline scripts)
+- [ ] Subresource Integrity (SRI) for external scripts
+- [ ] HTTPS enforced (HSTS headers)
+- [ ] User-Agent check (block outdated browsers)
+- [ ] CSP `frame-ancestors 'none'` (anti-clickjacking)
+- [ ] Security headers: X-Content-Type-Options, X-Frame-Options
+- [ ] MEV protection for high-value transactions
+</Check>
+
+## Smart Contract Integration Safety
+
+```tsx
+// Before any contract interaction, validate
+async function safeContractCall(contractAddress, abi, functionName, args) {
+  // 1. Check contract is verified on Etherscan
+  const verified = await checkEtherscanVerification(contractAddress);
+  if (!verified) {
+    throw new Error('Contract not verified on Etherscan');
+  }
+
+  // 2. Check function signature matches expected
+  const expectedSig = 'swapExactTokensForETH(uint256,uint256,address[],address,uint256)';
+  if (getFunctionSelector(abi, functionName) !== expectedSig) {
+    throw new Error('Function signature mismatch');
+  }
+
+  // 3. Use multicall for read operations (save RPC calls)
+  const multicallResult = await multicall.call([
+    { address: contractAddress, abi, functionName, args }
+  ]);
+
+  return multicallResult;
+}
+```

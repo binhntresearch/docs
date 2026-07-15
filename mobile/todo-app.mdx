@@ -1,0 +1,197 @@
+---
+title: "Dự án Todo App"
+description: "Xây dựng Todo app hoàn chỉnh — CRUD, categories, search, local storage"
+icon: "check"
+---
+
+Dự án thực chiến đầu tiên — Todo App với Expo + TypeScript, đầy đủ CRUD, categories, search, và AsyncStorage cho offline support.
+
+## Features
+
+<Check>
+- ✅ CRUD operations (Create, Read, Update, Delete)
+- ✅ Categories (Work, Personal, Shopping, Other)
+- ✅ Priority levels (Low, Medium, High)
+- ✅ Search & filter
+- ✅ Swipe to delete
+- ✅ AsyncStorage (offline persistence)
+- ✅ Dark mode
+</Check>
+
+## Screens
+
+```
+Splash Screen → Auth Screen (optional)
+    ↓
+Main Screen (Tabs)
+├── Home (task list + search)
+├── Add Task (form)
+└── Settings (dark mode toggle)
+```
+
+## Task Model
+
+```dart
+// models/task.dart
+class Task {
+  final String id;
+  final String title;
+  final String description;
+  final String category;
+  final String priority;  // 'low', 'medium', 'high'
+  final bool isCompleted;
+  final DateTime createdAt;
+
+  Task({
+    required this.id,
+    required this.title,
+    this.description = '',
+    this.category = 'other',
+    this.priority = 'medium',
+    this.isCompleted = false,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+    'id': id, 'title': title, 'description': description,
+    'category': category, 'priority': priority,
+    'isCompleted': isCompleted, 'createdAt': createdAt.toIso8601String()
+  };
+
+  factory Task.fromJson(Map<String, dynamic> json) => Task(
+    id: json['id'], title: json['title'], description: json['description'],
+    category: json['category'], priority: json['priority'],
+    isCompleted: json['isCompleted'],
+    createdAt: DateTime.parse(json['createdAt'])
+  );
+}
+```
+
+## Home Screen
+
+```tsx
+// app/(tabs)/index.tsx
+import React, { useState, useCallback } from 'react';
+import { View, FlatList, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTaskStore } from '../../stores/useTaskStore';
+import { TaskCard } from '../../components/TaskCard';
+
+export default function HomeScreen() {
+  const { tasks, toggleTask, deleteTask } = useTaskStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !selectedCategory || task.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  return (
+    <View style={styles.container}>
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search tasks..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
+      <FlatList
+        data={filteredTasks}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TaskCard
+            task={item}
+            onToggle={() => toggleTask(item.id)}
+            onDelete={() => deleteTask(item.id)}
+          />
+        )}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name="checkmark-done-circle" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyText}>No tasks yet!</Text>
+          </View>
+        }
+      />
+    </View>
+  );
+}
+```
+
+## Zustand Store with AsyncStorage
+
+```tsx
+// stores/useTaskStore.ts
+import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect } from 'react';
+
+interface TaskStore {
+  tasks: Task[];
+  isLoaded: boolean;
+  addTask: (task: Omit<Task, 'id' | 'createdAt'>) => void;
+  toggleTask: (id: string) => void;
+  deleteTask: (id: string) => void;
+  loadTasks: () => Promise<void>;
+}
+
+export const useTaskStore = create<TaskStore>((set, get) => ({
+  tasks: [],
+  isLoaded: false,
+
+  loadTasks: async () => {
+    const stored = await AsyncStorage.getItem('tasks');
+    if (stored) set({ tasks: JSON.parse(stored), isLoaded: true });
+    else set({ isLoaded: true });
+  },
+
+  addTask: async (taskData) => {
+    const newTask: Task = {
+      ...taskData,
+      id: Date.now().toString(),
+      createdAt: new Date()
+    };
+    const tasks = [...get().tasks, newTask];
+    set({ tasks });
+    await AsyncStorage.setItem('tasks', JSON.stringify(tasks));
+  },
+
+  toggleTask: async (id) => {
+    const tasks = get().tasks.map(t =>
+      t.id === id ? { ...t, isCompleted: !t.isCompleted } : t
+    );
+    set({ tasks });
+    await AsyncStorage.setItem('tasks', JSON.stringify(tasks));
+  },
+
+  deleteTask: async (id) => {
+    const tasks = get().tasks.filter(t => t.id !== id);
+    set({ tasks });
+    await AsyncStorage.setItem('tasks', JSON.stringify(tasks));
+  }
+}));
+```
+
+## Claude Code Prompt cho Todo App
+
+```
+Tạo Todo app với Expo Router + TypeScript.
+
+Yêu cầu:
+1. Tab navigation: Home, Add Task, Settings
+2. Home: FlatList hiển thị tasks, search bar, filter theo category
+3. Add Task: form với title, description, category (Work/Personal/Shopping),
+   priority (Low/Medium/High)
+4. Swipe to delete, tap to toggle complete
+5. AsyncStorage persistence — tasks保存 local, offline-first
+6. Dark mode toggle trong Settings
+7. Empty state với illustration khi không có tasks
+
+Thư viện: zustand (state), expo-router (navigation), 
+@expo/vector-icons (icons), @react-native-async-storage/async-storage
+```
+
+## Result
+
+Một Todo app hoàn chỉnh chạy trên cả iOS và Android, hoạt động offline, có dark mode — tất cả trong ~150 dòng code.

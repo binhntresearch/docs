@@ -1,0 +1,144 @@
+---
+title: "IPFS & Decentralized Storage"
+description: "Lưu trữ file phi tập trung với IPFS, Arweave, Ceramic"
+icon: "database"
+---
+
+Blockchain không phù hợp lưu file lớn (ảnh, video) vì tốn gas. Thay vào đó, **lưu file trên IPFS/Arweave** và chỉ lưu **hash trỏ đến file** trên blockchain.
+
+## So sánh các giải pháp
+
+<Tabs>
+  <Tab title="IPFS">
+    - **InterPlanetary File System**
+    - Phi tập trung, content-addressed
+    - File accessed by hash (CID)
+    - Miễn phí lưu trữ (cần pinning service)
+    - Phù hợp: NFT metadata, dữ liệu tạm thời
+  </Tab>
+  <Tab title="Arweave">
+    - **Permanent storage**
+    - Trả tiền 1 lần → lưu vĩnh viễn
+    - ~$5-10 per GB
+    - Phù hợp: NFT master files, archives
+  </Tab>
+  <Tab title="Ceramic">
+    - **Identity + Data**
+    - Mỗi user có DataModel + Stream
+    - Verifiable credentials
+    - Phù hợp: Decentralized identity, social
+  </Tab>
+  <Tab title="Filecoin">
+    - **Storage marketplace**
+    - Built on IPFS
+    - Pay for storage deals
+    - Phù hợp: Enterprise-scale storage
+  </Tab>
+</Tabs>
+
+## IPFS với Pinata
+
+### Upload
+
+```javascript
+import { PinataSDK } from 'pinata';
+
+const pinata = new PinataSDK({
+  pinataJwt: process.env.PINATA_JWT
+});
+
+// Upload file
+async function uploadFile(file) {
+  const result = await pinata.upload.file(file);
+  return result.IpfsHash; // QmXxx...
+}
+
+// Upload JSON (metadata)
+async function uploadMetadata(metadata) {
+  const result = await pinata.upload.json(metadata);
+  return result.IpfsHash;
+}
+```
+
+### Fetch
+
+```javascript
+// Access file via Pinata gateway
+const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
+
+// Hoặc dùng Cloudflare/IPFS.io gateway
+const url2 = `https://ipfs.io/ipfs/${cid}`;
+const url3 = `https://cloudflare-ipfs.com/ipfs/${cid}`;
+```
+
+## NFT Metadata với IPFS
+
+```javascript
+// 1. Upload image lên IPFS
+const imageCid = await uploadFile(imageFile);
+const imageUri = `ipfs://${imageCid}`;
+
+// 2. Tạo metadata JSON
+const metadata = {
+  name: "Cool NFT #1",
+  description: "First NFT of my collection",
+  image: imageUri,
+  attributes: [
+    { trait_type: "Background", value: "Blue" },
+    { trait_type: "Rarity", value: "Rare" }
+  ]
+};
+
+// 3. Upload metadata lên IPFS
+const metadataCid = await uploadMetadata(metadata);
+const metadataUri = `ipfs://${metadataCid}`;
+
+// 4. Mint NFT với metadataUri
+const tx = await nftContract.mint(userAddress, metadataUri);
+```
+
+## Arweave
+
+```javascript
+import { TurboFactory } from '@ardrive/turbo-sdk';
+
+const turbo = TurboFactory({
+  privateKey: process.env.ARWEAVE_PRIVATE_KEY,
+  uploadServiceConfig: { url: 'https://upload.ardrive.io' }
+});
+
+// Upload — thanh toán 1 lần, lưu vĩnh viễn
+async function uploadToArweave(buffer) {
+  const result = await turbo.upload({
+    data: buffer,
+    dataItemOpts: { tags: [{ name: 'Content-Type', value: 'image/png' }] }
+  });
+  return `ar://${result.id}`;
+}
+```
+
+## Best Practices
+
+<Tip>
+- **NFT:** Image → IPFS, Metadata → IPFS — luôn backup cả lên Filecoin/Arweave
+- **Large files:** Lưu trên IPFS + pinning service (Pinata/Infura)
+- **Long-term archives:** Arweave (pay once, store forever)
+- **User-generated content:** Ceramic (linked to identity)
+- **Always pin:** File không được pin sẽ biến mất khỏi IPFS
+</Tip>
+
+## Pinning Service
+
+Dùng dịch vụ pinning để file luôn available:
+
+```javascript
+// Pinata, Infura, NFT.Storage...
+const pin = await fetch(
+  'https://api.pinata.cloud/pinning/pinByHash',
+  {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${JWT}` },
+    body: JSON.stringify({ hashToPin: cid })
+  }
+);
+```

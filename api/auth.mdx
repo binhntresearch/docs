@@ -1,0 +1,215 @@
+---
+title: "Authentication"
+description: "JWT, OAuth 2.0, API Keys — Claude Code prompts cho auth implementation"
+icon: "lock"
+---
+
+Authentication là critical cho mọi API. Claude Code giúp implement JWT, OAuth 2.0, và nhiều phương pháp khác nhanh chóng.
+
+## JWT Authentication
+
+```
+Tạo JWT authentication system cho Express:
+
+Endpoints:
+- POST /api/v1/auth/register
+- POST /api/v1/auth/login
+- POST /api/v1/auth/refresh-token
+- POST /api/v1/auth/logout
+- POST /api/v1/auth/forgot-password
+- POST /api/v1/auth/reset-password
+- GET /api/v1/auth/me (current user)
+
+Requirements:
+- Access token 15 min, refresh token 7 days
+- bcrypt password hashing (cost 12)
+- JWT secret từ env
+- Refresh token rotation
+- Email service cho password reset
+- Rate limit 5 requests/minute
+- Validation với Zod
+- Tests với Jest
+```
+
+## Generated JWT Implementation
+
+```typescript
+// src/utils/jwt.ts — Output
+import jwt, { SignOptions } from 'jsonwebtoken';
+
+const SECRET = process.env.JWT_SECRET!;
+const ACCESS_EXPIRES = '15m';
+const REFRESH_EXPIRES = '7d';
+
+export interface TokenPayload {
+  userId: number;
+  email: string;
+  type: 'access' | 'refresh';
+}
+
+export function generateAccessToken(payload: Omit<TokenPayload, 'type'>): string {
+  return jwt.sign(
+    { ...payload, type: 'access' },
+    SECRET,
+    { expiresIn: ACCESS_EXPIRES }
+  );
+}
+
+export function generateRefreshToken(payload: Omit<TokenPayload, 'type'>): string {
+  return jwt.sign(
+    { ...payload, type: 'refresh' },
+    SECRET,
+    { expiresIn: REFRESH_EXPIRES }
+  );
+}
+
+export function verifyToken(token: string): TokenPayload {
+  const payload = jwt.verify(token, SECRET) as TokenPayload;
+  return payload;
+}
+```
+
+## OAuth 2.0 Implementation
+
+```
+Tạo OAuth 2.0 flow với Google:
+
+Endpoints:
+- GET /api/v1/auth/google (redirect to Google)
+- GET /api/v1/auth/google/callback (handle response)
+- POST /api/v1/auth/google/token (exchange for JWT)
+
+Flow:
+1. User clicks "Login with Google"
+2. Redirect to Google OAuth page
+3. User authorizes
+4. Google redirects back với code
+5. Exchange code cho access_token
+6. Get user info từ Google API
+7. Create/link user account
+8. Issue JWT tokens
+
+Security:
+- State parameter (CSRF protection)
+- PKCE cho mobile apps
+- Store tokens httpOnly cookies
+- Refresh token rotation
+```
+
+## API Key Authentication
+
+```
+Tạo API Key system:
+- POST /api/v1/api-keys (create new key, one-time shown)
+- GET /api/v1/api-keys (list user's keys)
+- DELETE /api/v1/api-keys/:id (revoke)
+- API Key format: sk_live_<random_string>
+- Hash key trước khi lưu database
+- Middleware verifyApiKey thay vì JWT
+- Rate limit per key
+- Last used timestamp tracking
+```
+
+## Role-Based Access Control (RBAC)
+
+```
+Tạo RBAC system:
+
+Roles:
+- super_admin (all permissions)
+- admin (most permissions)
+- moderator (read + moderate content)
+- user (read + create own)
+- guest (read only)
+
+Permissions: resource:action format
+- users:read, users:write, users:delete
+- posts:read, posts:write, posts:delete
+- settings:read, settings:write
+
+Tables:
+- roles (id, name, description)
+- permissions (id, name, description)
+- role_permissions (role_id, permission_id)
+- user_roles (user_id, role_id)
+- user_permissions (user_id, permission_id, granted)
+
+Helpers:
+- hasPermission(userId, permission)
+- requirePermission(permission) decorator
+- requireRole(role) decorator
+```
+
+## Session Authentication
+
+```
+Tạo session-based authentication:
+- POST /api/v1/auth/login (create session)
+- POST /api/v1/auth/logout (destroy session)
+- GET /api/v1/auth/me (current user)
+- Sessions stored in Redis với TTL
+- Session token stored in httpOnly cookie
+- CSRF protection với CSRF token
+- Session fingerprinting (IP + UA)
+```
+
+## Two-Factor Authentication (2FA)
+
+```
+Tôi muốn thêm 2FA:
+- POST /api/v1/auth/2fa/enable (generate QR code, return secret)
+- POST /api/v1/auth/2fa/verify (verify TOTP code)
+- POST /api/v1/auth/2fa/disable
+- POST /api/v1/auth/login yêu cầu 2FA code nếu enabled
+
+Use TOTP library (speakeasy/otplib)
+Backup codes khi enable 2FA (lưu hashed)
+Disable 2FA tạm thời với backup code
+```
+
+## Social Login
+
+```
+Tạo social login với:
+- Google OAuth (authorization code flow)
+- GitHub OAuth
+- Facebook Login
+
+Tái sử dụng logic OAuth 2.0 chung:
+- Provider adapter pattern
+- User info mapping per provider
+- Account linking (multiple providers → 1 user)
+```
+
+## Password Reset Flow
+
+```
+Tạo password reset flow hoàn chỉnh:
+
+POST /api/v1/auth/forgot-password (email)
+- Generate secure token (crypto.randomBytes)
+- Lưu token hash vào DB với TTL 1 hour
+- Send email với reset link
+- Rate limit 3 requests/15 min per email
+- Don't reveal if email exists
+
+POST /api/v1/auth/reset-password (token, newPassword)
+- Verify token hash + not expired
+- Update password (bcrypt)
+- Invalidate all existing sessions
+- Send notification email
+
+Email template tiếng Việt + reset link
+```
+
+## JWT Best Practices
+
+<Check>
+- Short-lived access tokens (15 min)
+- Long-lived refresh tokens (7 days) với rotation
+- HttpOnly, Secure, SameSite cookies
+- Separate signing keys for access/refresh
+- Include `jti` (JWT ID) for revocation
+- Implement token blacklisting
+- Monitor for suspicious activity (geo, IP changes)
+</Check>

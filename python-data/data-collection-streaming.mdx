@@ -1,0 +1,195 @@
+---
+title: "Thu thập dữ liệu Streaming"
+description: "Kafka, RabbitMQ, Pub/Sub — real-time data streams"
+icon: "stream"
+---
+
+Streaming data = events liên tục từ IoT, logs, transactions. Xử lý real-time thay vì batch.
+
+## Kafka
+
+```bash
+pip install kafka-python pandas
+```
+
+### Producer
+
+```python
+from kafka import KafkaProducer
+import json
+import pandas as pd
+
+producer = KafkaProducer(
+    bootstrap_servers='localhost:9092',
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
+
+# Send events
+for _, row in df.iterrows():
+    event = {
+        'user_id': row['user_id'],
+        'event': 'purchase',
+        'amount': row['amount'],
+        'timestamp': str(pd.Timestamp.now())
+    }
+    producer.send('events', value=event)
+
+producer.flush()
+```
+
+### Consumer
+
+```python
+from kafka import KafkaConsumer
+import json
+from collections import deque
+
+consumer = KafkaConsumer(
+    'events',
+    bootstrap_servers='localhost:9092',
+    group_id='analytics',
+    value_deserializer=lambda v: json.loads(v.decode('utf-8')),
+    auto_offset_reset='earliest'
+)
+
+# Batch processing
+batch = deque(maxlen=100)
+
+for message in consumer:
+    event = message.value
+    batch.append(event)
+
+    if len(batch) == 100:
+        df = pd.DataFrame(list(batch))
+        process(df)
+        batch.clear()
+```
+
+## Async Kafka với aiokafka
+
+```python
+import asyncio
+from aiokafka import AIOKafkaConsumer
+import json
+
+async def consume():
+    consumer = AIOKafkaConsumer(
+        'events',
+        bootstrap_servers='localhost:9092',
+        group_id='my-app'
+    )
+    await consumer.start()
+
+    try:
+        async for message in consumer:
+            data = json.loads(message.value)
+            await process(data)
+    finally:
+        await consumer.stop()
+
+asyncio.run(consume())
+```
+
+## Google Cloud Pub/Sub
+
+```python
+from google.cloud import pubsub_v1
+import json
+
+publisher = pubsub_v1.PublisherClient()
+topic_path = publisher.topic_path('project-id', 'topic-name')
+
+# Publish
+def callback(message_future):
+    message_future.add_done_callback(lambda f: print(f.result()))
+
+for _, row in df.iterrows():
+    data = json.dumps(row.to_dict()).encode()
+    future = publisher.publish(topic_path, data)
+    callback(future)
+
+# Subscribe
+subscriber = pubsub_v1.SubscriberClient()
+subscription_path = subscriber.subscription_path('project-id', 'sub-name')
+
+def callback(message):
+    print(f"Received: {message.data}")
+    message.ack()
+
+future = subscriber.subscribe(subscription_path, callback=callback)
+future.result()
+```
+
+## Amazon Kinesis
+
+```python
+import boto3
+import json
+
+client = boto3.client('kinesis', region_name='us-east-1')
+
+# Put record
+client.put_record(
+    StreamName='events',
+    Data=json.dumps({'event': 'purchase'}),
+    PartitionKey='partition-1'
+)
+
+# Get records via Lambda (real-time)
+```
+
+## Streaming ETL với Apache Beam
+
+```python
+import apache_beam as beam
+from apache_beam.options.pipeline_options import PipelineOptions
+
+pipeline = beam.Pipeline(options=PipelineOptions())
+
+# Read from Kafka, transform, write to BigQuery
+(pipeline
+    | "Read" >> beam.io.ReadFromKafka(
+        consumer_config={'bootstrap.servers': 'localhost:9092'},
+        topics=['events']
+    )
+    | "Parse" >> beam.Map(lambda x: json.loads(x[1]))
+    | "Filter" >> beam.Filter(lambda x: x['amount'] > 100)
+    | "Write" >> beam.io.WriteToBigQuery(
+        'project:dataset.events',
+        write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND
+    )
+)
+
+pipeline.run()
+```
+
+## Real-time Aggregation
+
+```python
+from collections import defaultdict
+from kafka import KafkaConsumer
+
+# Sliding window aggregation
+window_stats = defaultdict(lambda: {'count': 0, 'total': 0})
+
+consumer = KafkaConsumer('purchases', ...)
+
+for message in consumer:
+    event = json.loads(message.value)
+    window = event['timestamp'][:13]  # Hour bucket
+
+    window_stats[window]['count'] += 1
+    window_stats[window]['total'] += event['amount']
+
+    # Emit aggregate every 100 events
+    if window_stats[window]['count'] % 100 == 0:
+        avg = window_stats[window]['total'] / window_stats[window]['count']
+        emit_metric(window, avg)
+```
+
+<Tip>
+- **Kafka:** Most popular, distributed, high throughput
+- **Pub/Sub:** GCP-managed, serverless, easy
+- **Kinesis:** AWS-managed, Lambda integration
+- **Streaming ETL:** Apache Beam, Flink cho complex processing
+</Tip>

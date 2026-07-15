@@ -1,0 +1,337 @@
+---
+title: "Bảo mật & An toàn"
+description: "Bảo mật dữ liệu — privacy, PII handling, encryption, API security trong Python data pipelines"
+icon: "shield-halved"
+---
+
+Data pipelines xử lý data nhạy cảm — cần bảo vệ **privacy**, **data integrity**, và **secret management**.
+
+## Các mối đe dọa chính
+
+| Mối đe dọa | Mô tả |
+|---|---|
+| **Data breach** | Data lộ qua API, logs, hoặc files |
+| **PII exposure** | Personal data lộ qua kết quả query/output |
+| **Data poisoning** | Bad data inject vào pipeline |
+| **Injection attacks** | SQL injection, command injection |
+| **Credential theft** | API keys/database passwords lộ |
+| **Untrusted data sources** | Files/APIs chứa malicious payloads |
+
+## Data Privacy & PII
+
+### Anonymization Patterns
+
+<CodeGroup>
+```python Mask PII
+import pandas as pd
+import hashlib
+
+def mask_email(email: str) -> str:
+    """Mask email: john@example.com → j***@example.com"""
+    if pd.isna(email):
+        return email
+    user, domain = email.split('@')
+    return f"{user[0]}***@{domain}"
+
+def hash_pii(value: str, salt: str = "secret-salt") -> str:
+    """One-way hash cho PII identifiers"""
+    return hashlib.sha256((value + salt).encode()).hexdigest()[:16]
+
+df = pd.DataFrame({
+    'email': ['john@example.com', 'jane@example.com'],
+    'phone': ['0901234567', '0909876543']
+})
+
+df['email_masked'] = df['email'].apply(mask_email)
+df['user_id'] = df['email'].apply(hash_pii)
+df = df.drop('phone', axis=1)
+print(df)
+#   email_masked    user_id
+# 0  j***@example.com  a3f8b2c1d4e5f6a7
+```
+
+```python Generalize Data
+def generalize_age(age: int) -> str:
+    """Age 25 → '20-29'"""
+    if age < 0:
+        return 'unknown'
+    decade = (age // 10) * 10
+    return f"{decade}-{decade + 9}"
+
+def generalize_location(city: str) -> str:
+    """City → Region"""
+    regions = {
+        'Hanoi': 'North',
+        'HCMC': 'South',
+        'Da Nang': 'Central'
+    }
+    return regions.get(city, 'Other')
+
+df['age_range'] = df['age'].apply(generalize_age)
+df['region'] = df['city'].apply(generalize_location)
+```
+
+```python Differential Privacy (Noise)
+import numpy as np
+
+def add_laplace_noise(values: np.ndarray, epsilon: float = 1.0) -> np.ndarray:
+    """Add Laplace noise for differential privacy"""
+    scale = 1.0 / epsilon
+    noise = np.random.laplace(0, scale, size=len(values))
+    return values + noise
+
+# Average salary with privacy
+salaries = df['salary'].values
+private_avg = np.mean(add_laplace_noise(salaries))
+```
+</CodeGroup>
+
+### Detect PII với Presidio
+
+```bash
+pip install presidio-analyzer presidio-anonymizer
+```
+
+```python
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
+
+analyzer = AnalyzerEngine()
+anonymizer = AnonymizerEngine()
+
+text = "John Smith có email john.smith@example.com và SĐT 0901234567"
+
+# Detect PII
+results = analyzer.analyze(text=text, language='en')
+
+# Anonymize
+anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
+print(anonymized.text)
+# "John Smith có email <EMAIL_ADDRESS> và SĐT <PHONE_NUMBER>"
+```
+
+## SQL Injection Prevention
+
+<Tabs>
+  <Tab title="❌ Vulnerable">
+```python
+import pandas as pd
+
+# KHÔNG BAO GIỜ dùng string concatenation
+user_id = request.GET['id']  # 0901234567 hoặc "1 OR 1=1"
+query = f"SELECT * FROM users WHERE id = {user_id}"
+df = pd.read_sql(query, engine)
+```
+  </Tab>
+  <Tab title="✅ Parameterized">
+```python
+import sqlalchemy as sa
+
+# Dùng parameterized queries (SQLAlchemy)
+query = sa.text("SELECT * FROM users WHERE id = :user_id")
+df = pd.read_sql(query, engine, params={'user_id': user_id})
+
+# Hoặc với ORM
+User = sa.Table('users', metadata, autoload_with=engine)
+query = User.select().where(User.c.id == user_id)
+```
+  </Tab>
+</Tabs>
+
+## Data Encryption
+
+```python
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+import base64
+
+# Generate master key (do this ONCE, store securely)
+def derive_key(password: str, salt: bytes) -> bytes:
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=480000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+# Encrypt sensitive data
+def encrypt_pii(plaintext: str, key: bytes) -> bytes:
+    f = Fernet(key)
+    return f.encrypt(plaintext.encode())
+
+def decrypt_pii(ciphertext: bytes, key: bytes) -> str:
+    f = Fernet(key)
+    return f.decrypt(ciphertext).decode()
+```
+
+## Secrets Management
+
+<Warning>
+**Never hardcode credentials trong Jupyter notebooks hoặc scripts!**
+</Warning>
+
+```python
+# ❌ BAD
+DB_PASSWORD = "mypassword123"
+AWS_KEY = "AKIA..."
+
+# ✅ GOOD
+import os
+from dotenv import load_dotenv  # pip install python-dotenv
+from google.cloud import secretmanager
+
+load_dotenv()  # Từ .env file (đã gitignore)
+
+DB_PASSWORD = os.environ["DB_PASSWORD"]
+
+# Production: dùng Secret Manager
+client = secretmanager.SecretManagerServiceClient()
+secret = client.access_secret_version(
+    request={"name": "projects/my-project/secrets/db-password/versions/latest"}
+)
+DB_PASSWORD = secret.payload.data.decode("utf-8")
+
+# AWS Secrets Manager
+import boto3
+session = boto3.session.Session()
+client = session.client(service_name='secretsmanager', region_name='us-east-1')
+response = client.get_secret_value(SecretId='db-password')
+DB_PASSWORD = json.loads(response['SecretString'])['password']
+```
+
+### File `.env` Pattern
+
+```bash
+# .env (đã .gitignore!)
+DB_HOST=localhost
+DB_PASSWORD=secure-password-123
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+AWS_ACCESS_KEY_ID=AKIA...
+```
+
+```python
+# config.py
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    db_host: str
+    db_password: str
+    anthropic_api_key: str
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()  # Auto load từ .env
+```
+
+## Data Source Validation
+
+```python
+import pandas as pd
+from pandera import Column, DataFrameSchema, Check
+
+# Schema validation cho incoming data
+schema = DataFrameSchema({
+    "user_id": Column(int, Check.in_range(1, 1_000_000)),
+    "email": Column(str, Check.str_matches(r'^[\w\.-]+@[\w\.-]+\.\w+$')),
+    "age": Column(int, Check.in_range(0, 150)),
+    "amount": Column(float, Check.greater_than(0))
+})
+
+try:
+    schema.validate(df, lazy=True)
+    print("Data hợp lệ ✓")
+except SchemaErrors as e:
+    print("Data không hợp lệ ✗")
+    print(e)
+    # Reject the batch, don't write to DB
+```
+
+## Auditing & Logging
+
+```python
+import logging
+import hashlib
+from datetime import datetime
+
+# Configure audit logger
+audit = logging.getLogger('data_audit')
+audit.setLevel(logging.INFO)
+handler = logging.FileHandler('data_access.log')
+audit.addHandler(handler)
+
+def log_data_access(
+    user: str,
+    action: str,
+    table: str,
+    row_count: int,
+    filters: dict = None
+):
+    audit.info({
+        'timestamp': datetime.utcnow().isoformat(),
+        'user': user,
+        'action': action,           # SELECT, INSERT, DELETE
+        'table': table,
+        'row_count': row_count,
+        'filters_hash': hashlib.sha256(
+            str(filters).encode()
+        ).hexdigest()[:16],
+        'source_ip': request.client.host
+    })
+
+# Usage
+log_data_access(
+    user='analyst@company.com',
+    action='SELECT',
+    table='users',
+    row_count=1500,
+    filters={'country': 'VN'}
+)
+```
+
+## API Rate Limiting
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+from collections import defaultdict
+import time
+
+app = FastAPI()
+# Track requests per IP
+request_log = defaultdict(list)
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    client_ip = request.client.host
+    now = time.time()
+
+    # Clean old entries
+    request_log[client_ip] = [
+        t for t in request_log[client_ip]
+        if now - t < 60  # Last 60 seconds
+    ]
+
+    if len(request_log[client_ip]) >= 100:  # 100 req/min max
+        raise HTTPException(429, "Rate limit exceeded")
+
+    request_log[client_ip].append(now)
+    return await call_next(request)
+```
+
+## Checklist bảo mật Pipeline
+
+<Check>
+- [ ] Không có credentials hardcoded trong code
+- [ ] `.env` files trong `.gitignore`
+- [ ] PII anonymization trước khi analysis
+- [ ] Encryption at-rest và in-transit
+- [ ] SQL queries dùng parameterized
+- [ ] Data validation (Pandera/Great Expectations)
+- [ ] Audit logs đầy đủ
+- [ ] API rate limiting
+- [ ] Access control theo role
+- [ ] Backups encrypted & access-controlled
+</Check>

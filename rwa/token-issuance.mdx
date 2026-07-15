@@ -1,0 +1,176 @@
+---
+title: "Phát hành Token RWA"
+description: "Smart contract token issuance, compliance engine và transfer restriction"
+icon: "file-contract"
+---
+
+Phát hành token RWA là quá trình phức tạp hơn nhiều so với ERC-20 thông thường — cần tích hợp KYC, compliance rules, và transfer restrictions.
+
+## Quy trình phát hành
+
+<Steps>
+  <Step title="Thiết lập Legal Entity">
+    Tạo SPV (Special Purpose Vehicle) tại jurisdiction phù hợp. SPV sở hữu tài sản thực, token đại diện cho equity/debt của SPV.
+  </Step>
+  <Step title="Setup KYC/AML Infrastructure">
+    Tích hợp KYC provider (Synaps, Onfido, Jumio).白名单 investor addresses trên contract.
+  </Step>
+  <Step title="Deploy Compliance Contract">
+    Triển khai Identity Registry + Compliance Module. Define rules: max investors, investment limits, lock-up periods.
+  </Step>
+  <Step title="Deploy Security Token">
+    Triển khai ERC-3643 token contract. Kết nối với Compliance Contract.
+  </Step>
+  <Step title="Mint & Distribution">
+    Mint tokens cho investors đã KYC. Phân phối theoallocation plan.
+  </Step>
+  <Step title="Enable Secondary Trading">
+    Kết nối với ATS (Alternative Trading System) hoặc DEX hỗ trợ security tokens.
+  </Step>
+</Steps>
+
+## Compliance Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract Compliance {
+    struct CountryRule {
+        bool allowed;           // Country cho phép invest
+        uint256 maxInvestment;  // Giới hạn investment per country
+    }
+
+    struct InvestorCompliance {
+        bool isKYCApproved;
+        uint8 investorType;     // 0=none, 1=retail, 2=accredited, 3=institutional
+        uint256 country;        // Country code
+        uint256 totalInvested;
+        uint256 lockupEnd;
+        bool isSanctioned;
+    }
+
+    mapping(address => InvestorCompliance) public investorCompliance;
+    mapping(uint256 => CountryRule) public countryRules;
+    uint256 public maxTotalInvestors;
+    uint256 public currentTotalInvestors;
+
+    // Whitelist — chỉ whitelist address mới transfer được
+    mapping(address => bool) public whitelist;
+
+    modifier onlyWhitelisted(address addr) {
+        require(whitelist[addr], "Not whitelisted");
+        require(!investorCompliance[addr].isSanctioned, "Sanctioned");
+        _;
+    }
+
+    function approveInvestor(
+        address investor,
+        uint8 investorType,
+        uint256 country,
+        uint256 lockupDays
+    ) external onlyOwner {
+        investorCompliance[investor] = InvestorCompliance({
+            isKYCApproved: true,
+            investorType: investorType,
+            country: country,
+            totalInvested: 0,
+            lockupEnd: block.timestamp + (lockupDays * 1 days),
+            isSanctioned: false
+        });
+        whitelist[investor] = true;
+
+        if (investorCompliance[investor].totalInvested == 0) {
+            currentTotalInvestors++;
+        }
+    }
+
+    function canTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) external view returns (bool) {
+        if (!whitelist[from] || !whitelist[to]) return false;
+        if (investorCompliance[from].isSanctioned || investorCompliance[to].isSanctioned) return false;
+
+        // Lockup check
+        if (block.timestamp < investorCompliance[to].lockupEnd) return false;
+
+        // Country check
+        CountryRule memory rule = countryRules[investorCompliance[to].country];
+        if (!rule.allowed) return false;
+        if (investorCompliance[to].totalInvested + amount > rule.maxInvestment) return false;
+
+        // Max investors
+        if (investorCompliance[to].totalInvested == 0 &&
+            currentTotalInvestors >= maxTotalInvestors) return false;
+
+        return true;
+    }
+
+    function addSanctioned(address investor) external onlyOwner {
+        investorCompliance[investor].isSanctioned = true;
+        whitelist[investor] = false;
+    }
+
+    function removeSanctioned(address investor) external onlyOwner {
+        investorCompliance[investor].isSanctioned = false;
+        whitelist[investor] = true;
+    }
+}
+```
+
+## Dividend Distribution
+
+```solidity
+// Phân phối lợi tức cho token holder
+function distributeDividends(uint256 totalDividend) external payable {
+    require(msg.value == totalDividend, "Mismatched amount");
+
+    uint256 totalSupply_ = totalSupply();
+    for (uint i = 0; i < holders.length; i++) {
+        uint256 balance = balanceOf(holders[i]);
+        if (balance == 0) continue;
+
+        uint256 share = (balance * totalDividend) / totalSupply_;
+        payable(holders[i]).transfer(share);
+    }
+}
+```
+
+## Corporate Actions
+
+```solidity
+// Token Buyback
+function buyback(uint256 amount) external onlyOwner {
+    // Mua lại token từ investor theo giá đã set
+    for (uint i = 0; i < holders.length; i++) {
+        if (balanceOf(holders[i]) == 0) continue;
+        uint256 toBuy = min(balanceOf(holders[i]), amount);
+        uint256 cost = toBuy * buybackPrice;
+        _transfer(holders[i], address(this), toBuy);
+        payable(holders[i]).transfer(cost);
+        amount -= toBuy;
+        if (amount == 0) break;
+    }
+}
+```
+
+## Audit Checklist
+
+<Check>
+- [ ] ERC-3643 compliance (transfer restriction)
+- [ ] Identity Registry integration
+- [ ] KYC/AML enforcement on-chain
+- [ ] Lock-up period enforcement
+- [ ] Investment limit per investor
+- [ ] Max investor cap
+- [ ] Dividend distribution correctness
+- [ ] Recovery mechanism (lost key)
+- [ ] Pause/freeze capability
+- [ ] Event logging for audit trail
+</Check>
+
+<Tip>
+Luôn audit smart contract bởi bên thứ ba trước khi deploy production. Certik, Trail of Bits, OpenZeppelin là các auditor uy tín nhất cho security tokens.
+</Tip>

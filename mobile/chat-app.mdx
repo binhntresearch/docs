@@ -1,0 +1,235 @@
+---
+title: "Chat App"
+description: "Xây dựng ứng dụng nhắn tin — real-time messaging, typing indicators, read receipts"
+icon: "message"
+---
+
+Chat app yêu cầu **real-time** — WebSocket hoặc Firebase Realtime Database. Đây là dự án phức tạp nhất trong khóa học.
+
+## Features
+
+<Check>
+- ✅ 1-to-1 messaging
+- ✅ Real-time messages (WebSocket)
+- ✅ Typing indicators
+- ✅ Read receipts
+- ✅ Online/offline status
+- ✅ Message types (text, image, file)
+- ✅ Chat list with last message preview
+- ✅ Push notifications for new messages
+</Check>
+
+## Data Models
+
+```dart
+class Message {
+  final String id;
+  final String senderId;
+  final String text;
+  final String type; // 'text', 'image', 'file'
+  final DateTime timestamp;
+  final bool isRead;
+}
+
+class ChatRoom {
+  final String id;
+  final List<String> participants;
+  final Message? lastMessage;
+  final int unreadCount;
+  final DateTime lastActivity;
+}
+```
+
+## Chat List Screen
+
+```tsx
+export default function ChatListScreen() {
+  const { chatRooms, currentUserId } = useChatStore();
+
+  return (
+    <FlatList
+      data={chatRooms}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => {
+        const otherUser = item.participants.find(p => p !== currentUserId);
+        return (
+          <TouchableOpacity
+            style={styles.chatItem}
+            onPress={() => router.push(`/chat/${item.id}`)}
+          >
+            <Image source={{ uri: otherUser.avatarUrl }} style={styles.avatar} />
+            <View style={styles.chatInfo}>
+              <View style={styles.chatHeader}>
+                <Text style={styles.name}>{otherUser.name}</Text>
+                <Text style={styles.time}>
+                  {formatTime(item.lastMessage?.timestamp)}
+                </Text>
+              </View>
+              <View style={styles.chatFooter}>
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.lastMessage?.text}
+                </Text>
+                {item.unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{item.unreadCount}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      }}
+    />
+  );
+}
+```
+
+## Chat Screen — Real-time Messages
+
+```tsx
+export default function ChatScreen({ roomId }) {
+  const { messages, sendMessage, isTyping, startTyping, stopTyping } = useMessagesStore(roomId);
+  const [input, setInput] = useState('');
+  const flatListRef = useRef<FlatList>(null);
+
+  const handleSend = () => {
+    if (!input.trim()) return;
+    sendMessage(input.trim());
+    setInput('');
+    stopTyping();
+  };
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <MessageBubble message={item} isOwn={item.senderId === currentUserId} />
+        )}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+      />
+
+      {isTyping && (
+        <Text style={styles.typingIndicator}>Typing...</Text>
+      )}
+
+      <View style={styles.inputBar}>
+        <TouchableOpacity>
+          <Ionicons name="add-circle" size={28} color="#3B82F6" />
+        </TouchableOpacity>
+        <TextInput
+          style={styles.input}
+          placeholder="Message..."
+          value={input}
+          onChangeText={(text) => {
+            setInput(text);
+            if (text.length > 0) startTyping();
+            else stopTyping();
+          }}
+        />
+        <TouchableOpacity onPress={handleSend}>
+          <Ionicons name="send" size={28} color="#3B82F6" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+```
+
+## Message Bubble
+
+```tsx
+function MessageBubble({ message, isOwn }) {
+  return (
+    <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
+      <Text style={[styles.messageText, isOwn && styles.ownText]}>
+        {message.text}
+      </Text>
+      <View style={styles.messageFooter}>
+        <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
+        {isOwn && (
+          <Ionicons
+            name={message.isRead ? "checkmark-done" : "checkmark"}
+            size={16}
+            color={message.isRead ? "#3B82F6" : "#9CA3AF"}
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+```
+
+## WebSocket Chat Service
+
+```dart
+// services/chat_service.dart
+import 'dart:convert';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+class ChatService {
+  WebSocketChannel? _channel;
+  final StreamController<Message> _messageController = StreamController.broadcast();
+
+  Stream<Message> get messageStream => _messageController.stream;
+
+  void connect(String userId, String token) {
+    _channel = WebSocketChannel.connect(
+      Uri.parse('wss://api.example.com/ws?token=$token')
+    );
+
+    _channel!.stream.listen((data) {
+      final msg = jsonDecode(data);
+      if (msg['type'] == 'message') {
+        _messageController.add(Message.fromJson(msg['data']));
+      } else if (msg['type'] == 'typing') {
+        // Handle typing indicator
+      } else if (msg['type'] == 'read') {
+        // Handle read receipt
+      }
+    });
+  }
+
+  void sendMessage(String roomId, String text) {
+    _channel?.sink.add(jsonEncode({
+      'type': 'message',
+      'roomId': roomId,
+      'text': text,
+      'timestamp': DateTime.now().toIso8601String()
+    }));
+  }
+
+  void sendTyping(String roomId, bool isTyping) {
+    _channel?.sink.add(jsonEncode({
+      'type': 'typing',
+      'roomId': roomId,
+      'isTyping': isTyping
+    }));
+  }
+
+  void disconnect() {
+    _channel?.sink.close();
+    _messageController.close();
+  }
+}
+```
+
+## Claude Code Prompt
+
+```
+Tạo Chat mobile app với Expo Router + WebSocket.
+
+Features:
+1. Chat list: FlatList with other user's avatar, name, last message, time, unread badge
+2. Chat screen: messages list (scroll to bottom), text input with send button
+3. Message bubbles: own messages on right (blue), others on left (gray)
+4. Typing indicator: show "typing..." when other user types
+5. Read receipts: double checkmark when message is read
+5. Push notifications: notify when new message arrives
+
+Backend: WebSocket server cho real-time
+Storage: Zustand for local state, AsyncStorage cho messages cache
+Design: WhatsApp-like clean interface
+```

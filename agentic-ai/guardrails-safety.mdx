@@ -1,0 +1,196 @@
+---
+title: "Guardrails & Safety"
+description: "Bảo vệ agent — input validation, output filtering, rate limiting, safety layers"
+icon: "shield-halved"
+---
+
+Agent có quyền hành động thực tế — nếu không có guardrails, nó có thể gây ra hậu quả nghiêm trọng: gửi email sai, xóa dữ liệu, gọi API tốn tiền.
+
+## Kiến trúc Safety
+
+```
+User Input
+    ↓
+┌─────────────────────────┐
+│  Input Guardrails        │  ← Validate user intent
+│  - Prompt injection?     │
+│  - Harmful request?      │
+│  - Rate limit?           │
+└──────────┬──────────────┘
+           ↓
+┌─────────────────────────┐
+│  Agent (LLM + Tools)    │
+└──────────┬──────────────┘
+           ↓
+┌─────────────────────────┐
+│  Output Guardrails       │  ← Validate agent output
+│  - PII leak?             │
+│  - Hallucination?        │
+│  - Tool misuse?          │
+└──────────┬──────────────┘
+           ↓
+┌─────────────────────────┐
+│  Action Guardrails       │  ← Validate before execution
+│  - Human approval?       │
+│  - Rate limit per tool?  │
+│  - Scope check?          │
+└──────────┬──────────────┘
+           ↓
+Safe Output
+```
+
+## Input Validation
+
+```python
+import re
+
+DANGEROUS_PATTERNS = [
+    r"ignore previous instructions",
+    r"you are now",
+    r"system prompt",
+    r"<script>",
+    r"DROP TABLE",
+    r"; --",
+]
+
+def validate_input(user_message):
+    # 1. Prompt injection detection
+    for pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, user_message, re.IGNORECASE):
+            return False, "Potentially harmful input detected"
+
+    # 2. Length limit
+    if len(user_message) > 10000:
+        return False, "Input too long"
+
+    # 3. Rate limiting
+    if is_rate_limited(user_id):
+        return False, "Rate limit exceeded. Try again later."
+
+    return True, "OK"
+```
+
+## Tool Guardrails
+
+```python
+# Permission system cho tools
+TOOL_PERMISSIONS = {
+    "read_file": {"level": "read", "requires_approval": False},
+    "write_file": {"level": "write", "requires_approval": True},
+    "delete_file": {"level": "dangerous", "requires_approval": True},
+    "send_email": {"level": "external", "requires_approval": True},
+    "run_terminal": {"level": "dangerous", "requires_approval": True},
+    "search_web": {"level": "read", "requires_approval": False},
+}
+
+def execute_tool_with_guardrails(tool_name, tool_input, user_context):
+    permission = TOOL_PERMISSIONS.get(tool_name)
+
+    # Check permission level
+    if permission["level"] == "dangerous":
+        # Require explicit user approval
+        approved = request_user_approval(f"Agent wants to: {tool_name}({tool_input})")
+        if not approved:
+            return "User denied this action"
+
+    if permission["requires_approval"]:
+        approved = request_user_approval(f"Confirm: {tool_name}")
+        if not approved:
+            return "User denied"
+
+    return execute_tool(tool_name, tool_input)
+```
+
+## Output Filtering
+
+```python
+def filter_output(response_text):
+    # 1. PII detection
+    response_text = redact_pii(response_text)  # Email, phone, SSN
+
+    # 2. Confidential data
+    if contains_confidential(response_text):
+        return "Response filtered: contains confidential information"
+
+    # 3. Hallucination check
+    if claims_facts(response_text):
+        # Verify claims against knowledge base
+        verified = verify_claims(response_text)
+        if not verified:
+            response_text += "\n\n⚠️ Please verify this information independently."
+
+    return response_text
+```
+
+## Rate Limiting
+
+```python
+from collections import defaultdict
+import time
+
+class RateLimiter:
+    def __init__(self):
+        self.calls = defaultdict(list)
+
+    def check(self, user_id, tool_name, limit=10, window=60):
+        key = f"{user_id}:{tool_name}"
+        now = time.time()
+        self.calls[key] = [t for t in self.calls[key] if now - t < window]
+        if len(self.calls[key]) >= limit:
+            return False
+        self.calls[key].append(now)
+        return True
+
+limiter = RateLimiter()
+
+def safe_tool_call(user_id, tool_name, input_data):
+    if not limiter.check(user_id, tool_name):
+        return "Rate limit exceeded for this tool"
+    return execute_tool(tool_name, input_data)
+```
+
+## Human-in-the-Loop
+
+```python
+# Luôn hỏi user trước khi thực hiện action quan trọng
+HUMAN_APPROVAL_TOOLS = [
+    "send_email", "delete_file", "make_payment",
+    "publish_content", "transfer_funds"
+]
+
+def agent_with_human_loop(goal):
+    while not goal_achieved:
+        action = agent_think(goal)
+
+        if action.tool in HUMAN_APPROVAL_TOOLS:
+            approved = confirm_with_user(action)
+            if not approved:
+                agent_reflect("User denied. Find alternative approach.")
+                continue
+
+        execute(action)
+```
+
+## Monitoring & Alerting
+
+```python
+# Log mọi agent actions
+def log_agent_action(action):
+    logger.info({
+        "timestamp": datetime.now().isoformat(),
+        "user_id": action.user_id,
+        "tool": action.tool_name,
+        "input": action.input_data,
+        "output": action.result[:500],
+        "tokens_used": action.tokens,
+        "cost": action.cost
+    })
+
+    # Alert nếu cost quá cao
+    if action.cost > 0.10:  # $0.10 per action
+        send_alert(f"High cost action: {action.tool_name} (${action.cost})")
+```
+
+<Tip>
+Defense in depth — đừng rely vào 1 layer duy nhất. Kết hợp input validation + output filtering + tool guardrails + human-in-the-loop cho production agents.
+</Tip>

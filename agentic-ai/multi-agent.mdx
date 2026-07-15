@@ -1,0 +1,182 @@
+---
+title: "Multi-Agent Systems"
+description: "Xây dựng hệ thống nhiều agent phối hợp — CrewAI, AutoGen, orchestration"
+icon: "users-gear"
+---
+
+Multi-agent systems = nhiều agents làm việc cùng nhau, mỗi agent có **role chuyên biệt**, phối hợp qua **communication protocol**.
+
+## Tại sao Multi-Agent?
+
+<Tabs>
+  <Tab title="Single Agent">
+    - Một LLM làm tất cả
+    - Đơn giản, dễ debug
+    - Hạn chế: Context window limit,难以 expertise sâu
+    - Phù hợp: Tasks đơn giản, ≤5 tools
+  </Tab>
+  <Tab title="Multi-Agent">
+    - Nhiều agents, mỗi agent 1 expertise
+    - Phức tạp hơn nhưng powerful hơn
+    - Parallel execution — nhanh hơn
+    - Phù hợp: Complex workflows, enterprise tasks
+  </Tab>
+</Tabs>
+
+## CrewAI
+
+CrewAI là framework multi-agent phổ biến nhất — mỗi agent có **role, goal, backstory**.
+
+```python
+from crewai import Agent, Task, Crew
+
+# Define agents
+researcher = Agent(
+    role="Research Analyst",
+    goal="Find comprehensive information about the given topic",
+    backstory="Expert researcher with 10 years of experience",
+    tools=[search_web, read_document],
+    llm="claude-sonnet-5-20250514"
+)
+
+analyst = Agent(
+    role="Data Analyst",
+    goal="Analyze data and identify patterns and insights",
+    backstory="Senior data analyst skilled in statistical analysis",
+    tools=[analyze_data, create_chart],
+    llm="claude-sonnet-5-20250514"
+)
+
+writer = Agent(
+    role="Report Writer",
+    goal="Write clear, engaging, well-structured reports",
+    backstory="Experienced journalist and content creator",
+    tools=[write_document],
+    llm="claude-sonnet-5-20250514"
+)
+
+# Define tasks
+research_task = Task(
+    description="Research the latest AI trends in 2026",
+    expected_output="Comprehensive research report with sources",
+    agent=researcher
+)
+
+analysis_task = Task(
+    description="Analyze research findings and identify key patterns",
+    expected_output="Statistical analysis with charts",
+    agent=analyst,
+    context=[research_task]  # Depends on research
+)
+
+report_task = Task(
+    description="Write a final report based on analysis",
+    expected_output="Professional report in markdown",
+    agent=writer,
+    context=[analysis_task]
+)
+
+# Create crew and run
+crew = Crew(
+    agents=[researcher, analyst, writer],
+    tasks=[research_task, analysis_task, report_task],
+    verbose=True
+)
+
+result = crew.kickoff()
+print(result)
+```
+
+## AutoGen (Microsoft)
+
+```python
+from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+
+# Create agents
+assistant = AssistantAgent(
+    name="assistant",
+    system_message="You are a helpful assistant.",
+    llm_config={"model": "claude-sonnet-5-20250514"}
+)
+
+coder = AssistantAgent(
+    name="coder",
+    system_message="You write code. Write clean, tested code.",
+    llm_config={"model": "claude-sonnet-5-20250514"}
+)
+
+reviewer = AssistantAgent(
+    name="reviewer",
+    system_message="You review code. Find bugs and suggest improvements.",
+    llm_config={"model": "claude-sonnet-5-20250514"}
+)
+
+user = UserProxyAgent(
+    name="user",
+    human_input_mode="TERMINATE",
+    code_execution_config={"work_dir": "workspace"}
+)
+
+# Group chat
+group_chat = GroupChat(
+    agents=[user, assistant, coder, reviewer],
+    messages=[],
+    max_round=12
+)
+
+manager = GroupChatManager(groupchat=group_chat)
+
+user.initiate_chat(manager, message="Build a REST API for user management")
+```
+
+## Communication Patterns
+
+```python
+# Pattern 1: Sequential (Pipeline)
+# Agent A → Agent B → Agent C
+
+# Pattern 2: Hierarchical (Supervisor)
+# Supervisor assigns → Workers execute → Report back
+
+# Pattern 3: Collaborative (Discussion)
+# All agents contribute to shared context
+
+# Pattern 4: Debate
+# Pro agent vs Con agent → Judge decides
+```
+
+## Agent Handoff
+
+```python
+# Agent transfer control to another agent
+def handoff(from_agent, to_agent, context):
+    """Transfer conversation context from one agent to another."""
+    return {
+        "to_agent": to_agent,
+        "context": context,
+        "reason": f"{from_agent.name} needs {to_agent.name}'s expertise"
+    }
+
+# Claude supports handoff natively
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    tools=[
+        {
+            "name": "transfer_to_coder",
+            "description": "Transfer to coding specialist",
+            "input_schema": {"type": "object", "properties": {"task": {"type": "string"}}}
+        }
+    ]
+)
+```
+
+## Best Practices
+
+<Warning>
+- **Start with 2-3 agents:** Không bắt đầu quá phức tạp
+- **Clear roles:** Mỗi agent có 1 responsibility rõ ràng
+- **Shared context:** Agents cần access cùng memory/context
+- **Error handling:** Agent A fail → Agent B handle gracefully
+- **Cost tracking:** Multi-agent = nhiều LLM calls = tốn hơn
+- **Observability:** Log mọi inter-agent communication
+</Warning>

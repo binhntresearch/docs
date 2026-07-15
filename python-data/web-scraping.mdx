@@ -1,0 +1,121 @@
+---
+title: "Thu thập dữ liệu từ Web"
+description: "Web scraping với BeautifulSoup và APIs với Requests"
+icon: "spider-web"
+---
+
+Web scraping là cách lấy dữ liệu từ website. Đây thường là bước đầu tiên trong quy trình phân tích dữ liệu khi dữ liệu không có sẵn dưới dạng file.
+
+## Các phương pháp
+
+| Phương pháp | Khi nào dùng | Độ khó |
+|---|---|---|
+| **API** (REST/GraphQL) | Website cung cấp API chính thức | Dễ |
+| **BeautifulSoup** | HTML đơn giản, không cần JS render | Trung bình |
+| **Selenium/Playwright** | Cần render JavaScript | Khó |
+
+## 1. Thu thập qua API (Ưu tiên)
+
+```python
+import requests
+import pandas as pd
+
+# GitHub API — lấy danh sách repos
+response = requests.get(
+    'https://api.github.com/users/torvalds/repos',
+    params={'per_page': 10},
+    headers={'Accept': 'application/vnd.github.v3+json'}
+)
+
+data = response.json()
+df = pd.DataFrame(data)
+print(df[['name', 'stargazers_count', 'language']])
+```
+
+## 2. BeautifulSoup — Parse HTML
+
+```python
+import requests
+from bsync import BeautifulSoup
+import pandas as pd
+
+url = 'https://quotes.toscrape.com'
+response = requests.get(url)
+soup = BeautifulSoup(response.text, 'html.parser')
+
+# Lấy tất cả quote
+quotes = []
+for item in soup.select('.quote'):
+    text = item.select_one('.text').get_text()
+    author = item.select_one('.author').get_text()
+    tags = [tag.get_text() for tag in item.select('.tag')]
+    quotes.append({
+        'text': text,
+        'author': author,
+        'tags': ', '.join(tags)
+    })
+
+df = pd.DataFrame(quotes)
+print(df.head())
+```
+
+## 3. Xử lý JavaScript-rendered pages
+
+```python
+# Dùng Selenium
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+import time
+
+driver = webdriver.Chrome()
+driver.get('https://example.com/dynamic-page')
+
+# Đợi page load
+time.sleep(3)
+
+# Lấy dữ liệu
+elements = driver.find_elements(By.CLASS_NAME, 'data-item')
+data = [el.text for el in elements]
+
+driver.quit()
+```
+
+## 4. Xử lý dữ liệu scraped
+
+```python
+# Làm sạch dữ liệu text
+df['price'] = df['price_text'].str.replace('[^0-9]', '', regex=True).astype(float)
+df['date'] = pd.to_datetime(df['date_text'])
+
+# Lưu ra file
+df.to_csv('scraped_data.csv', index=False)
+df.to_excel('scraped_data.xlsx', index=False)
+```
+
+## Ethical Scraping
+
+<Warning>
+- Luôn kiểm tra `robots.txt` trước khi scrape
+- Thêm delay giữa các request (`time.sleep(1)`)
+- Không scrape quá nhiều request trong thời gian ngắn
+- Respect website Terms of Service
+- Dùng API khi có sẵn — scraping là lựa chọn cuối cùng
+</Warning>
+
+<Tip>
+Nhiều site có rate limit. Luôn wrap request trong try/except và thêm retry logic.
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Thu thập dữ liệu từ REST API (JSONPlaceholder hoặc GitHub API) và lưu ra CSV.
+  </Step>
+  <Step title="Bài 2">
+    Scrape danh sách sản phẩm từ một trang web bất kỳ, lưu vào DataFrame.
+  </Step>
+  <Step title="Bài 3">
+    Viết hàm scrape tự động với retry logic và rate limiting.
+  </Step>
+</Steps>

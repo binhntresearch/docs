@@ -1,0 +1,185 @@
+---
+title: "The Graph"
+description: "Index on-chain data cho DApp — Subgraphs, GraphQL queries"
+icon: "diagram-project"
+---
+
+The Graph là giao thức phi tập trung để **index dữ liệu blockchain** và cung cấp qua GraphQL API. Thay vì gọi RPC cho mỗi query, bạn query GraphQL.
+
+## Tại sao cần The Graph?
+
+<Tabs>
+  <Tab title="Vấn đề không có The Graph">
+    ```javascript
+    // Lấy tất cả Transfer event của 1 token
+    const filter = contract.filters.Transfer(null, userAddress);
+    const events = await contract.queryFilter(filter, 0, 'latest');
+    ```
+
+    - Chậm: phải scan từng block từ đầu
+    - Tốn RPC calls
+    - Khó filter nâng cao
+  </Tab>
+  <Tab title="Với The Graph">
+    ```graphql
+    query {
+      transfers(where: { to: "0xUser..." }) {
+        from
+        to
+        value
+        timestamp
+      }
+    }
+    ```
+
+    - Nhanh: query 1 lần qua GraphQL
+    - Index sẵn từ khi deploy
+    - Filter, sort, pagination dễ dàng
+  </Tab>
+</Tabs>
+
+## Các khái niệm
+
+| Khái niệm | Mô tả |
+|---|---|
+| **Subgraph** | Định nghĩa dữ liệu nào cần index từ contract nào |
+| **Manifest** | File `subgraph.yaml` — khai báo contract, event, ABI |
+| **Schema** | GraphQL schema — định nghĩa các entity |
+| **Mapping** | Function xử lý event → lưu vào entity |
+| **Subgraph Studio** | Deploy subgraph lên The Graph's hosted service |
+
+## Subgraph Manifest
+
+```yaml
+# subgraph.yaml
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+dataSources:
+  - name: MyNFT
+    kind: ethereum/contract
+    network: sepolia
+    source:
+      address: "0xYourContractAddress"
+      abi: MyNFT
+      startBlock: 1234567
+    mapping:
+      abis:
+        - name: MyNFT
+        file: ./abis/MyNFT.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+        - event: MetadataUpdate(uint256,string)
+          handler: handleMetadataUpdate
+      file: ./src/mappings.ts
+```
+
+## Schema GraphQL
+
+```graphql
+# schema.graphql
+type Transfer @entity {
+  id: ID!
+  from: Bytes!
+  to: Bytes!
+  tokenId: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+type TokenMetadata @entity {
+  id: ID!
+  tokenId: BigInt!
+  name: String!
+  description: String
+  image: String
+}
+```
+
+## Mapping Functions
+
+```typescript
+// src/mappings.ts
+import { Transfer, TokenMetadata } from "../generated/schema";
+import { Transfer as TransferEvent } from "../generated/MyNFT/MyNFT";
+
+export function handleTransfer(event: TransferEvent): void {
+  const id = `${event.transaction.hash}-${event.logIndex}`;
+
+  const transfer = new Transfer(id);
+  transfer.from = event.params.from;
+  transfer.to = event.params.to;
+  transfer.tokenId = event.params.tokenId;
+  transfer.timestamp = event.block.timestamp;
+  transfer.transactionHash = event.transaction.hash;
+  transfer.save();
+}
+
+export function handleMetadataUpdate(event: MetadataUpdate): void {
+  const token = TokenMetadata.load(event.params.tokenId.toString());
+  if (!token) return;
+
+  token.name = event.params.name;
+  token.image = event.params.uri;
+  token.save();
+}
+```
+
+## Frontend Query
+
+```javascript
+import { createClient } from 'urql';
+
+const client = createClient({
+  url: 'https://api.studio.thegraph.com/query/YOUR_SUBGRAPH_ID/version'
+});
+
+const query = `
+  query GetTransfers($address: Bytes!) {
+    transfers(
+      where: { to: $address }
+      orderBy: timestamp
+      orderDirection: desc
+      first: 10
+    ) {
+      from
+      to
+      tokenId
+      timestamp
+    }
+  }
+`;
+
+const result = await client.query(query, {
+  address: '0xUserAddress'
+}).toPromise();
+
+console.log('Recent transfers:', result.data.transfers);
+```
+
+## Deploy Subgraph
+
+```bash
+# Install graph-cli
+npm install -g @graphprotocol/graph-cli
+
+# Authenticate
+graph auth --studio <DEPLOY_KEY>
+
+# Deploy
+graph deploy --studio my-subgraph --version-label v1
+```
+
+<Warning>
+Hosted Service (legacy) đã **deprecated** từ June 2024. Giờ phải dùng Subgraph Studio hoặc Self-hosted (Graph Node + Postgres).
+</Warning>
+
+## Best Practices
+
+<Tip>
+- **Schema là vĩnh viễn:** Không xóa field, thêm field mới thôi
+- **Idempotent:** Mapping function phải idempotent (gọi nhiều lần = 1 result)
+- **Indexer limits:** Tránh tạo quá nhiều entities trong 1 block (giới hạn của indexer)
+- **Cross-chain:** Mỗi network cần 1 subgraph riêng
+</Tip>

@@ -1,0 +1,409 @@
+---
+title: "Bảo mật API"
+description: "Bảo mật cho REST API — OWASP Top 10, authentication, rate limiting, validation"
+icon: "shield-halved"
+---
+
+REST API là **cửa vào** cho mọi dữ liệu và chức năng — bảo mật API là tối quan trọng.
+
+## OWASP API Security Top 10 (2023)
+
+| # | Vulnerability | Mô tả | Phòng chống |
+|---|---|---|---|
+| 1 | **Broken Object Level Auth** | User A truy cập data user B | Object-level authorization |
+| 2 | **Broken Authentication** | Weak passwords, JWT không an toàn | Strong auth + rotation |
+| 3 | **Broken Object Property Level Auth** | Trả về sensitive fields (password, role) | Field filtering + least privilege |
+| 4 | **Unrestricted Resource Consumption** | No rate limiting → DoS | Rate limiting + quotas |
+| 5 | **Broken Function Level Auth** | User thường gọi admin endpoint | Role-based access control |
+| 6 | **Unrestricted Access to Sensitive Flows** | Signup spam, listing bots | CAPTCHA, email verification |
+| 7 | **SSRF** | User-controlled URL | Whitelist allowed domains |
+| 8 | **Security Misconfiguration** | Default passwords, debug mode | Hardening checklist |
+| 9 | **Improper Inventory Management** | Old APIs still accessible | API versioning + lifecycle |
+| 10 | **Unsafe Consumption of APIs** | Trust external APIs blindly | Validate all responses |
+
+## 1. Authentication Security
+
+```python
+from fastapi import HTTPException, status, Depends, Header
+from typing import Annotated
+import jwt
+from datetime import datetime, timedelta
+import hashlib
+import secrets
+import bcrypt
+
+# ❌ NEVER - Plain password storage
+users_db = {"alice": "password123"}  # Hackers sẽ dump database!
+
+# ❌ NEVER - Simple MD5/SHA1
+def hash_password(password):
+    return hashlib.md5(password.encode()).hexdigest()
+
+# ✅ CORRECT - bcrypt với salt
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+```
+
+### JWT Security
+
+```python
+# ❌ DANGEROUS - Weak JWT secret
+SECRET = "secret123"
+
+# ✅ USE strong secret from env
+import os
+SECRET = os.environ['JWT_SECRET']
+if len(SECRET) < 32:
+    raise ValueError("JWT_SECRET must be at least 32 characters")
+
+# ✅ Short-lived access tokens
+ACCESS_EXPIRES = timedelta(minutes=15)
+REFRESH_EXPIRES = timedelta(days=7)
+
+def create_access_token(user_id: str, extra_claims: dict = None) -> str:
+    payload = {
+        'sub': user_id,
+        'iat': datetime.utcnow(),
+        'exp': datetime.utcnow() + ACCESS_EXPIRES,
+        'jti': secrets.token_urlsafe(16),  # Unique token ID cho revocation
+        'type': 'access',
+        **(extra_claims or {})
+    }
+    return jwt.encode(payload, SECRET, algorithm='HS256')
+
+def verify_token(token: str) -> dict:
+    try:
+        return jwt.decode(token, SECRET, algorithms=['HS256'])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")
+```
+
+### Token Blacklist (for Logout)
+
+```python
+import redis
+
+redis_client = redis.Redis()
+
+# Store blacklisted JTI tokens until they expire
+def revoke_token(jti: str, exp: int):
+    ttl = exp - int(datetime.utcnow().timestamp())
+    if ttl > 0:
+        redis_client.setex(f'blacklist:{jti}', ttl, '1')
+
+def is_token_revoked(jti: str) -> bool:
+    return redis_client.exists(f'blacklist:{jti}')
+
+# FastAPI dependency
+async def get_current_user(
+    authorization: Annotated[str, Header()]
+) -> dict:
+    token = authorization.replace('Bearer ', '')
+    payload = verify_token(token)
+
+    if is_token_revoked(payload['jti']):
+        raise HTTPException(401, "Token revoked")
+
+    return payload
+```
+
+## 2. SQL Injection Prevention
+
+```python
+# ❌ VULNERABLE - string concatenation
+@app.get('/users/{user_id}')
+async def get_user(user_id: str):
+    query = f"SELECT * FROM users WHERE id = {user_id}"
+    return db.execute(query)
+
+# ✅ SAFE - parameterized queries
+@app.get('/users/{user_id}')
+async def get_user(user_id: int):  # Pydantic tự validate type
+    query = "SELECT * FROM users WHERE id = :id"
+    return db.execute(query, {'id': user_id})
+
+# ✅ ORM (SQLAlchemy)
+@app.get('/users/{user_id}')
+async def get_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404)
+    return user
+```
+
+## 3. Input Validation
+
+```python
+from pydantic import BaseModel, EmailStr, Field, field_validator
+import re
+
+class CreateUserRequest(BaseModel):
+    email: EmailStr                              # Pydantic validates format
+    username: str = Field(
+        min_length=3,
+        max_length=20,
+        pattern=r'^[a-zA-Z0-9_]+$'              # Alphanumeric only
+    )
+    password: str = Field(min_length=12)
+    website: str | None = None
+
+    @field_validator('website')
+    @classmethod
+    def validate_website(cls, v):
+        if v and not v.startswith('https://'):
+            raise ValueError('Must be HTTPS')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def password_strength(cls, v):
+        if not re.search(r'[A-Z]', v):  # Uppercase
+            raise ValueError('Need uppercase')
+        if not re.search(r'[0-9]', v):  # Number
+            raise ValueError('Need number')
+        if not re.search(r'[!@#$%^&*]', v):  # Special
+            raise ValueError('Need special char')
+        return v
+```
+
+## 4. Rate Limiting (Prevent DoS)
+
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
+@app.get('/api/users')
+@limiter.limit("100/minute")
+async def list_users(request: Request):
+    # Limited to 100 requests/minute per IP
+    ...
+
+@app.post('/auth/login')
+@limiter.limit("5/minute")  # Stricter cho login (anti-bruteforce)
+async def login(request: Request):
+    ...
+
+# Distributed rate limiting với Redis
+class RateLimiter:
+    def __init__(self, redis_client, limit: int, window: int):
+        self.redis = redis_client
+        self.limit = limit
+        self.window = window
+
+    def check(self, key: str) -> bool:
+        pipe = self.redis.pipeline()
+        now = int(time.time())
+        pipe.zremrangebyscore(key, 0, now - self.window)
+        pipe.zadd(key, {str(now): now})
+        pipe.zcard(key)
+        pipe.expire(key, self.window)
+
+        _, _, count, _ = pipe.execute()
+        return count <= self.limit
+```
+
+## 5. CORS Configuration
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+# ❌ TOO PERMISSIVE
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],      # ❌ Accept all origins!
+    allow_credentials=True,
+)
+
+# ✅ CORRECT - Whitelist specific origins
+ALLOWED_ORIGINS = [
+    "https://myapp.com",
+    "https://www.myapp.com",
+    "https://app.myapp.com",   # Mobile app origin
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600  # Cache preflight 10 min
+)
+```
+
+## 6. Security Headers
+
+```python
+from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        # Prevent MIME-type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+
+        # Prevent clickjacking
+        response.headers["X-Frame-Options"] = "DENY"
+
+        # XSS Protection (deprecated but still useful)
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        # HTTPS only (force HTTPS)
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
+
+        # CSP (prevent XSS)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+        )
+
+        # Referrer policy
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Permissions policy
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
+
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+```
+
+## 7. SSRF Prevention (Server-Side Request Forgery)
+
+```python
+import ipaddress
+from urllib.parse import urlparse
+
+def is_safe_url(url: str) -> tuple[bool, str]:
+    """Validate URL không phải private/internal address"""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "Invalid URL"
+
+    # Only HTTP/HTTPS
+    if parsed.scheme not in ('http', 'https'):
+        return False, "Only HTTP/HTTPS allowed"
+
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "No hostname"
+
+    # Resolve to IP
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+    except Exception:
+        return False, "DNS resolution failed"
+
+    # Block private/loopback IPs
+    if ip.is_private or ip.is_loopback or ip.is_reserved:
+        return False, f"Private IP blocked: {ip}"
+
+    return True, "OK"
+
+# Use khi webhook fetching
+@app.post('/webhooks/fetch')
+async def fetch_url(url: str):
+    safe, reason = is_safe_url(url)
+    if not safe:
+        raise HTTPException(400, f"URL blocked: {reason}")
+
+    return requests.get(url, timeout=5).text
+```
+
+## 8. Logging Sensitive Data
+
+```python
+import logging
+
+class SensitiveDataFilter(logging.Filter):
+    """Filter out sensitive data from logs"""
+    SENSITIVE_KEYS = {'password', 'token', 'secret', 'api_key', 'ssn'}
+
+    def filter(self, record):
+        if isinstance(record.msg, dict):
+            for key in list(record.msg.keys()):
+                if any(s in key.lower() for s in self.SENSITIVE_KEYS):
+                    record.msg[key] = '[REDACTED]'
+        return True
+
+# Setup logger
+logger = logging.getLogger('api')
+logger.addFilter(SensitiveDataFilter())
+
+# ❌ BAD - logs password
+logger.info({
+    'action': 'login',
+    'email': 'user@example.com',
+    'password': request.password    # ❌ NEVER LOG PASSWORDS!
+})
+
+# ✅ GOOD - automatic redaction
+logger.info({
+    'action': 'login',
+    'email': 'user@example.com',
+    'password': '[REDACTED]'       # Auto-redacted
+})
+```
+
+## 9. CORS Preflight
+
+```python
+# Preflight request should be cached
+@app.get("/api/data")
+async def data():
+    return {"data": "..."}
+
+# OPTIONS preflight
+@app.options("/api/data")
+async def data_options():
+    return {"allow": "GET, POST"}
+```
+
+## 10. Dependency Updates
+
+```bash
+# Check for vulnerable dependencies
+pip install safety
+safety check --file requirements.txt
+
+# Or use pip-audit
+pip install pip-audit
+pip-audit
+
+# npm
+npm audit
+npm audit fix
+```
+
+## API Security Checklist
+
+<Check>
+- [ ] HTTPS enforced (no HTTP)
+- [ ] Strong JWT secrets (32+ chars)
+- [ ] Short-lived access tokens (15 min)
+- [ ] Refresh token rotation
+- [ ] bcrypt/argon2 password hashing
+- [ ] Rate limiting (per IP, per user)
+- [ ] Input validation (Pydantic/Zod)
+- [ ] Parameterized SQL queries
+- [ ] CORS whitelist specific origins
+- [ ] Security headers (HSTS, CSP, X-Frame-Options)
+- [ ] SSRF prevention (URL validation)
+- [ ] Sensitive data redaction in logs
+- [ ] Dependency vulnerability scanning
+- [ ] OpenAPI spec documentation
+- [ ] Audit logs cho sensitive ops
+- [ ] Rate limit cho auth endpoints (5/min)
+</Check>

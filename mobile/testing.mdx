@@ -1,0 +1,195 @@
+---
+title: "Testing & Deploy"
+description: "Unit tests, E2E tests, CI/CD, App Store & Play Store deployment"
+icon: "rocket"
+---
+
+Testing mobile app quan trọng hơn web — bugs trên production rất khó fix (cần review lại từ App Store). Deploy cũng phức tạp hơn — cần code signing, provisioning profiles.
+
+## Testing Strategy
+
+| Level | Tool | Speed | Coverage |
+|---|---|---|---|
+| **Unit** | Jest (RN), test/ (Flutter) | Milliseconds | Business logic |
+| **Component** | React Native Testing Library | Seconds | UI components |
+| **E2E** | Detox (RN), integration_test (Flutter) | Minutes | Full flows |
+
+## React Native — Unit Test
+
+```typescript
+// __tests__/services/taskService.test.ts
+import { TaskService } from '../../services/taskService';
+
+describe('TaskService', () => {
+  it('should filter tasks by status', () => {
+    const tasks = [
+      { id: 1, status: 'todo' },
+      { id: 2, status: 'done' },
+      { id: 3, status: 'todo' }
+    ];
+    const filtered = TaskService.filterByStatus(tasks, 'todo');
+    expect(filtered).toHaveLength(2);
+  });
+});
+```
+
+## E2E — Detox
+
+```typescript
+// e2e/auth.test.ts
+describe('Authentication Flow', () => {
+  it('should login successfully', async () => {
+    await element(by.id('email-input')).typeText('alice@example.com');
+    await element(by.id('password-input')).typeText('password123');
+    await element(by.id('login-button')).tap();
+    await expect(element(by.id('home-screen'))).toBeVisible();
+  });
+
+  it('should show error on wrong credentials', async () => {
+    await element(by.id('email-input')).typeText('wrong@example.com');
+    await element(by.id('password-input')).typeText('wrongpass');
+    await element(by.id('login-button')).tap();
+    await expect(element(by.text('Invalid credentials'))).toBeVisible();
+  });
+});
+```
+
+## EAS Build (Expo Application Services)
+
+```bash
+# Install EAS CLI
+npm install -g eas-cli
+
+# Login
+eas login
+
+# Configure
+eas build:configure
+
+# Build for Android
+eas build --platform android --profile production
+
+# Build for iOS
+eas build --platform ios --profile production
+
+# Submit to stores
+eas submit --platform android
+eas submit --platform ios
+```
+
+## EAS Build Configuration
+
+```json
+// eas.json
+{
+  "cli": { "version": ">= 5.0.0" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "android": { "buildType": "app-bundle" },
+      "ios": { "autoIncrement": true }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": { "serviceAccountKeyPath": "./google-play-key.json" },
+      "ios": { "appleId": "your@apple.id" }
+    }
+  }
+}
+```
+
+## iOS App Store Connect
+
+<Steps>
+  <Step title="Apple Developer Account">
+    Đăng ký tại developer.apple.com — $99/năm
+  </Step>
+  <Step title="Certificates & Profiles">
+    Tạo Distribution Certificate + Provisioning Profile
+  </Step>
+  <Step title="Build & Upload">
+    ```bash
+    eas build --platform ios --profile production
+    eas submit --platform ios
+    ```
+  </Step>
+  <Step title="App Store Review">
+    Submit metadata, screenshots, description → Apple review (~24-48h)
+  </Step>
+</Steps>
+
+## Google Play Console
+
+<Steps>
+  <Step title="Google Play Developer Account">
+    Đăng ký tại play.google.com/console — $25 one-time
+  </Step>
+  <Step title="Create App Listing">
+    Tên, descriptions, screenshots, feature graphic
+  </Step>
+  <Step title="Build & Upload">
+    ```bash
+    eas build --platform android --profile production
+    eas submit --platform android
+    ```
+  </Step>
+  <Step title="Review & Release">
+    Google review (~few hours) → Release to production
+  </Step>
+</Steps>
+
+## CI/CD — GitHub Actions
+
+```yaml
+# .github/workflows/build.yml
+name: Build & Deploy
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci
+      - run: npx eas build --platform android --profile production --non-interactive
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: npm ci
+      - run: npx eas build --platform ios --profile production --non-interactive
+```
+
+## Over-the-Air Updates (EAS Update)
+
+```bash
+# Push updates without App Store review
+eas update --branch production --message "Bug fix"
+```
+
+<Callout type="info">
+OTA updates cho phép push JS/CSS changes mà không cần App Store review. Native code changes vẫn cần build mới.
+</Callout>
+
+## Best Practices
+
+<Tip>
+- **Version management:** semantic versioning (major.minor.patch)
+- **Feature flags:** Toggle features từ server, không cần update app
+- **Crash reporting:** Sentry, Crashlytics — track crashes production
+- **Analytics:** Mixpanel, Amplitude — track user behavior
+- **Phased rollout:** Release to 10% users first, gradually expand
+</Tip>

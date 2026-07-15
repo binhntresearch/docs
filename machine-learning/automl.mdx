@@ -1,0 +1,188 @@
+---
+title: "AutoML"
+description: "Auto-select models, Auto-tune hyperparameters, Auto-feature engineering"
+icon: "robot"
+---
+
+AutoML = tự động hóa quy trình ML — từ feature selection đến model selection đến hyperparameter tuning. Giảm thời gian từ days xuống hours.
+
+## AutoML Frameworks
+
+| Tool | Type | Use Case |
+|---|---|---|
+| **TPOT** | Genetic algorithm | Auto-select pipeline |
+| **Auto-sklearn** | Bayesian | Auto ML for scikit-learn |
+| **H2O AutoML** | Stacked ensemble | Enterprise AutoML |
+| **PyCaret** | Low-code ML | Quick prototyping |
+| **AutoGluon** | Multi-model | Best accuracy auto |
+| **Optuna** | Hyperparameter search | General-purpose |
+
+## PyCaret — Low-code ML
+
+```python
+from pycaret.classification import *
+import pandas as pd
+
+df = pd.read_csv('data.csv')
+
+# Setup — auto preprocess, split, compare
+setup(data=df, target='churn')
+
+# Compare all models
+best = compare_models()
+
+# Tune best model
+tuned = tune_model(best)
+
+# Finalize on full data
+final = finalize_model(tuned)
+
+# Save
+save_model(final, 'my_model')
+
+# Predict
+predictions = predict_model(final, new_data=test_df)
+```
+
+## AutoGluon
+
+```python
+from autogluon.tabular import TabularPredictor
+
+predictor = TabularPredictor(label='churn', eval_metric='f1')
+predictor.fit(train_df, presets='best_quality')
+
+# Leaderboard
+predictor.leaderboard()
+
+# Predict
+predictions = predictor.predict(test_df)
+
+# Feature importance
+predictor.feature_importance()
+```
+
+## Optuna — Hyperparameter Optimization
+
+```python
+import optuna
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
+
+def objective(trial):
+    params = {
+        'n_estimators': trial.suggest_int('n_estimators', 50, 500),
+        'max_depth': trial.suggest_int('max_depth', 3, 20),
+        'min_samples_split': trial.suggest_int('min_samples_split', 2, 20),
+        'max_features': trial.suggest_categorical('max_features', ['sqrt', 'log2', None])
+    }
+
+    model = RandomForestClassifier(**params, random_state=42)
+    score = cross_val_score(model, X_train, y_train, cv=5, scoring='f1').mean()
+    return score
+
+study = optuna.create_study(direction='maximize')
+study.optimize(objective, n_trials=100)
+
+print(f"Best score: {study.best_value:.4f}")
+print(f"Best params: {study.best_params}")
+```
+
+## TPOT — Genetic Algorithm
+
+```python
+from tpot import TPOTClassifier
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+
+# Auto find best pipeline
+tpot = TPOTClassifier(
+    generations=20,
+    population_size=50,
+    verbosity=2,
+    random_state=42,
+    n_jobs=-1
+)
+
+tpot.fit(X_train, y_train)
+
+# Best pipeline code
+print(f"Test score: {tpot.score(X_test, y_test)}")
+tpot.export('best_pipeline.py')
+```
+
+## Auto Feature Engineering
+
+```python
+import featuretools as ft
+
+# Auto create features from relational data
+es = ft.EntitySet(id='customer_data')
+es = es.add_dataframe(dataframe=customers, dataframe_name='customers', index='id')
+es = es.add_dataframe(dataframe=transactions, dataframe_name='transactions', index='id')
+
+# Auto generate features
+feature_matrix, feature_defs = ft.dfs(
+    entityset=es,
+    target_dataframe_name='customers',
+    max_depth=2
+)
+
+print(feature_matrix.head())
+```
+
+## H2O AutoML
+
+```python
+import h2o
+from h2o.automl import H2OAutoML
+
+h2o.init()
+
+# Import data
+train = h2o.import_file('train.csv')
+test = h2o.import_file('test.csv')
+
+# AutoML
+aml = H2OAutoML(
+    max_models=20,
+    seed=42,
+    max_runtime_secs=3600  # 1 hour
+)
+
+aml.train(x=predictors, y='target', training_frame=train)
+
+# Leaderboard
+lb = aml.leaderboard
+print(lb)
+
+# Best model
+best_model = aml.leader
+predictions = best_model.predict(test)
+```
+
+## AutoML vs Manual ML
+
+<Tabs>
+  <Tab title="AutoML">
+    - ✅ Fast — minutes to hours
+    - ✅ Good baseline results
+    - ✅ No ML expertise needed
+    - ❌ May miss domain-specific features
+    - ❌ Harder to customize
+    - ❌ Less interpretability
+  </Tab>
+  <Tab title="Manual ML">
+    - ✅ Domain knowledge incorporated
+    - ✅ Full control over pipeline
+    - ✅ Better for complex problems
+    - ❌ Slow — days to weeks
+    - ❌ Requires ML expertise
+    - ❌ Prone to errors
+  </Tab>
+</Tabs>
+
+<Tip>
+Dùng AutoML cho: baseline nhanh, competitions, prototyping. Dùng manual ML cho: domain-specific problems, production systems cần interpretability, khi cần explain model decisions.
+</Tip>

@@ -1,0 +1,164 @@
+---
+title: "Phân tích dữ liệu bán hàng"
+description: "Dự án thực chiến — phân tích dữ liệu sales thực tế"
+icon: "cart-shopping"
+---
+
+Dự án thực chiến đầu tiên — phân tích một dataset bán hàng thực tế từ đầu đến cuối, áp dụng tất cả kiến thức đã học.
+
+## Dataset mẫu
+
+Bạn sẽ làm việc với `sales.csv` có cấu trúc:
+
+<CodeGroup>
+```csv
+order_id,date,customer_id,product,category,quantity,price,city
+ORD001,2026-01-15,C001,iPhone 15,Electronics,1,25000000,HCM
+ORD002,2026-01-15,C002,AirPods,Electronics,2,4000000,Hà Nội
+ORD003,2026-01-16,C003,T-Shirt,Clothing,3,300000,HCM
+...
+```
+</CodeGroup>
+
+## Quy trình phân tích
+
+<Steps>
+  <Step title="Đọc & Khám phá dữ liệu">
+    ```python
+    import pandas as pd
+
+    df = pd.read_csv('sales.csv')
+    df['date'] = pd.to_datetime(df['date'])
+    df['revenue'] = df['quantity'] * df['price']
+
+    print(df.shape)        # Số hàng, cột
+    print(df.dtypes)       # Kiểu dữ liệu
+    print(df.describe())   # Thống kê
+    print(df.isnull().sum())  # Missing values
+    ```
+  </Step>
+  <Step title="Phân tích theo thời gian">
+    ```python
+    # Doanh thu theo tháng
+    df['month'] = df['date'].dt.to_period('M')
+    monthly = df.groupby('month')['revenue'].sum()
+
+    # Vẽ biểu đồ
+    import matplotlib.pyplot as plt
+    monthly.plot(kind='line', marker='o', figsize=(10, 5))
+    plt.title('Doanh thu theo tháng')
+    plt.ylabel('VNĐ')
+    plt.grid(True)
+    plt.show()
+    ```
+  </Step>
+  <Step title="Phân tích sản phẩm">
+    ```python
+    # Top 10 sản phẩm bán chạy nhất
+    top_products = df.groupby('product')['quantity'].sum().nlargest(10)
+
+    import seaborn as sns
+    sns.barplot(x=top_products.values, y=top_products.index, palette='viridis')
+    plt.title('Top 10 sản phẩm')
+    plt.show()
+
+    # Doanh thu theo category
+    category_rev = df.groupby('category')['revenue'].sum()
+    category_rev.plot(kind='pie', autopct='%1.1f%%')
+    plt.title('Doanh thu theo danh mục')
+    ```
+  </Step>
+  <Step title="Phân tích khách hàng">
+    ```python
+    # RFM Analysis (Recency, Frequency, Monetary)
+    snapshot_date = df['date'].max() + pd.Timedelta(days=1)
+
+    rfm = df.groupby('customer_id').agg({
+        'date': lambda x: (snapshot_date - x.max()).days,  # Recency
+        'order_id': 'count',                                # Frequency
+        'revenue': 'sum'                                    # Monetary
+    })
+    rfm.columns = ['recency', 'frequency', 'monetary']
+
+    # Phân khúc khách hàng
+    rfm['segment'] = pd.qcut(rfm['monetary'], q=4, labels=['Bronze', 'Silver', 'Gold', 'Platinum'])
+
+    # Đếm khách hàng theo segment
+    sns.countplot(data=rfm, x='segment', order=['Bronze', 'Silver', 'Gold', 'Platinum'])
+    plt.title('Phân khúc khách hàng')
+    ```
+  </Step>
+  <Step title="Phân tích địa lý">
+    ```python
+    # Doanh thu theo thành phố
+    city_rev = df.groupby('city')['revenue'].sum().sort_values(ascending=False)
+
+    sns.barplot(x=city_rev.values / 1e9, y=city_rev.index)
+    plt.xlabel('Tỷ VNĐ')
+    plt.title('Doanh thu theo thành phố')
+
+    # Heatmap: city x month
+    pivot = df.pivot_table(
+        values='revenue',
+        index='city',
+        columns='month',
+        aggfunc='sum'
+    )
+    sns.heatmap(pivot / 1e9, annot=True, fmt='.1f', cmap='YlOrRd')
+    plt.title('Doanh thu city × month (tỷ VNĐ)')
+    ```
+  </Step>
+  <Step title="Tạo báo cáo tổng hợp">
+    Kết hợp tất cả biểu đồ thành dashboard bằng subplots:
+
+    ```python
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # 1. Doanh thu theo tháng
+    monthly.plot(ax=axes[0, 0], kind='line', marker='o', color='blue')
+    axes[0, 0].set_title('Doanh thu theo tháng')
+
+    # 2. Top sản phẩm
+    sns.barplot(x=top_products.values[:5], y=top_products.index[:5], ax=axes[0, 1])
+    axes[0, 1].set_title('Top 5 sản phẩm')
+
+    # 3. Phân khúc KH
+    sns.countplot(data=rfm, x='segment', ax=axes[1, 0],
+                  order=['Bronze', 'Silver', 'Gold', 'Platinum'])
+    axes[1, 0].set_title('Phân khúc khách hàng')
+
+    # 4. Doanh thu theo city
+    city_rev.head(5).plot(ax=axes[1, 1], kind='barh')
+    axes[1, 1].set_title('Top 5 thành phố')
+
+    plt.tight_layout()
+    plt.savefig('sales_dashboard.png', dpi=200)
+    plt.show()
+    ```
+  </Step>
+</Steps>
+
+## Insights thường gặp
+
+<Tip>
+Khi phân tích xong, bạn nên trả lời được các câu hỏi:
+- Doanh thu tăng hay giảm theo tháng?
+- Sản phẩm nào bán chạy nhất? Loại nào có margin cao?
+- Khách hàng VIP là ai? Họ hành vi thế nào?
+- Thành phố nào tiềm năng? Nơi nào cần đẩy mạnh marketing?
+- Xu hướng theo mùa — có cao điểm nào không?
+</Tip>
+
+## Bài tập mở rộng
+
+<Steps>
+  <Step title="Cohort Analysis">
+    Phân tích retention theo cohort — khách hàng đăng ký tháng nào có xu hướng quay lại mua nhiều nhất?
+  </Step>
+  <Step title="Market Basket">
+    Phân tích sản phẩm thường được mua cùng nhau (Apriori algorithm).
+  </Step>
+  <Step title="Forecasting">
+    Dự đoán doanh thu tháng tới bằng ARIMA hoặc Prophet.
+  </Step>
+</Steps>

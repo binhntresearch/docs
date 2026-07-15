@@ -1,0 +1,212 @@
+---
+title: "Ensemble Methods"
+description: "Random Forest, Gradient Boosting, XGBoost, LightGBM — algorithms mạnh nhất cho tabular data"
+icon: "layer-group"
+---
+
+Ensemble methods **kết hợp nhiều models** để đạt accuracy cao hơn — gần như luôn là top performers trên tabular data competitions.
+
+## Tại sao Ensemble?
+
+<Tip>
+"Two heads are better than one" — kết hợp nhiều weak learners → 1 strong learner. Đây là concept cốt lõi của Random Forest, XGBoost, LightGBM.
+</Tip>
+
+## Random Forest
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import load_breast_cancer
+from sklearn.metrics import classification_report
+
+# Load data
+cancer = load_breast_cancer()
+X_train, X_test, y_train, y_test = train_test_split(
+    cancer.data, cancer.target, random_state=42, stratify=cancer.target
+)
+
+# Random Forest = many decision trees + voting
+rf = RandomForestClassifier(
+    n_estimators=100,         # 100 trees
+    max_depth=10,             # max depth per tree
+    min_samples_split=5,      # min samples to split
+    max_features='sqrt',      # random features per split
+    n_jobs=-1,                # parallel
+    random_state=42
+)
+
+rf.fit(X_train, y_train)
+y_pred = rf.predict(X_test)
+print(classification_report(y_test, y_pred, target_names=cancer.target_names))
+
+# Feature importance
+import pandas as pd
+importance = pd.Series(rf.feature_importances_, index=cancer.feature_names)
+print(importance.nlargest(10))
+```
+
+### Bagging Concept
+
+```
+Train many models in parallel on different subsets of data
+→ Average their predictions
+→ Reduce variance (overfitting)
+```
+
+## Gradient Boosting
+
+```python
+from sklearn.ensemble import GradientBoostingClassifier
+
+gb = GradientBoostingClassifier(
+    n_estimators=100,
+    learning_rate=0.1,        # Shrink contribution of each tree
+    max_depth=3,              # Shallow trees (weak learners)
+    random_state=42
+)
+
+gb.fit(X_train, y_train)
+y_pred = gb.predict(X_test)
+print(classification_report(y_test, y_pred))
+```
+
+### Boosting Concept
+
+```
+Train models sequentially
+Each model fixes errors of previous one
+→ Reduce bias (underfitting)
+```
+
+## XGBoost — State-of-the-Art
+
+```bash
+pip install xgboost
+```
+
+```python
+import xgboost as xgb
+from sklearn.metrics import accuracy_score
+
+# XGBoost classifier
+xgb_model = xgb.XGBClassifier(
+    n_estimators=100,
+    learning_rate=0.1,
+    max_depth=6,
+    subsample=0.8,             # Row sampling
+    colsample_bytree=0.8,      # Column sampling
+    tree_method='hist',        # Fast histogram method
+    random_state=42,
+    n_jobs=-1
+)
+
+xgb_model.fit(
+    X_train, y_train,
+    eval_set=[(X_test, y_test)],
+    early_stopping_rounds=10,   # Stop if no improvement
+    verbose=False
+)
+
+y_pred = xgb_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f"XGBoost Accuracy: {accuracy:.4f}")
+
+# Feature importance
+import matplotlib.pyplot as plt
+xgb.plot_importance(xgb_model, max_num_features=10)
+plt.show()
+```
+
+## LightGBM — Faster for Large Data
+
+```bash
+pip install lightgbm
+```
+
+```python
+import lightgbm as lgb
+
+# LightGBM — faster than XGBoost, similar accuracy
+lgb_model = lgb.LGBMClassifier(
+    n_estimators=1000,
+    learning_rate=0.05,
+    num_leaves=31,            # max leaves per tree
+    max_depth=-1,             # no limit
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    n_jobs=-1,
+    verbose=-1
+)
+
+lgb_model.fit(
+    X_train, y_train,
+    eval_set=[(X_test, y_test)],
+    callbacks=[lgb.early_stopping(10), lgb.log_evaluation(0)]
+)
+
+y_pred = lgb_model.predict(X_test)
+```
+
+## CatBoost — Best for Categorical Features
+
+```bash
+pip install catboost
+```
+
+```python
+from catboost import CatBoostClassifier
+
+cat_model = CatBoostClassifier(
+    iterations=1000,
+    learning_rate=0.05,
+    depth=6,
+    cat_features=[0, 2, 5],  # Indices of categorical columns
+    random_seed=42,
+    verbose=0
+)
+
+cat_model.fit(X_train, y_train)
+y_pred = cat_model.predict(X_test)
+```
+
+## Stacking — Meta Ensemble
+
+```python
+from sklearn.ensemble import StackingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+
+# Stack multiple models
+estimators = [
+    ('rf', RandomForestClassifier(n_estimators=100, random_state=42)),
+    ('xgb', xgb.XGBClassifier(n_estimators=100, random_state=42)),
+    ('svm', SVC(probability=True, random_state=42))
+]
+
+stack = StackingClassifier(
+    estimators=estimators,
+    final_estimator=LogisticRegression(),
+    cv=5
+)
+
+stack.fit(X_train, y_train)
+y_pred = stack.predict(X_test)
+```
+
+## So sánh Performance
+
+| Model | Speed | Accuracy | Interpretability |
+|---|---|---|---|
+| Decision Tree | ⚡⚡⚡ | Medium | ✅ Easy |
+| Random Forest | ⚡⚡ | High | ⚠️ Medium |
+| Gradient Boosting | ⚡ | Very High | ⚠️ Medium |
+| XGBoost | ⚡⚡ | Very High | ⚠️ Medium |
+| LightGBM | ⚡⚡⚡ | Very High | ⚠️ Medium |
+| CatBoost | ⚡⚡ | Highest | ⚠️ Medium |
+
+<Tip>
+Cho tabular data, **XGBoost** hoặc **LightGBM** thường cho kết quả tốt nhất. Bắt đầu với LightGBM (nhanh nhất), nếu cần tune kỹ hơn thì XGBoost.
+</Tip>

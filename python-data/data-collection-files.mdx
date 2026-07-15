@@ -1,0 +1,196 @@
+---
+title: "Thu thập dữ liệu từ Files"
+description: "CSV, Excel, JSON, Parquet, Avro — chi tiết từng format và best practices"
+icon: "file-lines"
+---
+
+Files là nguồn data phổ biến — CSV, Excel, JSON, Parquet. Mỗi format có ưu/nhược điểm riêng.
+
+## CSV
+
+```python
+import pandas as pd
+
+# Basic
+df = pd.read_csv('data.csv')
+
+# Common options
+df = pd.read_csv(
+    'data.csv',
+    sep=';',
+    encoding='utf-8',
+    parse_dates=['date_column'],
+    dtype={'user_id': str, 'amount': float},
+    na_values=['NULL', 'N/A', ''],
+    nrows=10000  # Limit rows
+)
+
+# Chunked reading for huge files
+chunks = pd.read_csv('huge.csv', chunksize=50000)
+for chunk in chunks:
+    process(chunk)
+
+# Write
+df.to_csv('output.csv', index=False, encoding='utf-8')
+```
+
+## Excel
+
+```python
+# Read single sheet
+df = pd.read_excel('data.xlsx', sheet_name='Sheet1')
+
+# Read multiple sheets → dict of DataFrames
+dfs = pd.read_excel('data.xlsx', sheet_name=None)
+for sheet_name, df in dfs.items():
+    print(sheet_name, df.shape)
+
+# With options
+df = pd.read_excel(
+    'data.xlsx',
+    sheet_name='Data',
+    header=2,  # Skip first 2 rows
+    usecols='A:F',  # Specific columns
+    parse_dates=['date']
+)
+
+# Write
+df.to_excel('output.xlsx', sheet_name='Results', index=False)
+df.to_excel('output.xlsx', sheet_name='Results', index=False,
+            startrow=2, startcol=2)  # Offset position
+
+# Multiple sheets
+with pd.ExcelWriter('output.xlsx', engine='openpyxl') as writer:
+    df1.to_excel(writer, sheet_name='Sales')
+    df2.to_excel(writer, sheet_name='Customers')
+```
+
+## JSON
+
+```python
+import pandas as pd
+
+# Read JSON array
+df = pd.read_json('data.json')
+
+# Read nested JSON (need normalization)
+import json
+with open('data.json') as f:
+    data = json.load(f)
+
+df = pd.json_normalize(
+    data,
+    record_path=['users'],  # Extract nested array
+    meta=['timestamp', 'version']  # Hoặc parent fields
+)
+
+# From API response
+response = requests.get('https://api.example.com/data').json()
+df = pd.DataFrame(response['results'])
+
+# Write
+df.to_json('output.json', orient='records', indent=2)
+```
+
+## Parquet — Best for Big Data
+
+```python
+# Read
+df = pd.read_parquet('data.parquet')
+
+# With filters (partitioned data)
+df = pd.read_parquet(
+    'data/year=2024/month=07',
+    columns=['user_id', 'amount']
+)
+
+# Write
+df.to_parquet(
+    'output.parquet',
+    engine='pyarrow',
+    compression='snappy',
+    index=False
+)
+
+# Partitioned (for huge datasets)
+df.to_parquet(
+    'data/',
+    partition_cols=['year', 'month']
+)
+```
+
+### Performance Comparison
+
+| Format | Size | Speed (Read) | Compression |
+|---|---|---|---|
+| CSV | Large | Slow | None |
+| JSON | Large | Slow | None |
+| Excel | Large | Slow | None |
+| Parquet | Small | Fast | Snappy/Zstd |
+| Feather | Small | Very Fast | None |
+| Arrow | Small | Fast | None |
+
+## Avro / Protobuf
+
+```python
+# Avro — schema evolution friendly
+import fastavro
+
+with open('data.avro', 'rb') as f:
+    reader = fastavro.reader(f)
+    records = [r for r in reader]
+
+df = pd.DataFrame(records)
+```
+
+## Feather / Arrow
+
+```python
+import pyarrow as pa
+
+# Fastest format cho Python
+df.to_feather('data.feather')
+df = pd.read_feather('data.feather')
+
+# Apache Arrow (cross-language)
+table = pa.Table.from_pandas(df)
+pa.ipc.write_table(table, 'data.arrow')
+```
+
+## Multi-file Loading
+
+```python
+import glob
+import pandas as pd
+
+# Load nhiều files matching pattern
+files = glob.glob('data/year=2024/month=*.parquet')
+dfs = [pd.read_parquet(f) for f in files]
+combined = pd.concat(dfs, ignore_index=True)
+
+# Dask cho huge datasets
+import dask.dataframe as dd
+
+df = dd.read_parquet('data/*.parquet')
+result = df.groupby('user_id').amount.sum().compute()
+```
+
+## Streaming Read
+
+```python
+# Đọc rows-by-rows cho memory efficiency
+import csv
+
+with open('huge.csv') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        process(row)
+```
+
+<Tip>
+- **CSV/Excel:** Easy, human-readable, nhưng lớn
+- **JSON:** API-friendly, flexible structure
+- **Parquet:** Fastest read/write, smallest size — **best cho big data**
+- **Feather/Arrow:** Fastest in Python, **best cho inter-process communication**
+- **Avro:** Schema evolution — best cho streaming pipelines
+</Tip>

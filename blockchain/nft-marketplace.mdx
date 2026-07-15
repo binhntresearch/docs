@@ -1,0 +1,171 @@
+---
+title: "NFT Marketplace"
+description: "Xây dựng marketplace mua bán NFT hoàn chỉnh"
+icon: "image"
+---
+
+NFT Marketplace cho phép người dùng **tạo (mint), mua, bán và auction** NFT. Bạn sẽ xây dựng một marketplace hoàn chỉnh với Next.js + Solidity.
+
+## Kiến trúc
+
+```
+Frontend (Next.js + Tailwind)
+  ↓ ethers.js
+Smart Contracts (Solidity)
+  ├── NFT Contract (ERC-721) — tạo NFT
+  └── Marketplace Contract — listing, buying, auction
+```
+
+## Smart Contracts
+
+### NFT Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract MyNFT is ERC721URIStorage, Ownable {
+    uint256 private _tokenIdCounter;
+    uint256 public mintPrice = 0.01 ether;
+
+    constructor() ERC721("MyNFT", "MNFT") Ownable(msg.sender) {}
+
+    function mint(string memory uri) external payable {
+        require(msg.value >= mintPrice, "Insufficient payment");
+        uint256 tokenId = _tokenIdCounter++;
+        _safeMint(msg.sender, tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    function setMintPrice(uint256 _price) external onlyOwner {
+        mintPrice = _price;
+    }
+
+    // Required
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
+        return super.tokenURI(tokenId);
+    }
+    function supportsInterface(bytes4 id) public view override(ERC721, ERC721URIStorage) returns (bool) {
+        return super.supportsInterface(id);
+    }
+}
+```
+
+### Marketplace Contract
+
+```solidity
+contract NFTMarketplace {
+    struct Listing {
+        address seller;
+        address nftContract;
+        uint256 tokenId;
+        uint256 price;
+        bool active;
+    }
+
+    uint256 public listingFee = 0.001 ether;
+    mapping(uint256 => Listing) public listings;
+    uint256 private _listingIdCounter;
+
+    event ListCreated(uint256 listingId, address seller, uint256 price);
+    event Bought(uint256 listingId, address buyer, uint256 price);
+    event ListingCancelled(uint256 listingId);
+
+    // List NFT for sale
+    function listNFT(address nftContract, uint256 tokenId, uint256 price) external payable {
+        require(msg.value >= listingFee, "Insufficient listing fee");
+        require(IERC721(nftContract).ownerOf(tokenId) == msg.sender, "Not owner");
+        require(IERC721(nftContract).isApprovedForAll(msg.sender, address(this))
+             || IERC721(nftContract).getApproved(tokenId) == address(this), "Not approved");
+
+        uint256 id = _listingIdCounter++;
+        listings[id] = Listing(msg.sender, nftContract, tokenId, price, true);
+        emit ListCreated(id, msg.sender, price);
+    }
+
+    // Buy NFT
+    function buyNFT(uint256 listingId) external payable {
+        Listing memory item = listings[listingId];
+        require(item.active, "Not active");
+        require(msg.value >= item.price, "Insufficient price");
+
+        // Transfer NFT
+        IERC721(item.nftContract).safeTransferFrom(item.seller, msg.sender, item.tokenId);
+
+        // Transfer payment
+        payable(item.seller).transfer(msg.value);
+        item.active = false;
+        listings[listingId] = item;
+
+        emit Bought(listingId, msg.sender, msg.value);
+    }
+
+    // Cancel listing
+    function cancelListing(uint256 listingId) external {
+        require(listings[listingId].seller == msg.sender, "Not seller");
+        listings[listingId].active = false;
+        emit ListingCancelled(listingId);
+    }
+
+    receive() external payable {}
+}
+```
+
+## Frontend Integration
+
+```tsx
+// components/NFTCard.tsx
+'use client';
+import { ethers } from 'ethers';
+
+export function NFTCard({ listing, onBuy }) {
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <img src={listing.image} alt={listing.name} className="w-full h-64 object-cover" />
+      <div className="p-4">
+        <h3 className="font-bold">{listing.name}</h3>
+        <p className="text-gray-500">{listing.collection}</p>
+        <div className="flex justify-between items-center mt-3">
+          <span className="font-bold text-lg">
+            {ethers.formatEther(listing.price)} ETH
+          </span>
+          <button onClick={() => onBuy(listing)} className="btn-primary">
+            Buy Now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+## IPFS cho Metadata
+
+```javascript
+import { create } from 'ipfs-http-client';
+
+const client = create({ host: 'api.infura.io', port: 5001, protocol: 'https' });
+
+async function uploadToIPFS(file) {
+  const result = await client.add(file);
+  return `ipfs://${result.path}`;
+}
+
+// Metadata JSON
+const metadata = {
+  name: "My NFT #1",
+  description: "A unique digital collectible",
+  image: await uploadToIPFS(file),
+  attributes: [
+    { trait_type: "Background", value: "Blue" },
+    { trait_type: "Rarity", value: "Rare" }
+  ]
+};
+```
+
+<Tip>
+NFT metadata nên được lưu trên IPFS/Arweave (decentralized) thay vì centralized server — đảm bảo metadata tồn tại vĩnh viễn.
+</Tip>

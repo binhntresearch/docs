@@ -1,0 +1,178 @@
+---
+title: "Dự án DApp hoàn chỉnh"
+description: "Từ ý tưởng đến production — build DApp end-to-end"
+icon: "rocket"
+---
+
+Dự án tổng hợp — xây dựng một DApp hoàn chỉnh kết hợp mọi kiến thức: Smart Contract + Frontend + Wallet + Deploy.
+
+## Tổng quan dự án: **CryptoTask** — Quản lý công việc on-chain
+
+Mọi task được lưu on-chain, mọi thanh toán bằng ETH/token, mọi tương tác minh bạch.
+
+| Tính năng | Mô tả |
+|---|---|
+| **Create Task** | Tạo task mới, assign cho user, set reward |
+| **Complete Task** | Đánh dấu hoàn thành, release payment |
+| **Token Reward** | Thanh toán bằng ERC-20 token |
+| **Reputation** | Hệ thống reputation score on-chain |
+| **Dispute** | Khiếu nại khi có tranh chấp |
+
+## Cấu trúc dự án
+
+```
+crypto-task/
+├── contracts/
+│   ├── CryptoTask.sol      ← Main contract
+│   ├── Reputation.sol      ← Reputation system
+│   └── TaskToken.sol       ← ERC-20 reward token
+│
+├── test/
+│   ├── CryptoTask.test.js
+│   └── Reputation.test.js
+│
+├── scripts/
+│   └── deploy.js
+│
+├── frontend/               ← Next.js app
+│   ├── app/
+│   ├── components/
+│   ├── lib/
+│   │   ├── contract.ts
+│   │   ├── wallet.ts
+│   │   └── ipfs.ts
+│   └── hooks/
+│       └── useTask.ts
+│
+├── hardhat.config.js
+└── package.json
+```
+
+## Smart Contract
+
+```solidity
+// contracts/CryptoTask.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+contract CryptoTask is Ownable, ReentrancyGuard {
+    enum TaskStatus { Open, InProgress, Completed, Disputed, Resolved }
+    enum Resolution { Unpaid, PaidToWorker, Refunded }
+
+    struct Task {
+        address client;
+        address worker;
+        string description; // IPFS CID
+        uint256 reward;
+        TaskStatus status;
+        Resolution resolution;
+        uint256 createdAt;
+    }
+
+    mapping(uint256 => Task) public tasks;
+    mapping(address => uint256) public reputation;
+    uint256 private _taskIdCounter;
+
+    event TaskCreated(uint256 taskId, address client, uint256 reward);
+    event TaskAccepted(uint256 taskId, address worker);
+    event TaskCompleted(uint256 taskId);
+    event TaskResolved(uint256 taskId, Resolution resolution);
+
+    function createTask(string calldata description) external payable {
+        require(msg.value > 0, "Reward must be > 0");
+        uint256 id = _taskIdCounter++;
+        tasks[id] = Task({
+            client: msg.sender,
+            worker: address(0),
+            description: description,
+            reward: msg.value,
+            status: TaskStatus.Open,
+            resolution: Resolution.Unpaid,
+            createdAt: block.timestamp
+        });
+        emit TaskCreated(id, msg.sender, msg.value);
+    }
+
+    function acceptTask(uint256 taskId) external {
+        Task storage task = tasks[taskId];
+        require(task.status == TaskStatus.Open, "Not open");
+        task.worker = msg.sender;
+        task.status = TaskStatus.InProgress;
+        emit TaskAccepted(taskId, msg.sender);
+    }
+
+    function completeTask(uint256 taskId) external {
+        Task storage task = tasks[taskId];
+        require(msg.sender == task.client, "Not client");
+        require(task.status == TaskStatus.InProgress, "Not in progress");
+        task.status = TaskStatus.Completed;
+        // Release payment
+        payable(task.worker).transfer(task.reward);
+        reputation[task.worker] += 1;
+        emit TaskCompleted(taskId);
+    }
+
+    function disputeTask(uint256 taskId) external {
+        Task storage task = tasks[taskId];
+        require(msg.sender == task.worker || msg.sender == task.client);
+        task.status = TaskStatus.Disputed;
+    }
+
+    function resolveTask(uint256 taskId, Resolution resolution) external onlyOwner {
+        Task storage task = tasks[taskId];
+        require(task.status == TaskStatus.Disputed, "Not disputed");
+        task.resolution = resolution;
+        task.status = TaskStatus.Resolved;
+        if (resolution == Resolution.PaidToWorker) {
+            payable(task.worker).transfer(task.reward);
+        } else {
+            payable(task.client).transfer(task.reward);
+        }
+        emit TaskResolved(taskId, resolution);
+    }
+
+    receive() external payable {}
+}
+```
+
+## Test
+
+```javascript
+describe("CryptoTask", function () {
+  let task, client, worker, owner;
+
+  beforeEach(async function () {
+    [owner, client, worker] = await ethers.getSigners();
+    const CryptoTask = await ethers.getContractFactory("CryptoTask");
+    task = await CryptoTask.deploy();
+    await task.waitForDeployment();
+  });
+
+  it("Should create and complete a task", async function () {
+    // Create
+    await task.connect(client).createTask("QmIpfs...", { value: ethers.parseEther("1") });
+
+    // Accept
+    await task.connect(worker).acceptTask(0);
+
+    // Complete
+    await task.connect(client).completeTask(0);
+
+    const t = await tasks.tasks(0);
+    expect(t.status).to.equal(2); // Completed
+  });
+});
+```
+
+## Deploy checklist
+
+<Check>
+- Test passes trên Hardhat local network · Audit contract bằng Slither · Deploy lên Sepolia testnet · Test trên testnet với MetaMask · Verify contract trên Etherscan · Deploy lên mainnet khi ready
+</Check>
+
+<Tip>
+Mỗi bước deploy nên có verification — test trên testnet ít nhất 1 tuần trước khi deploy mainnet.
+</Tip>

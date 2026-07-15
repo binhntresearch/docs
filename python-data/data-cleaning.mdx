@@ -1,0 +1,153 @@
+---
+title: "Làm sạch dữ liệu"
+description: "Xử lý missing values, duplicate, inconsistent data trong Pandas"
+icon: "broom"
+---
+
+Làm sạch dữ liệu (Data Cleaning) chiếm **80% thời gian** trong một dự án phân tích dữ liệu. Dữ liệu thực tế luôn bẩn — việc làm sạch đúng cách quyết định chất lượng phân tích.
+
+## Các vấn đề thường gặp
+
+| Vấn đề | Mô tả | Cách xử lý |
+|---|---|---|
+| **Missing values** | NULL, NaN, rỗng | Fill, drop, hoặc interpolate |
+| **Duplicate rows** | Dữ liệu bị trùng lặp | Drop duplicates |
+| **Wrong types** | String thay vì number | astype, to_numeric, to_datetime |
+| **Outliers** | Giá trị bất thường | Z-score, IQR, hoặc domain knowledge |
+| **Inconsistent format** | "HCM" vs "hcm" vs "TP.HCM" | Lowercase, map, replace |
+
+## Xử lý Missing Values
+
+<CodeGroup>
+```python Phát hiện
+df.isnull().sum()           # Đếm missing mỗi cột
+df.isnull().sum().sum()     # Tổng missing
+df.isnull().any()           # Cột nào có missing
+df[df['age'].isnull()]      # Lọc hàng có NaN trong age
+```
+
+```python Điền missing
+# Constant value
+df['age'].fillna(0)
+
+# Thống kê
+df['age'].fillna(df['age'].mean())      # Mean
+df['age'].fillna(df['age'].median())    # Median
+df['age'].fillna(df['age'].mode()[0])   # Mode
+
+# Forward/Backward fill
+df['age'].fillna(method='ffill')    # Lấy giá trị trước
+df['age'].fillna(method='bfill')    # Lấy giá trị sau
+
+# Interpolate
+df['temperature'].interpolate()
+```
+
+```python Xóa missing
+df.dropna()                      # Xóa hàng có missing
+df.dropna(subset=['age', 'name']) # Xóa nếu missing 1 trong 2 cột
+df.dropna(axis=1)                # Xóa cột có missing
+df.dropna(thresh=5)              # Giữ hàng có ít nhất 5 giá trị
+```
+</CodeGroup>
+
+## Xử lý Duplicates
+
+```python
+# Phát hiện duplicate
+df.duplicated().sum()         # Số hàng bị trùng
+df[df.duplicated()]          # Hiển thị hàng trùng
+
+# Xóa duplicate
+df.drop_duplicates()                          # Giữ bản đầu
+df.drop_duplicates(keep='last')               # Giữ bản cuối
+df.drop_duplicates(subset=['customer_id'])    # Trùng theo customer_id
+```
+
+## Fix Data Types
+
+```python
+# String → Number
+df['price'] = pd.to_numeric(df['price'], errors='coerce')  # error → NaN
+
+# String → Datetime
+df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+df['date'] = pd.to_datetime(df['date'], dayfirst=True)
+
+# Number → String
+df['zip_code'] = df['zip_code'].astype(str)
+
+# String cleanup
+df['name'] = df['name'].str.strip()          # Xóa khoảng trắng
+df['name'] = df['name'].str.lower()          # Chuyển thường
+df['name'] = df['name'].str.replace('old', 'new')
+```
+
+## Xử lý Outliers
+
+<CodeGroup>
+```python Z-Score method
+from scipy import stats
+import numpy as np
+
+z_scores = np.abs(stats.zscore(df['salary']))
+# Z-score > 3 thường được coi là outlier
+df_clean = df[z_scores < 3]
+```
+
+```python IQR method
+Q1 = df['salary'].quantile(0.25)
+Q3 = df['salary'].quantile(0.75)
+IQR = Q3 - Q1
+lower = Q1 - 1.5 * IQR
+upper = Q3 + 1.5 * IQR
+
+df_clean = df[(df['salary'] >= lower) & (df['salary'] <= upper)]
+```
+</CodeGroup>
+
+## Quy trình cleaning template
+
+```python
+def clean_data(df):
+    """Template function làm sạch dữ liệu."""
+    df = df.copy()
+
+    # 1. Duplicated
+    df.drop_duplicates(inplace=True)
+
+    # 2. Missing values
+    df['age'].fillna(df['age'].median(), inplace=True)
+    df['city'].fillna('Unknown', inplace=True)
+    df.dropna(subset=['customer_id'], inplace=True)
+
+    # 3. Data types
+    df['date'] = pd.to_datetime(df['date'])
+    df['revenue'] = pd.to_numeric(df['revenue'], errors='coerce')
+
+    # 4. String cleanup
+    df['city'] = df['city'].str.strip().str.lower()
+
+    # 5. Outliers
+    df = df[df['revenue'] > 0]
+
+    return df
+```
+
+<Tip>
+Luôn làm việc với bản copy khi clean dữ liệu (`df = df.copy()`). Không bao giờ modify dataframe gốc — phòng trường hợp cần quay lại.
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Viết hàm đọc CSV và kiểm tra: missing values, duplicate, wrong types.
+  </Step>
+  <Step title="Bài 2">
+    Áp dụng quy trình cleaning lên dataset `messy_data.csv` (giả lập có vấn đề).
+  </Step>
+  <Step title="Bài 3">
+    So sánh kết quả phân tích trước và sau khi clean — outlier có ảnh hưởng gì đến mean/median?
+  </Step>
+</Steps>

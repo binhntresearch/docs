@@ -1,0 +1,166 @@
+---
+title: "Research Agent"
+description: "Xây dựng AI agent tự động nghiên cứu — search, synthesize, report"
+icon: "magnifying-glass"
+---
+
+Research Agent tự động **tìm kiếm, tổng hợp và viết report** — thay thế hàng giờ research thủ công.
+
+## Kiến trúc
+
+```
+User Goal ("Research competitors in AI market")
+    ↓
+Planner Agent → Break into subtasks
+    ↓
+┌── Search Agent 1 → Competitor A data
+├── Search Agent 2 → Competitor B data
+├── Search Agent 3 → Market trends
+└── Data Agent → Verify & clean data
+    ↓
+Analyzer Agent → Find patterns & insights
+    ↓
+Writer Agent → Create final report
+```
+
+## Smart Contract Research Agent
+
+```python
+import anthropic
+from langchain_core.tools import tool
+
+client = anthropic.Anthropic()
+
+@tool
+def web_search(query: str) -> str:
+    """Search the internet for information."""
+    # Use Tavily, SerpAPI, or Brave Search API
+    import requests
+    response = requests.get("https://api.tavily.com/search", params={
+        "query": query, "max_results": 5
+    })
+    return response.json().get("results", [])
+
+@tool
+def read_url(url: str) -> str:
+    """Read and extract content from a URL."""
+    import requests
+    from bs4 import BeautifulSoup
+    resp = requests.get(url, timeout=10)
+    soup = BeautifulSoup(resp.text, 'html.parser')
+    return soup.get_text()[:5000]
+
+@tool
+def write_report(content: str, filename: str) -> str:
+    """Write a research report to file."""
+    with open(f"reports/{filename}", "w") as f:
+        f.write(content)
+    return f"Report saved to reports/{filename}"
+
+# Agent loop
+tools = [web_search, read_url, write_report]
+
+def research_agent(topic):
+    messages = [{
+        "role": "user",
+        "content": f"""Research this topic thoroughly: {topic}
+
+Steps:
+1. Search for multiple sources
+2. Read the most relevant pages
+3. Synthesize findings
+4. Write a comprehensive report
+5. Save the report
+
+Be thorough and cite all sources."""
+    }]
+
+    for _ in range(25):
+        response = client.messages.create(
+            model="claude-sonnet-5-20250514",
+            tools=tools,
+            messages=messages,
+            max_tokens=4096
+        )
+
+        if response.stop_reason == "end_turn":
+            return response.content[0].text
+
+        messages.append({"role": "assistant", "content": response.content})
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                result = execute_tool(block.name, block.input)
+                tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(result)})
+        messages.append({"role": "user", "content": tool_results})
+
+    return "Research completed with limitations"
+
+# Run
+report = research_agent("Compare LangChain vs Claude Agent SDK for building AI agents")
+```
+
+## Report Format
+
+```markdown
+# Research Report: [Topic]
+
+## Executive Summary
+[2-3 sentence overview]
+
+## Key Findings
+1. Finding 1 — [source]
+2. Finding 2 — [source]
+3. Finding 3 — [source]
+
+## Detailed Analysis
+### [Subtopic 1]
+[Analysis with citations]
+
+### [Subtopic 2]
+[Analysis with citations]
+
+## Comparison Table
+| Feature | Option A | Option B |
+|---|---|---|
+
+## Recommendations
+1. Recommendation 1
+2. Recommendation 2
+
+## Sources
+- [Source 1](url)
+- [Source 2](url)
+```
+
+## Multi-Source Research
+
+```python
+# Parallel research từ nhiều nguồn
+async def parallel_research(topic, sources):
+    tasks = [research_source(source, topic) for source in sources]
+    results = await asyncio.gather(*tasks)
+
+    # Synthesize all results
+    synthesis = synthesize_results(results)
+    return synthesis
+
+# Research từ nhiều góc nhìn
+async def multi_perspective_research(topic):
+    perspectives = await asyncio.gather(
+        research_perspective(topic, "industry"),
+        research_perspective(topic, "academic"),
+        research_perspective(topic, "news")
+    )
+    return balanced_report(perspectives)
+```
+
+## Features
+
+<Check>
+- **Parallel search:** Nhiều queries cùng lúc
+- **Source verification:** Cross-reference multiple sources
+- **Citation tracking:** Luôn link source cho mỗi claim
+- **Structured output:** Report có format chuẩn
+- **Follow-up questions:** Agent hỏi thêm nếu cần clarify
+</Check>

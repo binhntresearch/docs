@@ -1,0 +1,227 @@
+---
+title: "UI/UX Mobile"
+description: "Responsive design, animations, touch gestures cho mobile"
+icon: "palette"
+---
+
+Mobile UI/UX khác web — **touch-first**, screen nhỏ, gestures phức tạp hơn. Hiểu mobile design patterns = app chuyên nghiệp hơn.
+
+## Mobile Design Principles
+
+<Check>
+- **Thumb-friendly:** CTA buttons ở bottom third của screen
+- **Minimal navigation:** Bottom tabs (≤5 items) hoặc hamburger menu
+- **Clear hierarchy:** One primary action per screen
+- **Consistent patterns:** iOS → Cupertino, Android → Material Design
+- **Loading states:** Skeleton screens, shimmer effects
+- **Offline-first:** Hiển thị cached data khi mất kết nối
+</Check>
+
+## Responsive Design
+
+```tsx
+// React Native — Responsive với Dimensions
+import { Dimensions, useWindowDimensions } from 'react-native';
+
+export function ResponsiveScreen() {
+  const { width, height } = useWindowDimensions();
+  const isTablet = width >= 768;
+
+  return (
+    <View style={{
+      flexDirection: isTablet ? 'row' : 'column',
+      padding: isTablet ? 24 : 16
+    }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: isTablet ? 24 : 18 }}>Title</Text>
+      </View>
+      <View style={{ flex: isTablet ? 1 : 0, width: isTablet ? '50%' : '100%' }}>
+        {/* Content */}
+      </View>
+    </View>
+  );
+}
+```
+
+## Animations — React Native
+
+```tsx
+import { Animated, Easing } from 'react-native';
+
+// Simple fade in
+const fadeAnim = new Animated.Value(0);
+
+useEffect(() => {
+  Animated.timing(fadeAnim, {
+    toValue: 1,
+    duration: 500,
+    useNativeDriver: true
+  }).start();
+}, []);
+
+<Animated.View style={{ opacity: fadeAnim }}>
+  <Text>Hello with animation!</Text>
+</Animated.View>
+```
+
+```tsx
+// Shared Element Transition
+import { SharedElement } from 'react-navigation-shared-element';
+
+// Screen A
+<SharedElement id={`item.${item.id}`}>
+  <Image source={{ uri: item.image }} />
+</SharedElement>
+
+// Screen B
+<SharedElement id={`item.${item.id}`}>
+  <Image source={{ uri: item.image }} style={{ width: '100%', height: 300 }} />
+</SharedElement>
+```
+
+## Animations — Flutter
+
+```dart
+// Fade animation
+class FadeIn extends StatefulWidget {
+  final Widget child;
+  const FadeIn({super.key, required this.child});
+
+  @override
+  State<FadeIn> createState() => _FadeInState();
+}
+
+class _FadeInState extends State<FadeIn> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
+    _controller.forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(opacity: _animation, child: widget.child);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+```
+
+## Touch Gestures
+
+```tsx
+// React Native — Swipe to delete
+import { Swipeable } from 'react-native-gesture-handler';
+
+function TaskItem({ task, onDelete }) {
+  const renderRightActions = (progress, dragX) => (
+    <TouchableOpacity style={styles.deleteAction} onPress={onDelete}>
+      <Text style={styles.deleteText}>Delete</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <Swipeable renderRightActions={renderRightActions}>
+      <TaskCard title={task.title} status={task.status} />
+    </Swipeable>
+  );
+}
+
+// Long press
+<TouchableOpacity
+  onLongPress={() => setEditing(true)}
+  onPress={() => navigation.navigate('detail')}
+>
+  <TaskCard {...task} />
+</TouchableOpacity>
+```
+
+## Bottom Sheet
+
+```tsx
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
+
+function TaskOptions({ task }) {
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
+
+  return (
+    <>
+      <TouchableOpacity onPress={() => bottomSheetRef.current?.present()}>
+        <Text>Options</Text>
+      </TouchableOpacity>
+
+      <BottomSheetModal ref={bottomSheetRef} snapPoints={['25%', '50%']}>
+        <BottomSheetView>
+          <TouchableOpacity onPress={handleEdit}>
+            <Text>✏️ Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete}>
+            <Text>🗑️ Delete</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleShare}>
+            <Text>📤 Share</Text>
+          </TouchableOpacity>
+        </BottomSheetView>
+      </BottomSheetModal>
+    </>
+  );
+}
+```
+
+## Skeleton Loading
+
+```tsx
+// Skeleton placeholder
+function SkeletonCard() {
+  return (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonImage} />
+      <View style={styles.skeletonTitle} />
+      <View style={styles.skeletonSubtitle} />
+    </View>
+  );
+}
+
+// Usage
+{isLoading ? <SkeletonCard /> : <TaskCard {...task} />}
+```
+
+## Platform-Specific Components
+
+```tsx
+// iOS vs Android differences
+import { Platform, StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: Platform.OS === 'ios' ? 44 : 20, // Status bar
+  }
+});
+
+// Platform-specific components
+import { Platform } from 'react-native';
+
+function getHeaderStyle() {
+  return Platform.select({
+    ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 } },
+    android: { elevation: 4 }
+  });
+}
+```
+
+<Tip>
+Claude Code rất tốt cho UI mobile: mô tả layout, components, animations bằng ngôn ngữ tự nhiên → Claude Code tạo code React Native StyleSheet hoặc Flutter widgets. Luôn test trên physical device để verify gesture và animations.
+</Tip>

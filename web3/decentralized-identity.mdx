@@ -1,0 +1,153 @@
+---
+title: "Decentralized Identity"
+description: "Identity on-chain, ENS, SIWE, Soulbound Tokens, Verifiable Credentials"
+icon: "fingerprint"
+---
+
+Trong Web3, identity (danh tính) của user không phụ thuộc vào Facebook hay Google — nó là **wallet address** hoặc **ENS name**.
+
+## Wallet Address là Identity
+
+```javascript
+// User identity = địa chỉ ví
+const userId = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1";
+// Không cần server phải verify — đây là identity trên blockchain
+```
+
+## ENS — Ethereum Name Service
+
+Thay vì dùng địa chỉ ví dài, dùng tên miền `.eth` (tương tự DNS nhưng phi tập trung).
+
+```javascript
+import { normalize } from 'viem/ens';
+
+// Resolve từ ENS → address
+const address = await client.getEnsAddress({
+  name: normalize('vitalik.eth')
+});
+// → 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+
+// Resolve ngược lại
+const ensName = await client.getEnsName({
+  address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'
+});
+// → vitalik.eth
+```
+
+## Sign-In with Ethereum (SIWE)
+
+<Callout type="info">
+SIWE là tiêu chuẩn xác thực Web3 — user ký message chứng minh sở hữu wallet. Backend verify chữ ký mà không cần password.
+</Callout>
+
+```typescript
+// Backend verify SIWE
+import { SiweMessage } from 'siwe';
+
+async function verifySiwe(message: string, signature: string) {
+  const siwe = new SiweMessage(message);
+  const result = await siwe.verify({ signature });
+
+  if (!result.success) throw new Error('Invalid signature');
+
+  return {
+    address: siwe.address,
+    chainId: siwe.chainId,
+    nonce: siwe.nonce,
+    issuedAt: siwe.issuedAt
+  };
+}
+```
+
+### Login Flow
+
+<Steps>
+  <Step title="Get nonce">
+    Backend tạo nonce ngẫu nhiên cho user (chống replay attack)
+  </Step>
+  <Step title="Sign message">
+    Frontend tạo SIWE message chứa nonce, user ký bằng wallet
+  </Step>
+  <Step title="Verify signature">
+    Backend verify chữ ký, tạo session/JWT cho user
+  </Step>
+</Steps>
+
+## Soulbound Tokens (SBT)
+
+<Callout type="info">
+SBT là token **không thể transfer** — như bằng cấp, danh hiệu, reputation. User nhận được nhưng không gửi đi được.
+</Callout>
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+contract SoulboundCertificate is ERC721 {
+    address public issuer;
+
+    constructor() ERC721("Certificate", "CERT") {
+        issuer = msg.sender;
+    }
+
+    // Issue SBT cho student — không thể transfer
+    function issue(address student, uint256 tokenId) external {
+        require(msg.sender == issuer, "Not issuer");
+        _mint(student, tokenId);
+    }
+
+    // Block tất cả transfers
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal pure override {
+        require(from == address(0) || to == address(0), "Not transferable");
+        super._beforeTokenTransfer(from, to, tokenId);
+    }
+}
+```
+
+## Verifiable Credentials (VC)
+
+VC là chứng chỉ có thể verify on-chain:
+
+```javascript
+// VC structure
+const credential = {
+  "@context": ["https://www.w3.org/2018/credentials/v1"],
+  "type": ["VerifiableCredential"],
+  "issuer": "did:ethr:0x123...",
+  "issuanceDate": "2026-07-15T00:00:00Z",
+  "credentialSubject": {
+    "id": "did:ethr:0x456...",
+    "course": "Smart Contract Development",
+    "grade": "A",
+    "skills": ["Solidity", "Hardhat", "OpenZeppelin"]
+  },
+  "proof": {
+    "type": "EthereumEip712Signature2021",
+    "verificationMethod": "did:ethr:0x123#controller",
+    "signature": "0x..."
+  }
+};
+```
+
+<Tip>
+Ceramic Network là giải pháp DIDs phổ biến nhất — cung cấp identity layer on-chain với privacy và key management.
+</Tip>
+
+## ENS Subdomains
+
+```javascript
+import { createEnsSubdomain } from 'wagmi/ens';
+
+// Tạo subdomain cho user
+await createEnsSubdomain({
+  name: 'alice.workexample.eth',
+  owner: '0xUserAddress...',
+  resolver: '0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63'
+});
+```

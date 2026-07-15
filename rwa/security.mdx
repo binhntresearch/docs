@@ -1,0 +1,328 @@
+---
+title: "Bảo mật RWA & Compliance"
+description: "Bảo mật cho token hóa tài sản thực — custody, regulatory, transfer restrictions"
+icon: "shield-halved"
+---
+
+RWA là **bridge giữa blockchain và tài chính truyền thống** — security failures có thể mất hàng triệu USD và vi phạm pháp luật.
+
+## Các mối đe dọa chính
+
+| Mối đe dọa | Mô tả | Tác động |
+|---|---|---|
+| **Custody theft** | Asset custodian bị hack | Mất tài sản backing |
+| **Transfer bypass** | KYC không enforce → transfer cho blacklisted address | Regulatory violation |
+| **Oracle manipulation** | Price feed bị thao túng | Wrong price → loss |
+| **Compliance failure** | Sanctioned address có thể nhận token | Pháp lý nghiêm trọng |
+| **Upgrade attack** | Proxy upgrade thay đổi logic | Hidden exploit |
+| **Mis-issuance** | Mint nhiều hơn backing assets | Dilution |
+
+## Custody Security
+
+### Multi-sig Custody
+
+```solidity
+// ✅ Use multi-sig wallet for custodian
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+contract TokenizedAsset is AccessControl {
+    bytes32 public constant CUSTODIAN_ROLE = keccak256("CUSTODIAN");
+    bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR");
+
+    // Real-world asset custodian (e.g., Brink's, bank)
+    address public custodian;
+
+    // Multiple parties needed for critical operations
+    constructor(address _multisigWallet) {
+        _grantRole(CUSTODIAN_ROLE, _multisigWallet);
+    }
+
+    function verifyAsset() external view returns (bool) {
+        // Real-world attestation: NAV + custodian proof
+        return custodian.verify(assetId);
+    }
+}
+```
+
+### Cold Storage for Token Backing
+
+```
+Tokenized Asset (ERC-3643)
+    ↓ backs
+Real Asset (off-chain)
+    ↓ held by
+Custodian (multi-sig + cold storage)
+    ↓ audited by
+Independent Auditor (Chainlink PoR)
+```
+
+```solidity
+// Verify backing via Proof of Reserve
+function verifyReserves() external view returns (bool, uint256) {
+    // Get reserve attestation from auditor
+    (, uint256 totalReserves) = auditor.getReserves(assetId);
+
+    // Total supply should match reserves + slippage tolerance
+    uint256 totalSupply = totalSupply();
+
+    // Allow 1% slippage for fee/rebalancing
+    uint256 tolerance = totalSupply * 100 / 10000;  // 1%
+    require(
+        totalReserves >= totalSupply - tolerance &&
+        totalReserves <= totalSupply + tolerance,
+        "Reserve mismatch"
+    );
+
+    return (true, totalReserves);
+}
+```
+
+## KYC/AML Enforcement
+
+```solidity
+// Multi-jurisdiction whitelist
+contract Compliance {
+    struct Investor {
+        bool kycVerified;
+        uint8 investorType;          // 1=retail, 2=accredited, 3=institutional
+        uint256 countryCode;
+        uint256 accreditationExpiry;
+        bytes32 sanctionsCheck;
+        uint256 totalInvested;
+    }
+
+    mapping(address => Investor) public investors;
+
+    // Sanctions list (OFAC, EU, UN)
+    mapping(address => bool) public sanctioned;
+
+    // Daily limits per investor
+    mapping(address => uint256) public dailyTransferred;
+
+    modifier complianceCheck(
+        address from,
+        address to,
+        uint256 amount
+    ) {
+        // 1. Both KYC verified
+        require(investors[from].kycVerified, "Sender not KYC'd");
+        require(investors[to].kycVerified, "Receiver not KYC'd");
+
+        // 2. Not sanctioned
+        require(!sanctioned[from], "Sender sanctioned");
+        require(!sanctioned[to], "Receiver sanctioned");
+
+        // 3. Accreditation valid
+        require(
+            investors[to].accreditationExpiry > block.timestamp,
+            "Accreditation expired"
+        );
+
+        // 4. Investment limits
+        uint256 newBalance = investors[to].totalInvested + amount;
+        require(
+            newBalance <= getInvestmentLimit(investors[to].investorType),
+            "Exceeds limit"
+        );
+
+        // 5. Country restrictions (US persons for Reg S)
+        if (regulationType == REG_S) {
+            require(investors[to].countryCode != 840, "US persons restricted");
+        }
+
+        // 6. Daily limit
+        uint256 todayTransfer = dailyTransferred[to] + amount;
+        require(todayTransfer <= dailyLimit, "Daily limit exceeded");
+
+        _;
+    }
+}
+```
+
+## Oracle Security (Asset Valuation)
+
+```solidity
+// Multi-oracle consensus to prevent single point of failure
+contract PriceOracle {
+    struct Oracle {
+        address provider;
+        uint256 lastUpdate;
+        uint256 price;
+        bool trusted;
+    }
+
+    Oracle[] public oracles;
+    uint256 public minOracles = 3;
+    uint256 public maxPriceAge = 3600;  // 1 hour max
+
+    modifier validPrice() {
+        uint256 validCount = 0;
+        uint256 priceSum = 0;
+
+        for (uint i = 0; i < oracles.length; i++) {
+            if (!oracles[i].trusted) continue;
+            if (block.timestamp - oracles[i].lastUpdate > maxPriceAge) {
+                oracles[i].trusted = false;  // Auto-untrust stale oracles
+                continue;
+            }
+            priceSum += oracles[i].price;
+            validCount++;
+        }
+
+        require(validCount >= minOracles, "Insufficient oracles");
+        _;
+    }
+
+    function getConsensusPrice() validPrice public view returns (uint256) {
+        uint256 priceSum = 0;
+        uint256 count = 0;
+        for (uint i = 0; i < oracles.length; i++) {
+            if (oracles[i].trusted) {
+                priceSum += oracles[i].price;
+                count++;
+            }
+        }
+        return priceSum / count;  // Median would be better
+    }
+}
+```
+
+## Regulatory Reporting
+
+```solidity
+// Immutable audit trail for regulators
+contract RegulatoryReporting {
+    struct AuditEvent {
+        uint256 timestamp;
+        bytes32 actionHash;      // keccak256 of action + params
+        address actor;
+        string jurisdiction;     // "US", "EU", "SG"
+        uint256 complianceLevel; // 0=low, 1=med, 2=high
+    }
+
+    AuditEvent[] public auditTrail;
+
+    event SARSPatternDetected(
+        address indexed subject,
+        uint256 amount,
+        string reason
+    );
+
+    // Detect suspicious activity (Structuring, Layering)
+    function checkForSAR(address subject) external returns (bool) {
+        // Multiple small purchases under threshold (structuring)
+        if (recentTransactions(subject) > 5 &&
+            totalRecentAmount(subject) > 10000) {
+            emit SARSPatternDetected(subject, totalRecentAmount(subject), "structuring");
+            return true;
+        }
+        return false;
+    }
+}
+```
+
+## Upgrade Safety
+
+```solidity
+// Use Timelock for all contract upgrades (24-48 hour delay)
+import "@openzeppelin/contracts/governance/TimelockController.sol";
+
+contract MyUpgradeableContract is Initializable {
+    TimelockController public timelock;
+
+    function upgradeTo(IRuleV2 newImpl) external onlySelf {
+        // Step 1: Timelock schedules upgrade
+        timelock.schedule(
+            address(this),
+            0,
+            abi.encodeWithSignature("_upgradeTo(address)", newImpl),
+            bytes32("UPGRADE_HASH"),
+            2 days  // Delay before execution
+        );
+    }
+
+    function _upgradeTo(IRuleV2 newImpl) external {
+        require(msg.sender == address(timelock), "Only timelock");
+        _upgradeToAndCall(newImpl, "");
+    }
+}
+```
+
+## Incident Response
+
+```solidity
+// Emergency pause mechanism
+import "@openzeppelin/contracts/security/Pausable.sol";
+
+contract SecurityToken is Pausable {
+    // Multi-sig can pause token transfers in emergency
+    function pause() external onlyRole(EMERGENCY_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(EMERGENCY_ROLE) {
+        _unpause();
+    }
+
+    // Normal transfer
+    function transfer(address to, uint256 amount) public whenNotPaused returns (bool) {
+        // ... normal transfer logic
+    }
+
+    // Emergency recovery - only custodian can call
+    function emergencyTransfer(
+        address from,
+        address to,
+        uint256 amount
+    ) external onlyRole(CUSTODIAN_ROLE) whenPaused {
+        // Special logic for emergency situations
+        // E.g., court order, regulatory seizure
+        _transfer(from, to, amount);
+    }
+}
+```
+
+## Audit Trail
+
+```solidity
+event TransferWithCompliance(
+    address indexed from,
+    address indexed to,
+    uint256 amount,
+    bytes32 jurisdictionCode,  // Country pair for the transfer
+    bytes32 complianceCheck    // Hash of verification result
+);
+
+function transferWithCompliance(
+    address to,
+    uint256 amount
+) external returns (bool) {
+    bytes32 check = keccak256(abi.encodePacked(
+        investors[msg.sender].countryCode,
+        investors[to].countryCode,
+        block.timestamp
+    ));
+
+    emit TransferWithCompliance(msg.sender, to, amount, check, check);
+    return super.transfer(to, amount);
+}
+```
+
+## Compliance Checklist
+
+<Check>
+- [ ] Multi-sig for all admin functions
+- [ ] Time-locked upgrades với 24-48h delay
+- [ ] Daily/transaction limits per investor
+- [ ] Multi-oracle consensus cho price feeds
+- [ ] Proof of Reserve automated check
+- [ ] KYC/AML enforced on-chain
+- [ ] Sanctions list integration (Chainlink, TRM Labs)
+- [ ] Emergency pause mechanism
+- [ ] Audit trail với jurisdiction metadata
+- [ ] Regulatory reporting automated
+- [ ] Independent auditor cho backing assets
+- [ ] Insurance cho custody risks
+- [ ] Multi-jurisdiction legal review
+- [ ] Disaster recovery plan
+</Check>

@@ -1,0 +1,167 @@
+---
+title: "Thu thập dữ liệu từ SQL Database"
+description: "PostgreSQL, MySQL, SQLite — queries, transactions, bulk inserts"
+icon: "database"
+---
+
+Thu thập data từ SQL databases là phổ biến nhất — hầu hết data transactional đều ở đây.
+
+## Setup
+
+```bash
+pip install sqlalchemy psycopg2-binary pandas
+```
+
+## Kết nối
+
+```python
+from sqlalchemy import create_engine
+import pandas as pd
+
+# PostgreSQL
+engine = create_engine(
+    'postgresql://user:password@localhost:5432/mydb',
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True  # Auto reconnect
+)
+
+# MySQL
+engine = create_engine('mysql+pymysql://user:pass@localhost/mydb')
+
+# SQLite
+engine = create_engine('sqlite:///local.db')
+```
+
+## Read to DataFrame
+
+```python
+# Simple query
+df = pd.read_sql("SELECT * FROM users WHERE age > 18", engine)
+
+# With parameters (SQL injection safe!)
+df = pd.read_sql(
+    "SELECT * FROM orders WHERE created_at > %(date)s AND total > %(min_total)s",
+    engine,
+    params={'date': '2024-01-01', 'min_total': 100}
+)
+
+# Chunked reading (for huge tables)
+chunks = pd.read_sql(
+    "SELECT * FROM events WHERE date > %(date)s",
+    engine,
+    params={'date': '2024-01-01'},
+    chunksize=10000
+)
+for chunk in chunks:
+    process(chunk)
+```
+
+## Complex Queries
+
+```python
+import sqlalchemy as sa
+
+metadata = sa.MetaData()
+users = sa.Table('users', metadata, autoload_with=engine)
+orders = sa.Table('orders', metadata, autoload_with=engine)
+
+# JOIN query
+query = sa.select([
+    users.c.name,
+    sa.func.count(orders.c.id).label('order_count'),
+    sa.func.sum(orders.c.total).label('total_spent')
+]).select_from(
+    users.join(orders, users.c.id == orders.c.user_id)
+).where(
+    orders.c.created_at > '2024-01-01'
+).group_by(users.c.name)
+
+df = pd.read_sql(query, engine)
+```
+
+## Async với asyncpg
+
+```python
+import asyncio
+import asyncpg
+import pandas as pd
+
+async def fetch_data():
+    conn = await asyncpg.connect(
+        host='localhost',
+        port=5432,
+        user='user',
+        password='pass',
+        database='mydb'
+    )
+
+    # Single query
+    rows = await conn.fetch("SELECT * FROM users WHERE active = $1", True)
+
+    # Multiple queries in parallel
+    queries = [
+        conn.fetch("SELECT COUNT(*) FROM users"),
+        conn.fetch("SELECT COUNT(*) FROM orders"),
+        conn.fetch("SELECT AVG(amount) FROM transactions")
+    ]
+    results = await asyncio.gather(*queries)
+
+    await conn.close()
+    return results
+
+results = asyncio.run(fetch_data())
+```
+
+## Bulk Insert
+
+```python
+# Fast bulk insert với SQLAlchemy
+df = pd.DataFrame({...})
+df.to_sql('new_table', engine, if_exists='append', index=False, chunksize=10000)
+
+# Bulk insert với copy_from (PostgreSQL — fastest)
+from io import StringIO
+
+def psql_insert_copy(table, conn, keys, data_iter):
+    # Helper function từ pandas docs
+    ...
+
+df.to_sql('table_name', engine, method=psql_insert_copy, if_exists='append')
+```
+
+## Streaming với cursor
+
+```python
+# Đọc rows-by-rows cho huge tables (không load hết vào memory)
+from sqlalchemy import create_engine
+
+engine = create_engine('postgresql://...')
+
+with engine.connect() as conn:
+    result = conn.execute(
+        sa.text("SELECT id, name FROM large_table")
+    )
+
+    for row in result:  # Streaming
+        process(row.id, row.name)
+```
+
+## Connection Pooling Best Practices
+
+```python
+from sqlalchemy.pool import QueuePool
+
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=20,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800  # Recycle sau 30 min
+)
+```
+
+<Tip>
+Dùng **SQLAlchemy** cho portability (Postgres ↔ MySQL ↔ SQLite) và **async support**. Dùng raw `psycopg2` cho maximum performance với bulk operations.
+</Tip>

@@ -1,0 +1,213 @@
+---
+title: "Trading Agent"
+description: "Xây dựng AI agent phân tích thị trường và thực hiện giao dịch"
+icon: "chart-line"
+---
+
+Trading Agent tự động **phân tích dữ liệu thị trường, đưa ra quyết định giao dịch và thực hiện trades** — kết hợp AI reasoning với real-time data.
+
+## Kiến trúc
+
+```
+┌──────────────────────────────────────┐
+│         Trading Agent System          │
+├──────────────────────────────────────┤
+│                                      │
+│  📊 Data Agent                       │
+│  ├── Price feeds (real-time)         │
+│  ├── News sentiment analysis         │
+│  └── On-chain data (whale tracking)  │
+│                                      │
+│  🧠 Analysis Agent                   │
+│  ├── Technical analysis              │
+│  ├── Fundamental analysis            │
+│  └── Sentiment analysis              │
+│                                      │
+│  📋 Strategy Agent                   │
+│  ├── Risk management                 │
+│  ├── Position sizing                 │
+│  └── Entry/exit signals              │
+│                                      │
+│  ⚡ Execution Agent                  │
+│  ├── Order placement                 │
+│  ├── Stop-loss management            │
+│  └── Portfolio rebalancing           │
+│                                      │
+└──────────────────────────────────────┘
+```
+
+## Data Collection Agent
+
+```python
+import anthropic
+import requests
+
+client = anthropic.Anthropic()
+
+@tool
+def get_crypto_price(symbol: str) -> dict:
+    """Get current price and 24h change for a cryptocurrency."""
+    resp = requests.get(f"https://api.coingecko.com/api/v3/simple/price", params={
+        "ids": symbol, "vs_currencies": "usd", "include_24hr_change": True
+    })
+    return resp.json()
+
+@tool
+def get_market_news(query: str) -> list:
+    """Get recent news about a crypto/stock."""
+    # Use NewsAPI, CryptoPanic, or similar
+    resp = requests.get("https://cryptopanic.com/api/free/v1/posts/", params={
+        "auth_token": API_KEY, "currencies": query
+    })
+    return resp.json().get("results", [])[:10]
+
+@tool
+def analyze_sentiment(texts: list) -> dict:
+    """Analyze sentiment of news articles."""
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        messages=[{
+            "role": "user",
+            "content": f"Analyze sentiment (positive/negative/neutral) for each text:\n{texts}"
+        }]
+    )
+    return response.content[0].text
+```
+
+## Analysis Agent
+
+```python
+ANALYSIS_PROMPT = """You are a professional quantitative analyst.
+
+Analyze the provided market data and give:
+1. Technical indicators (RSI, MACD, Moving Averages)
+2. Key support/resistance levels
+3. Market sentiment assessment
+4. Risk/reward ratio for potential trades
+5. Recommended action: BUY / SELL / HOLD
+
+Always include:
+- Confidence level (0-100%)
+- Entry price / Target price / Stop-loss
+- Position size recommendation (% of portfolio)
+"""
+```
+
+## Risk Management
+
+```python
+class RiskManager:
+    def __init__(self, max_portfolio_risk=0.02, max_position_size=0.10):
+        self.max_portfolio_risk = max_portfolio_risk  # 2% per trade
+        self.max_position_size = max_position_size    # 10% max
+
+    def calculate_position_size(self, account_balance, entry_price, stop_loss):
+        risk_amount = account_balance * self.max_portfolio_risk
+        price_risk = abs(entry_price - stop_loss)
+        position_size = risk_amount / price_risk
+        position_value = position_size * entry_price
+
+        # Cap at max position size
+        max_value = account_balance * self.max_position_size
+        if position_value > max_value:
+            position_size = max_value / entry_price
+
+        return round(position_size, 4)
+```
+
+## Execution Agent
+
+```python
+# Trading bot với Coinbase API (demo, không phải real trading)
+from coinbase import trading
+
+class ExecutionAgent:
+    def __init__(self, api_key, api_secret):
+        self.client = trading.Tradeable(api_key, api_secret)
+
+    def place_order(self, symbol, side, size, price=None):
+        if price:
+            # Limit order
+            order = self.client.place_limit_order(
+                product_id=f"{symbol}-USD",
+                side=side,
+                price=str(price),
+                size=str(size)
+            )
+        else:
+            # Market order
+            order = self.client.place_market_order(
+                product_id=f"{symbol}-USD",
+                side=side,
+                size=str(size)
+            )
+        return order
+
+    def set_stop_loss(self, symbol, size, stop_price):
+        return self.client.place_stop_order(
+            product_id=f"{symbol}-USD",
+            side="sell",
+            size=str(size),
+            stop_price=str(stop_price)
+        )
+```
+
+## Backtesting
+
+```python
+def backtest(strategy, historical_data, initial_capital=10000):
+    portfolio = {"cash": initial_capital, "positions": {}}
+    trades = []
+
+    for day in historical_data:
+        signal = strategy.analyze(day, portfolio)
+        if signal.action == "BUY":
+            execute_buy(portfolio, signal)
+            trades.append({"date": day.date, "action": "BUY", "price": day.close})
+        elif signal.action == "SELL":
+            execute_sell(portfolio, signal)
+            trades.append({"date": day.date, "action": "SELL", "price": day.close})
+
+    return {
+        "final_value": portfolio_value(portfolio),
+        "trades": trades,
+        "sharpe_ratio": calculate_sharpe(trades),
+        "max_drawdown": calculate_max_drawdown(trades)
+    }
+```
+
+## Monitoring Dashboard
+
+```python
+# Real-time monitoring
+def monitor_portfolio(portfolio):
+    while True:
+        for position in portfolio["positions"]:
+            current_price = get_price(position["symbol"])
+            pnl = (current_price - position["entry_price"]) * position["size"]
+
+            # Alert if significant loss
+            if pnl < -position["entry_price"] * position["size"] * 0.05:
+                send_alert(f"⚠️ {position['symbol']} down 5%")
+
+            # Auto stop-loss
+            if current_price <= position["stop_loss"]:
+                execute_sell(position)
+
+        time.sleep(60)  # Check every minute
+```
+
+<Warning>
+**DISCLAIMER:** Trading bots có rủi ro tài chính rất cao. Luôn test trên testnet/demo trước. Không bao giờ deploy trading bot với tiền thật mà không hiểu rõ risks. Không invest nhiều hơn你能 afford to lose.
+</Warning>
+
+## Best Practices
+
+<Check>
+- **Paper trading first:** Test trên testnet tối thiểu 30 ngày
+- **Risk management:** Max 2% risk per trade, stop-loss bắt buộc
+- **Backtesting:** Test trên historical data trước khi live
+- **Monitoring:** Real-time alerts cho mọi trade
+- **Kill switch:** Ability to instantly stop all trading
+- **Logging:** Log mọi quyết định để audit
+</Check>

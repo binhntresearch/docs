@@ -1,0 +1,150 @@
+---
+title: "LLM Fundamentals"
+description: "Hiểu Large Language Models, context window, function calling và tool use"
+icon: "brain"
+---
+
+Trước khi xây agent, bạn cần hiểu cách LLM hoạt động ở cấp độ cần thiết.
+
+## LLM là gì?
+
+<Callout type="info">
+LLM (Large Language Model) là neural network đã được huấn luyện trên hàng nghìn tỷ tokens. Nó dự đoán token tiếp theo — nhưng từ khả năng đó, LLM có thể reasoning, planning, coding, và tool use.
+</Callout>
+
+## Context Window
+
+| Model | Context Window | Tokens/second |
+|---|---|---|
+| Claude Opus 4.8 | 200K tokens | ~80 |
+| Claude Sonnet 5 | 200K tokens | ~120 |
+| GPT-4o | 128K tokens | ~100 |
+| Gemini 2.5 Pro | 1M tokens | ~150 |
+| Llama 4 | 10M tokens | Variable |
+
+<Warning>
+Context window = bộ nhớ ngắn hạn của LLM. Khi conversation dài hơn context window → older messages bị compacted (tóm tắt). Luôn design agent考虑 context limits.
+</Warning>
+
+## Function Calling / Tool Use
+
+Đây là **nền tảng của Agentic AI** — LLM gọi function mà bạn định nghĩa.
+
+```python
+# Claude's tool use
+import anthropic
+
+client = anthropic.Anthropic()
+
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    max_tokens=1024,
+    tools=[
+        {
+            "name": "get_weather",
+            "description": "Get current weather for a location",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "City name"},
+                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+                },
+                "required": ["location"]
+            }
+        }
+    ],
+    messages=[{"role": "user", "content": "Weather in Hanoi?"}]
+)
+
+# LLM decides to call tool
+if response.stop_reason == "tool_use":
+    tool_call = response.content[0]
+    # Execute tool
+    weather = get_weather(location="Hanoi")
+    # Send result back to LLM
+    response = client.messages.create(
+        model="claude-sonnet-5-20250514",
+        messages=[...],
+        tools=[...]
+    )
+```
+
+## Agentic Loop với Tool Use
+
+```python
+def agent_loop(user_message, tools, max_iterations=10):
+    messages = [{"role": "user", "content": user_message}]
+
+    for i in range(max_iterations):
+        response = client.messages.create(
+            model="claude-sonnet-5-20250514",
+            tools=tools,
+            messages=messages
+        )
+
+        # Check if agent wants to use tools
+        if response.stop_reason == "tool_use":
+            # Extract tool calls
+            tool_calls = [c for c in response.content if c.type == "tool_use"]
+            messages.append({"role": "assistant", "content": response.content})
+
+            # Execute each tool
+            tool_results = []
+            for tc in tool_calls:
+                result = execute_tool(tc.name, tc.input)
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tc.id,
+                    "content": str(result)
+                })
+
+            messages.append({"role": "user", "content": tool_results})
+
+        elif response.stop_reason == "end_turn":
+            # Agent has final answer
+            return response.content[0].text
+
+    return "Max iterations reached"
+```
+
+## Structured Output
+
+```python
+# LLM trả về JSON structured
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    messages=[{
+        "role": "user",
+        "content": "Analyze this data and return JSON with: summary, insights, recommendations"
+    }]
+)
+
+# Parse structured output
+import json
+analysis = json.loads(response.content[0].text)
+```
+
+## Token Economics
+
+| Cost | Input | Output |
+|---|---|---|
+| Claude Opus 4.8 | $15/M tokens | $75/M tokens |
+| Claude Sonnet 5 | $3/M tokens | $15/M tokens |
+| Claude Haiku 4.5 | $0.80/M tokens | $4/M tokens |
+| GPT-4o | $2.50/M tokens | $10/M tokens |
+
+<Tip>
+Agent loop có thể tốn rất nhiều tokens. Bắt đầu với Sonnet/Haiku để test, chỉ upgrade Opus khi cần reasoning mạnh. Cache prompt system prompt để tiết kiệm input tokens.
+</Tip>
+
+## Streaming
+
+```python
+# Streaming response — hiển thị real-time
+with client.messages.stream(
+    model="claude-sonnet-5-20250514",
+    messages=[{"role": "user", "content": "Write a story"}]
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+```

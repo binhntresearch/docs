@@ -1,0 +1,191 @@
+---
+title: "Deploy & MLOps"
+description: "Model serving, monitoring, CI/CD cho ML systems"
+icon: "cloud"
+---
+
+Deploy ML model to production khác với deploy traditional software — cần handle model versioning, data drift, A/B testing.
+
+## Model Serialization
+
+```python
+# scikit-learn
+import joblib
+
+# Save
+joblib.dump(model, 'model.pkl')
+
+# Load
+loaded_model = joblib.load('model.pkl')
+
+# PyTorch
+import torch
+
+# Save
+torch.save({
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'epoch': epoch
+}, 'model.pth')
+
+# Load
+checkpoint = torch.load('model.pth')
+model.load_state_dict(checkpoint['model_state_dict'])
+```
+
+## ONNX — Cross-platform Format
+
+```python
+# Convert sklearn to ONNX
+from skl2onnx import convert_sklearn
+from skl2onnx.common.data_types import FloatTensorType
+import onnxruntime as rt
+import numpy as np
+
+# Convert
+initial_type = [('float_input', FloatTensorType([None, 4]))]
+onnx_model = convert_sklearn(model, initial_types=initial_type)
+onnx_model.save('model.onnx')
+
+# Run inference
+session = rt.InferenceSession('model.onnx')
+input_name = session.get_inputs()[0].name
+output_name = session.get_outputs()[0].name
+
+predictions = session.run(
+    [output_name],
+    {input_name: X_test.astype(np.float32)}
+)
+```
+
+## FastAPI Model Serving
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import joblib
+import numpy as np
+
+app = FastAPI()
+model = joblib.load('model.pkl')
+
+class PredictionRequest(BaseModel):
+    features: list[float]
+
+class PredictionResponse(BaseModel):
+    prediction: float
+    probability: float
+
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(request: PredictionRequest):
+    try:
+        X = np.array([request.features])
+        prediction = model.predict(X)[0]
+        probability = model.predict_proba(X)[0].max()
+
+        return PredictionResponse(
+            prediction=float(prediction),
+            probability=float(probability)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "model_loaded": model is not None}
+```
+
+## MLflow — Experiment Tracking
+
+```python
+import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import RandomForestClassifier
+
+mlflow.set_tracking_uri("http://localhost:5000")
+mlflow.set_experiment("iris_classification")
+
+with mlflow.start_run():
+    # Log params
+    mlflow.log_params({
+        "n_estimators": 100,
+        "max_depth": 5
+    })
+
+    # Train
+    model = RandomForestClassifier(n_estimators=100, max_depth=5)
+    model.fit(X_train, y_train)
+
+    # Log metrics
+    accuracy = accuracy_score(y_test, model.predict(X_test))
+    mlflow.log_metric("accuracy", accuracy)
+
+    # Log model
+    mlflow.sklearn.log_model(model, "model")
+
+    # Log artifacts (plots, datasets)
+    mlflow.log_artifact("confusion_matrix.png")
+```
+
+## Model Monitoring
+
+```python
+import evidently  # Monitoring library
+
+from evidently import Report
+from evidently.metrics import DataDriftMetric, RegressionPerformanceMetric
+
+# Detect data drift
+report = Report(metrics=[DataDriftMetric()])
+report.run(reference_data=train_df, current_data=production_df)
+report.save_html("data_drift_report.html")
+
+# Performance over time
+report = Report(metrics=[RegressionPerformanceMetric()])
+report.run(reference_data=train_df, current_data=production_df)
+```
+
+## Model Versioning
+
+```python
+# Version models with MLflow Registry
+import mlflow.pyfunc
+
+# Register model version
+mlflow.register_model(
+    "runs:/<run_id>/model",
+    "IrisClassifier"
+)
+
+# Transition to production
+client = mlflow.tracking.MlflowClient()
+client.transition_model_version_stage(
+    name="IrisClassifier",
+    version=1,
+    stage="Production"
+)
+```
+
+## A/B Testing Models
+
+```python
+import random
+
+def predict_with_ab_test(features):
+    # 90% production model, 10% new model
+    if random.random() < 0.9:
+        model = production_model  # version 1
+    else:
+        model = new_model  # version 2 (candidate)
+
+    prediction = model.predict([features])[0]
+
+    # Log for analysis
+    log_prediction(model_version=model.version, prediction=prediction)
+
+    return prediction
+```
+
+<Tip>
+MLflow là standard tool cho ML lifecycle — tracking experiments, packaging models, deploying với consistent API. Bắt đầu với MLflow tracking, sau đó mở rộng sang registry và serving.
+</Tip>

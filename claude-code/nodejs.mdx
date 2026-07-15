@@ -1,0 +1,71 @@
+---
+title: "Cài đặt môi trường Node.js"
+description: "Hướng dẫn cài Node.js, Bash — thiết lập môi trường cơ bản để phát triển"
+icon: "cube"
+---
+
+Thiết lập môi trường cơ bản để học và làm việc với Node.js trên máy của bạn.
+
+## Bạn cần cài gì
+
+<Check>
+- `Node.js` để chạy `node` và `npm`
+- `Bash` để dùng terminal theo các hướng dẫn dòng lệnh
+- `Visual Studio Code` để viết và chỉnh sửa mã
+</Check>
+
+## Cài đặt
+
+<Steps>
+  <Step title="Cài Node.js">
+    Chọn cách cài phù hợp với hệ điều hành của bạn:
+
+    <Tabs>
+      <Tab title="macOS">
+        1. Truy cập nodejs.org và tải bản `LTS` dành cho macOS
+        2. Mở file cài đặt và làm theo hướng dẫn trên màn hình
+        3. Chọn **Next** và giữ cấu hình mặc định nếu bạn chưa cần tùy chỉnh
+      </Tab>
+      <Tab title="Windows">
+        1. Truy cập nodejs.org và tải bản `LTS` dành cho Windows
+        2. Mở file `.msi`, bấm next và giữ cấu hình mặc định, sau đó hoàn tất cài đặt
+        3. Chọn **Next** và giữ cấu hình mặc định nếu bạn chưa cần tùy chỉnh
+      </Tab>
+    </Tabs>
+
+    Sau khi cài xong, mở terminal và kiểm tra:
+
+    ```bash
+    node -v
+    npm -v
+    ```
+
+    Nếu hai lệnh đều trả về phiên bản, bạn đã cài thành công.
+  </Step>
+  <Step title="Cài Bash">
+    Nếu máy chưa có Bash:
+
+    <Tabs>
+      <Tab title="macOS">
+        Cài Homebrew, sau đó chạy:
+        ```bash
+        brew install bash
+        ```
+      </Tab>
+      <Tab title="Windows">
+        Cài Git for Windows, sau đó mở **Git Bash**
+      </Tab>
+    </Tabs>
+
+    Sau khi cài xong, mở lại terminal và chạy lại `bash --version`.
+  </Step>
+  <Step title="Kiểm tra nhanh">
+    Sau khi hoàn tất, terminal của bạn nên chạy được các lệnh sau:
+
+    ```bash
+    node -v
+    npm -v
+    bash --version
+    ```
+  </Step>
+</Steps>

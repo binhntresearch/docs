@@ -1,0 +1,310 @@
+---
+title: "Quy tắc viết prompt cho Claude Code"
+description: "Cách mô tả yêu cầu thêm mới / cập nhật tính năng cho Claude Code"
+icon: "terminal"
+---
+
+Hai phần trước giải thích cách tổ chức Frontend (Next.js) và Backend (Firebase). Phần này hướng dẫn cách viết prompt để yêu cầu Claude Code thêm mới hoặc cập nhật tính năng — theo đúng kiến trúc đã học.
+
+## Nguyên tắc vàng khi viết prompt
+
+### 1. Mô tả CÁI GÌ, không mô tả CÁCH LÀM
+
+Claude Code biết cách viết code. Việc của bạn là mô tả kết quả mong muốn — không phải hướng dẫn từng dòng code.
+
+<CodeGroup>
+```text ❌ Không nên
+Tạo một useState để lưu danh sách tasks,
+rồi dùng useEffect gọi getDocs…
+```
+
+```text ✅ Nên
+Tạo trang hiển thị danh sách tasks,
+dữ liệu lấy từ Firestore collection 'tasks'
+```
+</CodeGroup>
+
+### 2. Cung cấp đầy đủ 4 thông tin
+
+Mỗi prompt nên trả lời 4 câu hỏi:
+
+| # | Câu hỏi | Ví dụ |
+|---|---------|-------|
+| 1 | **Ở ĐÂU?** | Trang nào? URL nào? |
+| 2 | **CÁI GÌ?** | Hiển thị gì? Giao diện trông thế nào? |
+| 3 | **DỮ LIỆU GÌ?** | Lấy từ collection nào? |
+| 4 | **HÀNH VI GÌ?** | Bấm nút thì sao? Submit form thì sao? |
+
+### 3. Chia nhỏ yêu cầu
+
+Không yêu cầu cả tính năng phức tạp trong 1 prompt. Chia thành từng bước nhỏ.
+
+<CodeGroup>
+```text ❌ Prompt quá lớn
+Tạo toàn bộ tính năng quản lý task:
+danh sách, form thêm mới, chỉnh sửa, xóa,
+lọc, tìm kiếm, phân trang, realtime, thông báo
+```
+
+```text ✅ Chia nhỏ thành từng bước
+Bước 1: Tạo trang danh sách tasks
+Bước 2: Thêm modal tạo task mới
+Bước 3: Thêm modal chỉnh sửa task
+Bước 4: Thêm chức năng xóa task
+Bước 5: Thêm bộ lọc và tìm kiếm
+```
+</CodeGroup>
+
+### 4. Nêu rõ ràng buộc
+
+<Tip>
+- "Trang này chỉ admin mới truy cập được."
+- "Form phải validate: tiêu đề bắt buộc, deadline không được ở quá khứ."
+- "Sau khi tạo thành công → đóng modal, hiển thị toast."
+- "Danh sách cập nhật realtime, không cần reload."
+</Tip>
+
+## Công thức prompt theo loại tính năng
+
+### Thêm trang mới (Page)
+
+```
+Tạo trang [TÊN TRANG] tại [URL].
+
+Giao diện gồm:
+- [Mô tả phần header / tiêu đề]
+- [Mô tả phần nội dung chính]
+- [Mô tả các nút / hành động]
+
+Dữ liệu:
+- Lấy từ Firestore collection '[TÊN COLLECTION]'
+- Hiển thị các trường: [LIỆT KÊ FIELDS]
+- [Realtime hay không]
+
+Hành vi:
+- [Mô tả tương tác]
+```
+
+### Thêm modal (Dialog)
+
+```
+Tạo modal [TÊN MODAL] trên trang [URL].
+
+Khi nào mở: [Mô tả trigger — bấm nút nào]
+
+Form gồm các trường:
+- [Tên trường]: [Loại input] — [Ghi chú nếu có]
+
+Khi bấm Lưu:
+- Ghi vào Firestore collection '[TÊN]'
+- Xử lý thành công: đóng modal, toast, refresh
+- Xử lý thất bại: hiển thị lỗi
+
+Validation:
+- [Trường nào bắt buộc]
+```
+
+### Cập nhật / sửa đổi tính năng
+
+```
+Trên trang [URL], sửa [MÔ TẢ PHẦN CẦN SỬA].
+
+Hiện tại: [Mô tả hoạt động hiện tại]
+Mong muốn: [Mô tả hoạt động mới]
+```
+
+## Ví dụ thực tế: Xây dựng tính năng quản lý Tasks
+
+### Bước 1 — Tạo trang danh sách Tasks
+
+```
+Tạo trang danh sách tasks tại /dashboard/tasks.
+
+Giao diện gồm:
+- Header: tiêu đề 'Danh sách công việc', nút 'Thêm task' ở góc phải
+- Bảng dữ liệu hiển thị danh sách tasks với các cột:
+  + Tiêu đề (title)
+  + Trạng thái (status) — hiển thị dạng badge màu:
+    todo = xám, in_progress = xanh dương, completed = xanh lá
+  + Người phụ trách (assignee) — hiển thị avatar + tên
+  + Deadline — hiển thị ngày, tô đỏ nếu quá hạn
+  + Hành động — nút Sửa, nút Xóa
+- Khi bảng trống: hiển thị empty state 'Chưa có task nào'
+
+Dữ liệu:
+- Lấy từ Firestore collection 'tasks'
+- Sắp xếp theo createdAt mới nhất lên trước
+- Cập nhật realtime
+
+Trang này nằm trong dashboard layout (có sidebar).
+```
+
+### Bước 2 — Tạo modal thêm mới Task
+
+```
+Trên trang /dashboard/tasks, tạo modal thêm mới task.
+
+Khi nào mở: bấm nút 'Thêm task' trên header.
+
+Form gồm các trường:
+- Tiêu đề (title): input text, bắt buộc
+- Mô tả (description): textarea, không bắt buộc
+- Trạng thái (status): dropdown 3 giá trị, mặc định Todo
+- Độ ưu tiên (priority): dropdown 3 giá trị, mặc định Medium
+- Người phụ trách (assigneeId): dropdown lấy từ users
+- Deadline: date picker, không chọn ngày quá khứ
+- Dự án (projectId): dropdown lấy từ projects
+
+Khi bấm Lưu:
+- Validate: tiêu đề bắt buộc
+- Ghi vào collection 'tasks' với createdBy = UID, createdAt = now
+- Thành công: đóng modal, toast 'Tạo task thành công'
+- Thất bại: hiển thị lỗi, giữ modal mở
+
+Khi bấm Hủy: đóng modal, reset form.
+```
+
+### Bước 3 — Tạo modal chỉnh sửa Task
+
+```
+Trên trang /dashboard/tasks, tạo modal chỉnh sửa task.
+
+Khi nào mở: bấm nút 'Sửa' trên mỗi dòng.
+
+Form giống modal thêm mới nhưng:
+- Tự động điền dữ liệu hiện tại
+- Tiêu đề modal: 'Chỉnh sửa task'
+- Nút submit: 'Cập nhật' thay vì 'Lưu'
+
+Khi bấm Cập nhật:
+- Ghi đè document trong Firestore
+- Thêm updatedAt = now
+- Thành công: đóng modal, toast 'Cập nhật thành công'
+```
+
+### Bước 4 — Thêm chức năng xóa Task
+
+```
+Trên trang /dashboard/tasks, thêm chức năng xóa task.
+
+Khi bấm nút 'Xóa' trên mỗi dòng:
+- Hiển thị dialog xác nhận: 'Bạn có chắc muốn xóa task [tên]? Không thể hoàn tác.'
+- 2 nút: 'Hủy' và 'Xóa' (màu đỏ)
+
+Khi xác nhận xóa:
+- Xóa document khỏi collection 'tasks'
+- Thành công: đóng dialog, toast 'Đã xóa task'
+- Bảng tự cập nhật nhờ realtime listener
+```
+
+### Bước 5 — Thêm bộ lọc và tìm kiếm
+
+```
+Trên trang /dashboard/tasks, thêm bộ lọc phía trên bảng.
+
+Gồm:
+- Ô tìm kiếm: lọc theo tiêu đề (client-side)
+- Dropdown trạng thái: Tất cả / Todo / In Progress / Completed
+- Dropdown người phụ trách: Tất cả / [danh sách users]
+
+Hành vi:
+- Lọc ngay khi thay đổi (không cần bấm nút)
+- Các bộ lọc kết hợp
+- Hiển thị số lượng: 'Hiển thị X / Y tasks'
+```
+
+## Prompt cho các tình huống phổ biến
+
+<AccordionGroup>
+  <Accordion title="Thêm trang chi tiết (Detail page)">
+    ```
+    Tạo trang chi tiết task tại /dashboard/tasks/[id].
+
+    Khi truy cập URL (ví dụ /dashboard/tasks/abc123):
+    - Lấy task từ Firestore document 'tasks/abc123'
+    - Nếu không tìm thấy: hiển thị trang 404
+
+    Giao diện:
+    - Header: tiêu đề task, badge trạng thái, nút 'Sửa', nút 'Quay lại'
+    - Phần thông tin: mô tả, người phụ trách, deadline, dự án
+    - Phần bình luận: danh sách + form thêm bình luận mới
+      Bình luận lưu trong subcollection 'comments'
+    ```
+  </Accordion>
+  <Accordion title="Thêm trang Dashboard tổng quan">
+    ```
+    Tạo trang dashboard tổng quan tại /dashboard.
+
+    Hiển thị thống kê:
+    - Card 'Tổng tasks': đếm tất cả tasks
+    - Card 'Đang thực hiện': đếm status = 'in_progress'
+    - Card 'Hoàn thành': đếm status = 'completed'
+    - Card 'Quá hạn': đếm deadline < hôm nay VÀ status != 'completed'
+
+    Biểu đồ:
+    - Biểu đồ tròn: tỷ lệ tasks theo trạng thái
+
+    Danh sách:
+    - 5 tasks gần đây nhất (theo createdAt)
+    - 5 tasks sắp đến hạn
+    ```
+  </Accordion>
+  <Accordion title="Thêm phân quyền">
+    ```
+    Thêm phân quyền cho trang /dashboard/tasks:
+
+    - Admin (role = 'admin'): xem tất cả tasks
+    - Member: chỉ xem tasks mình được giao (assigneeId = UID)
+      hoặc tasks mình tạo (createdBy = UID)
+
+    Kiểm tra role từ Firestore document 'users/[UID]'.
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Checklist trước khi gửi prompt
+
+| # | Kiểm tra | Ví dụ |
+|---|---------|-------|
+| 1 | **URL / vị trí** rõ ràng? | `/dashboard/tasks`, "trên header" |
+| 2 | **Giao diện** mô tả đủ chi tiết? | "Bảng có cột: title, status (badge)" |
+| 3 | **Dữ liệu** chỉ rõ collection và fields? | "Firestore collection 'tasks'" |
+| 4 | **Hành vi** khi tương tác? | "Bấm Lưu → ghi Firestore → toast" |
+| 5 | **Xử lý lỗi** / trường hợp đặc biệt? | "Nếu không có tasks → empty state" |
+| 6 | **Validation** nếu có form? | "Tiêu đề bắt buộc" |
+
+## Mẹo nâng cao
+
+### Dùng tham chiếu đến code có sẵn
+
+```
+Tạo trang /dashboard/projects tương tự /dashboard/tasks.
+
+Thay đổi:
+- Collection: 'projects' thay vì 'tasks'
+- Cột bảng: Tên, Trạng thái, Số thành viên, Ngày tạo
+```
+
+### Mô tả luồng nhiều bước
+
+```
+Thêm luồng mời thành viên vào project:
+Bước 1: Trang chi tiết project, có nút 'Mời thành viên'
+Bước 2: Mở modal với dropdown chọn user
+Bước 3: Bấm 'Mời' → thêm userId vào array 'members'
+Bước 4: Tạo notification cho user được mời
+Bước 5: Đóng modal, cập nhật danh sách thành viên
+```
+
+### Yêu cầu cấu trúc code rõ ràng
+
+```
+Khi tạo tính năng này, đảm bảo:
+- Service functions đặt trong services/tasks.ts
+- Components đặt trong components/tasks/
+- Tái sử dụng TaskForm cho cả thêm mới và chỉnh sửa
+```
+
+<Tip>
+Chất lượng quan trọng hơn độ dài. Prompt ngắn nhưng đủ 4 thông tin tốt hơn prompt dài nhưng mơ hồ. Đừng ngại chi tiết — thiếu thông tin = Claude Code tự đoán = có thể sai.
+</Tip>

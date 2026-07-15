@@ -1,0 +1,170 @@
+---
+title: "Email"
+description: "Thực hành gửi email qua API Routes: email xác nhận, nhắc nhở, chứng chỉ"
+icon: "envelope"
+---
+
+Bài thực hành giúp bạn tích hợp gửi email vào ứng dụng Next.js thông qua API Routes — sử dụng Resend, một dịch vụ email hiện đại.
+
+## Mục tiêu
+
+<Check>Tích hợp Resend SDK vào Next.js · Tạo email template HTML đẹp · Gửi email qua API Route · Trigger email tự động qua Cloud Functions khi có sự kiện</Check>
+
+## Quy trình thực hành
+
+<Steps>
+  <Step title="Đăng ký Resend">
+    Vào [resend.com](https://resend.com) → Đăng ký → Verify domain → Lấy API key.
+  </Step>
+  <Step title="Cài đặt SDK">
+    ```bash
+    npm install resend
+    ```
+  </Step>
+  <Step title="Tạo email template">
+    Sử dụng React Email để viết template:
+    ```bash
+    npm install @react-email/components
+    ```
+  </Step>
+  <Step title="Tạo API Route gửi email">
+    API tại `/api/send-email/enrollment-confirm`.
+  </Step>
+  <Step title="Tạo Cloud Function trigger">
+    Khi user đăng ký khóa học → tự động gửi email xác nhận.
+  </Step>
+</Steps>
+
+## 3 loại email phổ biến
+
+<AccordionGroup>
+  <Accordion title="1. Email xác nhận đăng ký">
+    Gửi khi user đăng ký khóa học:
+
+    ```
+    API Route: POST /api/send-email/enrollment-confirm
+    Input: studentEmail, studentName, courseName, startDate, zoomLink
+    Template: HTML đẹp với logo, thông tin khóa, CTA buttons
+    ```
+  </Accordion>
+  <Accordion title="2. Email nhắc thanh toán">
+    Tự động gửi theo lịch khi học phí sắp đến hạn:
+
+    ```
+    Cloud Function: scheduled/paymentReminder
+    Schedule: Mỗi ngày 8:00 AM
+    Logic: Tìm payment due trong 3 ngày tới → gửi nhắc nhở
+    Mẫu email khác nhau theo mức độ quá hạn:
+    - Sắp đến hạn: lời nhắc nhẹ nhàng
+    - Quá hạn 1-7 ngày: urgent
+    - Quá hạn 7+ ngày: thông báo đình chỉ tài khoản
+    ```
+  </Accordion>
+  <Accordion title="3. Email chứng chỉ">
+    Gửi khi user hoàn thành khóa học:
+
+    ```
+    Cloud Function: onCourseCompleted
+    Logic:
+    1. Tạo PDF chứng chỉ
+    2. Upload lên Cloud Storage
+    3. Gửi email với link download
+    4. Cập nhật Firestore: certificateIssued = true
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Code mẫu — API Route
+
+```typescript
+// app/api/send-email/enrollment-confirm/route.ts
+import { Resend } from 'resend'
+import { EnrollmentConfirmEmail } from '@/emails/EnrollmentConfirm'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
+
+export async function POST(req: Request) {
+  const { studentEmail, studentName, courseName, startDate } = await req.json()
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'LMS <noreply@lms.example.com>',
+      to: [studentEmail],
+      subject: `Chào mừng ${studentName} đến với khóa học ${courseName}!`,
+      react: EnrollmentConfirmEmail({
+        studentName,
+        courseName,
+        startDate,
+      }),
+    })
+
+    if (error) return Response.json({ error }, { status: 400 })
+    return Response.json({ success: true, data })
+  } catch (error) {
+    return Response.json({ error }, { status: 500 })
+  }
+}
+```
+
+## Email template mẫu — React Email
+
+```tsx
+// emails/EnrollmentConfirm.tsx
+import { Html, Heading, Text, Button, Section } from '@react-email/components'
+
+export function EnrollmentConfirmEmail({ studentName, courseName, startDate }) {
+  return (
+    <Html>
+      <Section style={{ padding: '20px' }}>
+        <Heading>Chào {studentName}!</Heading>
+        <Text>
+          Chào mừng bạn đến với khóa học <strong>{courseName}</strong>.
+        </Text>
+        <Text>Khóa học bắt đầu vào: <strong>{startDate}</strong></Text>
+        <Button href="https://zoom.us/j/...">
+          Tham gia buổi học
+        </Button>
+      </Section>
+    </Html>
+  )
+}
+```
+
+## Prompt mẫu cho Claude Code
+
+```
+Tích hợp gửi email với Resend vào dự án Next.js.
+
+Yêu cầu:
+1. Cài resend và @react-email/components
+2. Tạo file lib/email.ts với hàm sendEmail wrapper
+3. Tạo email templates:
+   - EnrollmentConfirm (khi đăng ký khóa học)
+   - PaymentReminder (khi sắp đến hạn thanh toán)
+   - Certificate (khi hoàn thành khóa học)
+4. API Routes tương ứng tại app/api/send-email/*
+5. Tạo Cloud Function trigger từ Firestore: khi có enrollment mới
+   → gọi API /api/send-email/enrollment-confirm
+
+Biến môi trường:
+- RESEND_API_KEY
+- EMAIL_FROM (vd: LMS <noreply@lms.example.com>)
+```
+
+## Tại sao dùng Resend?
+
+<Tabs>
+  <Tab title="Miễn phí">
+    3,000 email/tháng miễn phí. Phù hợp dự án nhỏ và MVP.
+  </Tab>
+  <Tab title="Developer-friendly">
+    API đơn giản, SDK tốt cho Next.js. Tích hợp React Email để viết template bằng JSX.
+  </Tab>
+  <Tab title="Deliverability tốt">
+    Tỉ lệ email vào inbox cao hơn SMTP thông thường.
+  </Tab>
+</Tabs>
+
+<Tip>
+Khi gửi email từ API Route, luôn wrap trong try/catch để xử lý lỗi — email lỗi không được làm crash ứng dụng.
+</Tip>

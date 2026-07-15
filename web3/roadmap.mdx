@@ -1,0 +1,129 @@
+---
+title: "Lộ trình phát triển"
+description: "Lộ trình chi tiết từ Frontend Web2 thành Web3 Developer"
+icon: "route"
+---
+
+Lộ trình đầy đủ từ **Frontend Developer (Web2)** trở thành **Web3 Developer chuyên nghiệp**.
+
+## Phase 1: Nền tảng vững chắc (Tuần 1-4)
+
+<Check>
+- React/Next.js cơ bản đến nâng cao
+- TypeScript
+- Web3 concepts (blockchain, wallet, DApp)
+- Hiểu cách blockchain hoạt động
+- Đọc Ethereum docs cơ bản
+</Check>
+
+## Phase 2: Web3 Frontend (Tuần 5-8)
+
+<Check>
+- **ethers.js / viem** — thư viện kết nối blockchain
+- **wagmi** — React hooks cho wallet
+- **RainbowKit / Web3Modal** — UI components kết nối ví
+- **Account Abstraction** — ví thông minh
+- Test với MetaMask và Sepolia
+</Check>
+
+## Phase 3: Smart Contract (Tuần 9-16)
+
+<Check>
+- Solidity cơ bản
+- Hardhat / Foundry (development framework)
+- OpenZeppelin contracts
+- DeFi primitives (AMM, lending, staking)
+- Security best practices
+- Test coverage > 90%
+- Audit Solidity code
+</Check>
+
+## Phase 4: Advanced (Tuần 17-24)
+
+<Check>
+- **The Graph** — index on-chain data cho DApp
+- **IPFS / Arweave** — decentralized storage
+- **ENS** — domain name (.eth)
+- **Layer 2** — Optimism, Arbitrum, zkSync
+- **Multi-chain** — viết contract chạy nhiều chain
+- **Account Abstraction / ERC-4337** — smart wallet
+</Check>
+
+## Dự án thực chiến theo từng phase
+
+| Phase | Dự án | Stack |
+|---|---|---|
+| 1 | Portfolio site connect wallet | React + wagmi |
+| 2 | Token swap UI | Next.js + viem + RainbowKit |
+| 3 | ERC-20 token + staking contract | Solidity + Hardhat |
+| 4 | Decentralized Social Network | Ceramic + The Graph |
+
+## Tech Stack khuyến nghị
+
+<Tabs>
+  <Tab title="Frontend">
+    ```json
+    {
+      "framework": "Next.js 14",
+      "language": "TypeScript",
+      "wallet": "wagmi + viem",
+      "ui": "RainbowKit + shadcn/ui",
+      "data-fetching": "The Graph",
+      "auth": "Sign-In with Ethereum (SIWE)"
+    }
+    ```
+  </Tab>
+  <Tab title="Smart Contract">
+    ```json
+    {
+      "language": "Solidity ^0.8.20",
+      "framework": "Hardhat + OpenZeppelin",
+      "test": "Chai + Mocha",
+      "deploy": "Hardhat Ignition",
+      "verify": "Etherscan API",
+      "ci-cd": "GitHub Actions"
+    }
+    ```
+  </Tab>
+  <Tab title="Tools">
+    ```json
+    {
+      "indexing": "The Graph Protocol",
+      "storage": "IPFS (Pinata) / Arweave",
+      "oracle": "Chainlink",
+      "relayer": "Gelato / Biconomy",
+      "monitoring": "Tenderly / OpenZeppelin Defender"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Học ở đâu?
+
+<Tip>
+Nguồn học chất lượng cho Web3 Development:
+
+- **Solidity:** Solidity Docs, Solidity by Example
+- **Hardhat:** Hardhat Tutorial, Hardhat Starter Kit
+- **wagmi:** wagmi.sh docs (rất chi tiết)
+- **OpenZeppelin:** contracts.openzeppelin.com
+- **Ethereum:** ethereum.org/developers
+- **Practice:** Speedrun Ethereum (buildspace)
+</Tip>
+
+## Bài tập theo từng tuần
+
+<Steps>
+  <Step title="Tuần 1">
+    Frontend cơ bản — Button có thể connect MetaMask, hiển thị địa chỉ ví, hiển thị số dư ETH.
+  </Step>
+  <Step title="Tuần 4">
+    Deploy contract Hello World lên Sepolia, tương tác từ frontend.
+  </Step>
+  <Step title="Tuần 8">
+    Build DEX UI (chỉ frontend) với form swap, hiển thị price từ contract.
+  </Step>
+  <Step title="Tuần 16">
+    Hoàn thiện DeFi protocol (staking, lending, hoặc AMM).
+  </Step>
+</Steps>

@@ -1,0 +1,135 @@
+---
+title: "NumPy"
+description: "Tính toán số học hiệu năng cao với NumPy"
+icon: "calculator"
+---
+
+NumPy (Numerical Python) là thư viện nền tảng cho tính toán khoa học trong Python. NumPy cung cấp đối tượng **mảng đa chiều (ndarray)** hiệu năng cao và các hàm toán học mạnh mẽ.
+
+## Tại sao cần NumPy?
+
+<Tabs>
+  <Tab title="Python list — chậm">
+    ```python
+    # Tính tổng 1 triệu số
+    numbers = list(range(1_000_000))
+    total = sum(numbers)  # ~50ms
+    ```
+
+    Python list chậm vì:
+    - Mỗi phần tử là object riêng
+    - Phải kiểm tra type lúc runtime
+    - Không tận dụng được CPU cache
+  </Tab>
+  <Tab title="NumPy array — nhanh hơn 50-100x">
+    ```python
+    import numpy as np
+    numbers = np.arange(1_000_000)
+    total = numbers.sum()  # ~1ms
+    ```
+
+    NumPy nhanh vì:
+    - Lưu dữ liệu trong memory liên tục
+    - Vectorization — chạy trên toàn array
+    - Được viết bằng C tối ưu
+  </Tab>
+</Tabs>
+
+## Tạo mảng NumPy
+
+```python
+import numpy as np
+
+# Từ Python list
+arr1 = np.array([1, 2, 3, 4, 5])
+arr2 = np.array([[1, 2, 3], [4, 5, 6]])  # 2D array
+
+# Mảng đặc biệt
+zeros = np.zeros((3, 4))          # Mảng 0 kích thước 3x4
+ones = np.ones((2, 3))            # Mảng 1
+arange = np.arange(0, 10, 2)      # [0, 2, 4, 6, 8]
+linspace = np.linspace(0, 1, 5)   # Chia đều từ 0 đến 1, lấy 5 điểm
+random = np.random.rand(3, 3)     # Mảng random 3x3
+```
+
+## Các thao tác cơ bản
+
+<CodeGroup>
+```python Indexing & Slicing
+arr = np.array([10, 20, 30, 40, 50])
+
+arr[0]        # 10
+arr[-1]       # 50
+arr[1:4]      # [20, 30, 40]
+arr[::2]      # [10, 30, 50]
+
+# 2D array
+matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+matrix[0, :]   # Hàng đầu tiên: [1, 2, 3]
+matrix[:, 1]   # Cột thứ 2: [2, 5, 8]
+```
+
+```python Operations
+arr = np.array([1, 2, 3, 4])
+
+arr + 10          # [11, 12, 13, 14]
+arr * 2           # [2, 4, 6, 8]
+arr ** 2          # [1, 4, 9, 16]
+np.sqrt(arr)      # [1, 1.41, 1.73, 2]
+np.exp(arr)       # [2.72, 7.39, 20.09, 54.6]
+
+a = np.array([1, 2, 3])
+b = np.array([4, 5, 6])
+a + b             # [5, 7, 9] — element-wise
+a.dot(b)          # 32 — dot product
+```
+
+```python Statistics
+data = np.array([85, 92, 78, 90, 88, 95, 82])
+
+data.mean()       # 87.14 — trung bình
+data.std()        # 5.49 — độ lệch chuẩn
+data.min(), data.max()
+data.sum()
+np.median(data)   # 88 — trung vị
+
+# Percentile
+np.percentile(data, 25)  # Q1
+np.percentile(data, 50)  # Q2 (median)
+np.percentile(data, 75)  # Q3
+```
+</CodeGroup>
+
+## Broadcasting
+
+Là cách NumPy xử lý các phép tính giữa các array có shape khác nhau:
+
+```python
+# Scalar broadcasting
+arr = np.array([1, 2, 3])
+arr + 10  # [11, 12, 13]
+
+# 2D + 1D broadcasting
+matrix = np.array([[1, 2, 3], [4, 5, 6]])  # shape (2, 3)
+vector = np.array([10, 20, 30])           # shape (3,)
+result = matrix + vector
+# [[11, 22, 33], [14, 25, 36]]
+```
+
+<Tip>
+NumPy là nền tảng của Pandas, Matplotlib, Scikit-learn. Nắm vững NumPy giúp bạn học các thư viện khác dễ dàng hơn rất nhiều.
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Tạo array 1D từ 1 đến 20, tính tổng các số chẵn.
+  </Step>
+  <Step title="Bài 2">
+    Tạo ma trận 5x5 với giá trị random 0-100, tìm max/min mỗi hàng và cột.
+  </Step>
+  <Step title="Bài 3">
+    So sánh tốc độ giữa Python list và NumPy array cho phép tính tổng 10 triệu số.
+  </Step>
+</Steps>

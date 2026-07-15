@@ -1,0 +1,236 @@
+---
+title: "Social App"
+description: "Xây dựng mạng xã hội — posts, likes, comments, profile, followers"
+icon: "users"
+---
+
+Dự án Social App — clone Instagram/TikTok simplified — posts, likes, comments, user profiles, follow system.
+
+## Features
+
+<Check>
+- ✅ Feed with posts (image + text)
+- ✅ Like / Unlike posts
+- ✅ Comments system
+- ✅ User profile (posts grid, followers, following)
+- ✅ Follow / Unfollow
+- ✅ Create post (camera / gallery)
+- ✅ Notifications
+</Check>
+
+## Data Models
+
+```dart
+class Post {
+  final String id;
+  final String userId;
+  final String content;
+  final List<String> images;
+  final int likesCount;
+  final int commentsCount;
+  final bool isLikedByMe;
+  final DateTime createdAt;
+}
+
+class User {
+  final String id;
+  final String username;
+  final String name;
+  final String avatarUrl;
+  final String bio;
+  final int postsCount;
+  final int followersCount;
+  final int followingCount;
+  final bool isFollowing;
+}
+
+class Comment {
+  final String id;
+  final String userId;
+  final String username;
+  final String avatarUrl;
+  final String text;
+  final DateTime createdAt;
+}
+```
+
+## Home Feed Screen
+
+```tsx
+// app/(tabs)/index.tsx
+export default function FeedScreen() {
+  const { posts, toggleLike, loadMore } = useFeedStore();
+
+  return (
+    <FlatList
+      data={posts}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
+        <PostCard
+          post={item}
+          onLike={() => toggleLike(item.id)}
+          onComment={() => router.push(`/post/${item.id}`)}
+          onProfile={() => router.push(`/profile/${item.userId}`)}
+        />
+      )}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={<ActivityIndicator />}
+    />
+  );
+}
+
+// components/PostCard.tsx
+function PostCard({ post, onLike, onComment }) {
+  return (
+    <View style={styles.post}>
+      <TouchableOpacity style={styles.header} onPress={onProfile}>
+        <Image source={{ uri: post.avatarUrl }} style={styles.avatar} />
+        <Text style={styles.username}>{post.username}</Text>
+      </TouchableOpacity>
+
+      <Image source={{ uri: post.images[0] }} style={styles.postImage} />
+
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={onLike}>
+          <Ionicons
+            name={post.isLikedByMe ? "heart" : "heart-outline"}
+            size={28}
+            color={post.isLikedByMe ? "#EF4444" : "#000"}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onComment}>
+          <Ionicons name="chatbubble-outline" size={26} />
+        </TouchableOpacity>
+        <TouchableOpacity>
+          <Ionicons name="paper-plane-outline" size={26} />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.likes}>{post.likesCount} likes</Text>
+      <Text style={styles.caption}>
+        <Text style={styles.username}>{post.username}</Text> {post.content}
+      </Text>
+    </View>
+  );
+}
+```
+
+## Profile Screen
+
+```tsx
+export default function ProfileScreen({ userId }) {
+  const { user, posts, isFollowing, toggleFollow } = useProfileStore(userId);
+
+  return (
+    <ScrollView>
+      <View style={styles.header}>
+        <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+        <View style={styles.stats}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{user.postsCount}</Text>
+            <Text style={styles.statLabel}>Posts</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{user.followersCount}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{user.followingCount}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+        </View>
+      </View>
+
+      <Text style={styles.bio}>{user.bio}</Text>
+
+      <TouchableOpacity style={styles.followBtn} onPress={toggleFollow}>
+        <Text style={styles.followBtnText}>{isFollowing ? 'Following' : 'Follow'}</Text>
+      </TouchableOpacity>
+
+      <FlatList
+        data={posts}
+        numColumns={3}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <Image source={{ uri: item.images[0] }} style={styles.gridImage} />
+        )}
+        scrollEnabled={false}
+      />
+    </ScrollView>
+  );
+}
+```
+
+## Create Post
+
+```tsx
+export default function CreatePostScreen() {
+  const [images, setImages] = useState<string[]>([]);
+  const [caption, setCaption] = useState('');
+  const { createPost, isUploading } = usePostStore();
+  const router = useRouter();
+
+  const pickImages = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8
+    });
+
+    if (!result.canceled) {
+      setImages(result.assets.map(a => a.uri));
+    }
+  };
+
+  const handlePost = async () => {
+    await createPost({ images, caption });
+    router.back();
+  };
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        horizontal
+        data={images}
+        renderItem={({ item }) => <Image source={{ uri: item }} style={styles.preview} />}
+        ListEmptyComponent={
+          <TouchableOpacity style={styles.addImage} onPress={pickImages}>
+            <Ionicons name="images" size={48} color="#9CA3AF" />
+          </TouchableOpacity>
+        }
+      />
+      <TextInput
+        style={styles.captionInput}
+        placeholder="Write a caption..."
+        multiline
+        value={caption}
+        onChangeText={setCaption}
+      />
+      <TouchableOpacity style={styles.postBtn} onPress={handlePost}>
+        <Text style={styles.postBtnText}>Share</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+```
+
+## Claude Code Prompt
+
+```
+Tạo Social media mobile app với Expo Router.
+
+Features:
+1. Feed screen: FlatList with posts, pull-to-refresh, infinite scroll
+2. Post card: user avatar + name, image, like/comment/share buttons, caption
+3. Profile screen: avatar, stats (posts, followers, following), grid of posts
+4. Create post: pick images from gallery, add caption, upload
+5. Comments screen: list of comments, add comment input
+6. Notifications: likes, comments, new followers
+7. Follow/unfollow from profile
+
+Design: Instagram-like, clean, modern UI
+State: Zustand
+Storage: AsyncStorage cho cache
+API: REST endpoints
+```

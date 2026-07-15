@@ -1,0 +1,208 @@
+---
+title: "E-commerce App"
+description: "Xây dựng ứng dụng thương mại điện tử — products, cart, checkout, orders"
+icon: "cart-shopping"
+---
+
+Dự án nâng cao — E-commerce app với product catalog, shopping cart, checkout flow, và order history.
+
+## Features
+
+<Check>
+- ✅ Product catalog với categories, search, filters
+- ✅ Product detail page (images, price, reviews)
+- ✅ Shopping cart (add/remove/update quantity)
+- ✅ Checkout flow (address, payment)
+- ✅ Order history & tracking
+- ✅ Wishlist
+- ✅ Push notifications cho deals
+</Check>
+
+## Data Models
+
+```dart
+class Product {
+  final String id;
+  final String name;
+  final String description;
+  final double price;
+  final List<String> images;
+  final String category;
+  final double rating;
+  final int reviewCount;
+
+  // fromJson, toJson...
+}
+
+class CartItem {
+  final Product product;
+  int quantity;
+
+  double get totalPrice => product.price * quantity;
+}
+
+class Order {
+  final String id;
+  final List<CartItem> items;
+  final double total;
+  final String status; // 'pending', 'processing', 'shipped', 'delivered'
+  final Address shippingAddress;
+  final DateTime createdAt;
+}
+```
+
+## Screens Structure
+
+```
+Home (Featured products, categories, deals)
+  ├── ProductList (Category browse, search)
+  │   └── ProductDetail (Images, reviews, add to cart)
+  ├── Cart (Items, quantity, total, checkout button)
+  │   └── Checkout (Address, payment method)
+  │       └── OrderConfirmation
+  └── Profile
+      ├── OrderHistory
+      ├── OrderDetail
+      └── Wishlist
+```
+
+## Cart Store
+
+```tsx
+// stores/useCartStore.ts
+import { create } from 'zustand';
+
+export const useCartStore = create<CartStore>((set, get) => ({
+  items: [],
+
+  addItem: (product, quantity = 1) => {
+    const items = get().items;
+    const existing = items.find(i => i.product.id === product.id);
+
+    if (existing) {
+      set({
+        items: items.map(i =>
+          i.product.id === product.id
+            ? { ...i, quantity: i.quantity + quantity }
+            : i
+        )
+      });
+    } else {
+      set({ items: [...items, { product, quantity }] });
+    }
+  },
+
+  removeItem: (productId) => {
+    set({ items: get().items.filter(i => i.product.id !== productId) });
+  },
+
+  updateQuantity: (productId, quantity) => {
+    if (quantity <= 0) {
+      set({ items: get().items.filter(i => i.product.id !== productId) });
+    } else {
+      set({
+        items: get().items.map(i =>
+          i.product.id === productId ? { ...i, quantity } : i
+        )
+      });
+    }
+  },
+
+  get totalItems() { return get().items.reduce((sum, i) => sum + i.quantity, 0); },
+  get totalPrice() { return get().items.reduce((sum, i) => sum + i.totalPrice, 0); },
+  get itemCount() { return get().items.length; },
+  clearCart: () => set({ items: [] })
+}));
+```
+
+## Product Card
+
+```tsx
+// components/ProductCard.tsx
+export function ProductCard({ product, onPress }: Props) {
+  const { addItem } = useCartStore();
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress}>
+      <Image source={{ uri: product.images[0] }} style={styles.image} />
+      <View style={styles.info}>
+        <Text style={styles.name} numberOfLines={1}>{product.name}</Text>
+        <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+        <View style={styles.rating}>
+          <Ionicons name="star" size={14} color="#FBBF24" />
+          <Text style={styles.ratingText}>{product.rating}</Text>
+        </View>
+      </View>
+      <TouchableOpacity style={styles.addButton} onPress={() => addItem(product)}>
+        <Ionicons name="add" size={24} color="#FFF" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+```
+
+## Cart Screen
+
+```tsx
+export default function CartScreen() {
+  const { items, updateQuantity, removeItem, totalPrice } = useCartStore();
+  const router = useRouter();
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.product.id}
+        renderItem={({ item }) => (
+          <View style={styles.cartItem}>
+            <Image source={{ uri: item.product.images[0] }} style={styles.thumbnail} />
+            <View style={styles.itemInfo}>
+              <Text style={styles.name}>{item.product.name}</Text>
+              <Text style={styles.price}>${item.product.price.toFixed(2)}</Text>
+              <View style={styles.quantity}>
+                <TouchableOpacity onPress={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                  <Ionicons name="remove-circle" size={24} color="#6B7280" />
+                </TouchableOpacity>
+                <Text style={styles.qty}>{item.quantity}</Text>
+                <TouchableOpacity onPress={() => updateQuantity(item.product.id, item.quantity + 1)}>
+                  <Ionicons name="add-circle" size={24} color="#3B82F6" />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => removeItem(item.product.id)}>
+              <Ionicons name="trash" size={20} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+        )}
+        ListEmptyComponent={<Text style={styles.empty}>Cart is empty</Text>}
+      />
+
+      <View style={styles.footer}>
+        <Text style={styles.total}>Total: ${totalPrice.toFixed(2)}</Text>
+        <TouchableOpacity style={styles.checkoutBtn} onPress={() => router.push('/checkout')}>
+          <Text style={styles.checkoutText}>Checkout</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+```
+
+## Claude Code Prompt
+
+```
+Tạo E-commerce mobile app với Expo.
+
+Screens:
+- Home: featured products carousel, categories grid, newest products
+- Product list: grid layout, sort (price, rating), filter by category, search
+- Product detail: image carousel, add to cart, quantity selector, reviews list
+- Cart: items list, quantity +/-, swipe to delete, total price, checkout button
+- Checkout: shipping address form, payment method selector, order summary, place order
+- Profile: order history, wishlist, settings
+
+State: Zustand with AsyncStorage persistence cho cart
+API: REST endpoints (products, cart, orders)
+Navigation: Expo Router với tab navigation
+UI: Clean, modern design, skeleton loading
+```

@@ -1,0 +1,236 @@
+---
+title: "Classification Project"
+description: "End-to-end project — Customer Churn Prediction với ML pipeline hoàn chỉnh"
+icon: "rocket"
+---
+
+Dự án end-to-end — **Customer Churn Prediction** pipeline hoàn chỉnh, từ raw data đến production.
+
+## Bài toán
+
+Dự đoán customer nào sẽ **churn** (rời bỏ service) dựa trên usage patterns — giúp retention team can thiệp kịp thời.
+
+## Workflow
+
+```
+Raw Data (CSV)
+    ↓
+EDA + Cleaning (Pandas)
+    ↓
+Feature Engineering
+    ↓
+Train/Test Split + CV
+    ↓
+Multiple Models Comparison
+    ↓
+Hyperparameter Tuning
+    ↓
+Best Model Selection
+    ↓
+Model Export (joblib)
+    ↓
+FastAPI Deployment
+    ↓
+Monitoring & Retraining
+```
+
+## Step 1: Load + EDA
+
+```python
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv('customer_churn.csv')
+print(df.shape)
+print(df.info())
+print(df.isnull().sum())
+
+# Churn distribution
+print(df['churn'].value_counts(normalize=True))
+
+# Numeric features vs churn
+numeric_cols = ['tenure', 'monthly_charges', 'total_charges']
+print(df.groupby('churn')[numeric_cols].mean())
+```
+
+## Step 2: Preprocessing Pipeline
+
+```python
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
+
+# Identify column types
+numeric_cols = ['tenure', 'monthly_charges', 'total_charges']
+categorical_cols = ['gender', 'partner', 'dependents', 'phone_service', ...]
+
+# Numeric pipeline
+numeric_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+
+# Categorical pipeline
+categorical_pipeline = Pipeline([
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot', OneHotEncoder(drop='first', handle_unknown='ignore'))
+])
+
+# Combine
+preprocessor = ColumnTransformer([
+    ('num', numeric_pipeline, numeric_cols),
+    ('cat', categorical_pipeline, categorical_cols)
+])
+```
+
+## Step 3: Compare Models
+
+```python
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import xgboost as xgb
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import f1_score, recall_score
+
+X = df.drop('churn', axis=1)
+y = df['churn']
+
+# Split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Models to compare
+models = {
+    'Logistic Regression': LogisticRegression(max_iter=1000),
+    'Decision Tree': DecisionTreeClassifier(random_state=42),
+    'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
+    'Gradient Boosting': GradientBoostingClassifier(random_state=42),
+    'XGBoost': xgb.XGBClassifier(n_estimators=100, random_state=42)
+}
+
+# Compare với cross-validation
+results = {}
+for name, model in models.items():
+    pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('model', model)
+    ])
+
+    scores = cross_val_score(
+        pipeline, X_train, y_train,
+        cv=5, scoring='f1'
+    )
+
+    results[name] = {
+        'mean': scores.mean(),
+        'std': scores.std(),
+        'scores': scores
+    }
+    print(f"{name}: {scores.mean():.4f} ± {scores.std():.4f}")
+```
+
+## Step 4: Hyperparameter Tuning Best Model
+
+```python
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import randint
+
+best_model = xgb.XGBClassifier(random_state=42)
+
+param_distributions = {
+    'model__n_estimators': randint(100, 500),
+    'model__max_depth': randint(3, 10),
+    'model__learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'model__subsample': [0.6, 0.7, 0.8, 0.9, 1.0],
+    'model__colsample_bytree': [0.6, 0.7, 0.8, 0.9, 1.0]
+}
+
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('model', best_model)
+])
+
+random_search = RandomizedSearchCV(
+    pipeline, param_distributions,
+    n_iter=20, cv=5, scoring='f1',
+    random_state=42, n_jobs=-1
+)
+
+random_search.fit(X_train, y_train)
+
+print(f"Best params: {random_search.best_params_}")
+print(f"Best CV F1: {random_search.best_score_:.4f}")
+```
+
+## Step 5: Final Evaluation
+
+```python
+from sklearn.metrics import classification_report, confusion_matrix
+
+best_pipeline = random_search.best_estimator_
+y_pred = best_pipeline.predict(X_test)
+
+print(classification_report(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+
+# Feature importance
+import pandas as pd
+import matplotlib.pyplot as plt
+
+model = best_pipeline.named_steps['model']
+feature_names = (numeric_cols +
+                 list(best_pipeline.named_steps['preprocessor']
+                      .named_transformers_['cat']['onehot']
+                      .get_feature_names_out(categorical_cols)))
+
+importance = pd.Series(model.feature_importances_, index=feature_names)
+top_20 = importance.nlargest(20)
+
+plt.figure(figsize=(10, 8))
+top_20.sort_values().plot(kind='barh')
+plt.title('Top 20 Feature Importance')
+plt.tight_layout()
+plt.show()
+```
+
+## Step 6: Export + Deploy
+
+```python
+# Save
+import joblib
+joblib.dump(best_pipeline, 'churn_model.pkl')
+
+# FastAPI serving
+from fastapi import FastAPI
+import joblib
+
+app = FastAPI()
+model = joblib.load('churn_model.pkl')
+
+@app.post("/predict/churn")
+async def predict(customer_data: dict):
+    df = pd.DataFrame([customer_data])
+    prediction = model.predict(df)[0]
+    probability = model.predict_proba(df)[0][1]
+    return {
+        "will_churn": bool(prediction),
+        "churn_probability": float(probability)
+    }
+```
+
+## Feature Importance Insights
+
+<Tip>
+Top features thường cho Customer Churn:
+1. `tenure` (số tháng sử dụng) — customers mới thường churn nhiều hơn
+2. `monthly_charges` — giá cao → churn nhiều hơn
+3. `contract_type` — month-to-month cao hơn yearly
+4. `payment_method` — electronic check cao hơn auto-pay
+5. `tech_support` — không có support → churn nhiều hơn
+
+Insights này → business actions (giảm giá monthly contract, cải thiện tech support, etc.)
+</Tip>

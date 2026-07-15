@@ -1,0 +1,124 @@
+---
+title: "Art & Collectibles Token"
+description: "Token hóa tác phẩm nghệ thuật và sưu tầm"
+icon: "palette"
+---
+
+Token hóa nghệ thuật cho phép **fractional ownership** — nhiều người cùng sở hữu một tác phẩm worth millions, giao dịch bất cứ lúc nào.
+
+## Phân biệt NFT vs Art Token
+
+| Feature | NFT | Art Token (Security) |
+|---|---| fractional |
+| Ownership | 1 người sở hữu | Nhiều người share |
+| Value | Speculative | Backed by appraisal |
+| Trading | Marketplace | ATS/Dashboard |
+| Regulation | Non-security | Security token |
+| Income | Không có | Có thể distribute resale proceeds |
+
+## Smart Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract ArtFractional is ERC20, Ownable {
+    struct Artwork {
+        string name;
+        string artist;
+        string description;
+        uint256 totalValue;         // Appraised value
+        uint256 totalShares;
+        string physicalLocation;    // Where the art is stored
+        string imageURI;            // Off-chain image
+    }
+
+    Artwork public artwork;
+    mapping(address => bool) public isKYCApproved;
+
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        string memory _artworkName,
+        string memory _artist,
+        uint256 _totalValue,
+        uint256 _totalShares,
+        string memory _physicalLocation,
+        string memory _imageURI
+    ) ERC20(_name, _symbol) {
+        artwork = Artwork(_artworkName, _artist, "", _totalValue, _totalShares, _physicalLocation, _imageURI);
+        _mint(msg.sender, _totalShares);
+    }
+
+    function approveInvestor(address investor) external onlyOwner {
+        isKYCApproved[investor] = true;
+    }
+
+    function buyShares(address investor, uint256 shares) external onlyOwner {
+        require(isKYCApproved[investor], "Not KYC'd");
+        require(shares <= balanceOf(msg.sender), "Insufficient shares");
+        _transfer(msg.sender, investor, shares);
+    }
+
+    function getOwnershipPercentage(address investor) external view returns (uint256) {
+        return (balanceOf(investor) * 10000) / totalSupply(); // basis points
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256) internal override {
+        if (from != address(0) && to != address(0)) {
+            require(isKYCApproved[from] && isKYCApproved[to], "Not whitelisted");
+        }
+    }
+}
+```
+
+## Artwork Curation
+
+```javascript
+// Upload artwork metadata to IPFS
+const metadata = {
+  name: "Starry Night",
+  artist: "Vincent van Gogh",
+  year: 1889,
+  medium: "Oil on canvas",
+  dimensions: "73.7 cm × 92.1 cm",
+  currentLocation: "Museum of Modern Art, NY",
+  appraisedValue: 100000000, // $100M
+  totalShares: 10000000,
+  sharePrice: 10 // $10 per share
+};
+
+const result = await pinata.upload.json(metadata);
+const metadataUri = `ipfs://${result.path}`;
+```
+
+## Use Cases
+
+| Asset | Value | Shares | Price/share |
+|---|---|---|---|
+| Picasso painting | $10M | 1,000,000 | $10 |
+| Rare wine collection | $500K | 50,000 | $10 |
+| Vintage car (Ferrari 250) | $5M | 500,000 | $10 |
+| Star Wars memorabilia | $200K | 20,000 | $10 |
+
+## Income Distribution
+
+```solidity
+// Khi artwork được bán — distribute proceeds
+function distributeSaleProceeds(uint256 salePrice) external onlyOwner {
+    uint256 total = totalSupply();
+    for (uint i = 0; i < holders.length; i++) {
+        uint256 balance = balanceOf(holders[i]);
+        if (balance == 0) continue;
+        uint256 proceeds = (balance * salePrice) / total;
+        payable(holders[i]).transfer(proceeds);
+    }
+}
+```
+
+<Tip>
+Fractional art tokenization đang phát triển mạnh — Masterworks đã token hóa >$1B worth of art. Bắt đầu với high-value pieces để minh chứng concept.
+</Tip>

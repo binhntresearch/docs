@@ -1,0 +1,215 @@
+---
+title: "Frontend - Bố cục dự án Next.js"
+description: "Cách tổ chức Pages, Components và Services trong dự án Next.js"
+icon: "table-layout"
+---
+
+Mọi dự án Next.js được tổ chức theo **3 nhóm chính**, mỗi nhóm đảm nhận một vai trò riêng:
+
+<CardGroup>
+  <Card title="Pages" icon="file-lines">
+    Mỗi page = 1 URL — nơi người dùng truy cập trực tiếp
+  </Card>
+  <Card title="Components" icon="puzzle-piece">
+    Khối giao diện tái sử dụng — buttons, forms, cards, tables
+  </Card>
+  <Card title="Services" icon="plug">
+    Code giao tiếp Firebase — đọc/ghi database, auth, upload file
+  </Card>
+</CardGroup>
+
+<Tip>
+**Phép so sánh tòa nhà:** Pages là các phòng · Components là đồ nội thất · Services là hệ thống điện nước chạy bên dưới phục vụ cả nhà.
+</Tip>
+
+## Cấu trúc thư mục tổng thể
+
+```
+my-task-app/
+│
+├── app/                    ← 📄 PAGES (các trang giao diện)
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── (auth)/
+│   ├── dashboard/
+│   └── api/
+│
+├── components/             ← 🧩 COMPONENTS (khối giao diện tái sử dụng)
+│   ├── ui/
+│   ├── layout/
+│   ├── tasks/
+│   └── shared/
+│
+├── services/               ← 🔌 SERVICES (kết nối Firebase)
+│   ├── firebase.ts
+│   ├── auth.ts
+│   ├── tasks.ts
+│   └── storage.ts
+│
+├── hooks/                  ← 🪝 HOOKS (logic tái sử dụng)
+│   └── useAuth.ts
+│
+├── types/                  ← 📋 TYPES (định nghĩa cấu trúc dữ liệu)
+│   └── task.ts
+│
+├── .env.local
+└── package.json
+```
+
+## 1. Pages — Các trang giao diện
+
+Trong Next.js, mỗi file `page.tsx` trong `app/` tự động tạo một URL.
+
+```
+app/
+├── page.tsx                         →  yourapp.com/
+├── (auth)/                          ← Nhóm route (không tạo URL)
+│   ├── login/page.tsx               →  yourapp.com/login
+│   └── register/page.tsx            →  yourapp.com/register
+│
+├── dashboard/
+│   ├── layout.tsx                   ← Layout dùng chung
+│   ├── page.tsx                     →  yourapp.com/dashboard
+│   ├── tasks/
+│   │   ├── page.tsx                 →  yourapp.com/dashboard/tasks
+│   │   └── [id]/page.tsx            →  yourapp.com/dashboard/tasks/abc123
+│   └── settings/page.tsx            →  yourapp.com/dashboard/settings
+│
+└── api/                             ← API Routes (backend nhẹ)
+```
+
+### Khái niệm quan trọng
+
+**Tên thư mục = URL.** Không cần cấu hình routing — thêm thư mục mới = URL mới.
+
+**[id] — Trang động:** Tạo trang hiển thị nội dung dựa trên ID trong URL. Một file `page.tsx` phục vụ nhiều URL khác nhau.
+
+**(auth) — Nhóm route:** Dấu ngoặc đơn `(auth)` tạo nhóm logic mà không ảnh hưởng URL — dùng để nhóm các trang liên quan.
+
+**layout.tsx — Khung chung:** Layout bao quanh các trang con và giữ nguyên khi chuyển trang.
+
+```
+┌──────────────────────────────────────────┐
+│  Header (logo, thông báo, avatar)        │ ← layout.tsx (gốc)
+├──────────┬───────────────────────────────┤
+│ Sidebar  │   Nội dung trang              │ ← dashboard/layout.tsx
+└──────────┴───────────────────────────────┘
+```
+
+**api/ — Backend nhẹ:** Cho phép tạo API endpoint trong cùng dự án, chạy trên server (Vercel).
+
+## 2. Components — Khối xây dựng giao diện
+
+### 3 loại Components
+
+<Tabs>
+  <Tab title="UI Components">
+    Viên gạch cơ bản — Button, Input, Badge, Select, Dialog, Table, Avatar, DatePicker.
+
+    Thường lấy từ **shadcn/ui** — thư viện component copy source vào project để tùy biến 100%.
+  </Tab>
+  <Tab title="Feature Components">
+    Khối nghiệp vụ — kết hợp nhiều UI components cho một tính năng cụ thể.
+
+    Ví dụ: TaskCard, TaskForm, TaskTable, TaskFilter, ProjectCard.
+  </Tab>
+  <Tab title="Shared Components">
+    Dùng chung cho nhiều tính năng — UserAvatar, EmptyState, LoadingSpinner, ConfirmDialog.
+  </Tab>
+</Tabs>
+
+### Cấu trúc thư mục components
+
+```
+components/
+├── ui/                      ← 🎨 Components cơ bản (từ shadcn/ui)
+│   ├── button.tsx
+│   ├── dialog.tsx
+│   ├── badge.tsx
+│   └── sidebar.tsx
+│
+├── layout/                  ← 🏗️ Components bố cục
+│   ├── AppHeader.tsx
+│   ├── AppSidebar.tsx
+│   └── PageHeader.tsx
+│
+├── tasks/                   ← 📋 Components cho tính năng Tasks
+│   ├── TaskCard.tsx
+│   ├── TaskTable.tsx
+│   ├── TaskForm.tsx
+│   └── TaskStatusBadge.tsx
+│
+└── shared/                  ← 🔄 Components dùng chung
+    ├── UserAvatar.tsx
+    ├── EmptyState.tsx
+    └── LoadingSpinner.tsx
+```
+
+## 3. Services — Kết nối dữ liệu
+
+Services chứa code giao tiếp với Firebase. Mỗi file chứa các hàm thực hiện một nhóm thao tác liên quan.
+
+```
+services/
+├── firebase.ts              ← Khởi tạo kết nối (chạy 1 lần)
+├── auth.ts                  ← Đăng nhập, đăng ký, đăng xuất
+├── tasks.ts                 ← CRUD tasks
+├── projects.ts              ← CRUD projects
+└── storage.ts               ← Upload/download file
+```
+
+### Mỗi Service chứa gì?
+
+Ví dụ `tasks.ts`:
+
+| Hàm | Công dụng |
+|---|---|
+| `getTasks()` | Lấy danh sách tasks từ Firestore |
+| `getTaskById(id)` | Lấy chi tiết 1 task theo ID |
+| `createTask(data)` | Tạo task mới |
+| `updateTask(id, data)` | Cập nhật task |
+| `deleteTask(id)` | Xóa task |
+| `onTasksChange()` | Lắng nghe realtime thay đổi |
+
+<Note>
+Một số project đặt Services trong `lib/` thay vì `services/` — cả hai đều hợp lệ. Quan trọng là tách riêng code kết nối dữ liệu khỏi UI.
+</Note>
+
+## Quy tắc phối hợp
+
+| Quy tắc | Giải thích |
+|---|---|
+| **Page gọi Service** | Page lấy dữ liệu từ Service, truyền vào Components |
+| **Component gọi Service** | Component tương tác gọi Service để ghi dữ liệu |
+| **Component không gọi Firebase trực tiếp** | Mọi giao tiếp Firebase đi qua Service |
+| **Service không biết giao diện** | Service chỉ lo dữ liệu |
+| **UI Component không biết nghiệp vụ** | Button không biết bấm để tạo task hay xóa project |
+
+## Câu hỏi thường gặp
+
+<AccordionGroup>
+  <Accordion title="Khi nào tạo component mới, khi nào viết thẳng trong page?">
+    Tạo component riêng khi:
+    - Code sẽ dùng lại ở 2+ nơi
+    - UI block phức tạp (hơn 30-40 dòng)
+    - Muốn cô lập logic (form, table, filter)
+
+    Viết thẳng trong page khi:
+    - Code đơn giản, chỉ dùng 1 lần
+    - Chỉ là vài dòng lắp ráp component có sẵn
+
+    Khi không chắc — viết trong page trước, tách ra sau khi thấy cần tái sử dụng.
+  </Accordion>
+  <Accordion title="Claude Code có tự tổ chức thư mục đúng không?">
+    Có. Claude Code biết cấu trúc chuẩn của Next.js. Khi bạn mô tả tính năng rõ ràng, nó tự đặt file đúng chỗ.
+
+    Tuy nhiên, nên yêu cầu setup cấu trúc trước:
+
+    ```
+    Tạo cấu trúc thư mục chuẩn cho dự án: app/ cho pages,
+    components/ chia theo ui/, layout/, tasks/, shared/,
+    services/ cho Firebase, hooks/ cho custom hooks,
+    types/ cho TypeScript types
+    ```
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,145 @@
+---
+title: "Solidity cơ bản"
+description: "Ngôn ngữ lập trình chính để viết smart contract trên Ethereum"
+icon: "file-code"
+---
+
+Solidity là ngôn ngữ **statically-typed** được thiết kế cho việc viết smart contract trên Ethereum Virtual Machine (EVM).
+
+## Hello World Smart Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract HelloWorld {
+    string public message;
+
+    constructor(string memory _message) {
+        message = _message;
+    }
+
+    function setMessage(string memory _newMessage) public {
+        message = _newMessage;
+    }
+}
+```
+
+## Kiểu dữ liệu
+
+<CodeGroup>
+```solidity Primitive Types
+// Signed integers
+uint256 public totalSupply;      // 0 đến 2^256
+int256 public balance;            // -2^255 đến 2^255
+
+// Boolean
+bool public isActive = true;
+
+// Address
+address public owner;
+
+// Bytes
+bytes32 public data;
+```
+
+```solidity Reference Types
+// Fixed-size arrays
+uint[5] public fixedArray;
+
+// Dynamic arrays
+uint[] public dynamicArray;
+
+// Struct
+struct Person {
+    string name;
+    uint age;
+    bool active;
+}
+
+// Mapping (key-value)
+mapping(address => uint) public balances;
+mapping(address => mapping(address => uint)) public allowances; // Nested
+```
+</CodeGroup>
+
+## Function & Visibility
+
+```solidity
+contract Bank {
+    mapping(address => uint) public balances;
+    address public owner;
+
+    // Modifier
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    // Public — anyone can call
+    function deposit() public payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    // External — only from other contracts/externally
+    function withdraw(uint amount) external {
+        require(balances[msg.sender] >= amount, "Insufficient");
+        balances[msg.sender] -= amount;
+        payable(msg.sender).transfer(amount);
+    }
+
+    // Internal — only from this contract or derived
+    function _calculateFee(uint amount) internal pure returns (uint) {
+        return amount * 2 / 100;
+    }
+
+    // Private — only within this contract
+    function _setOwner(address _owner) private {
+        owner = _owner;
+    }
+
+    // View — reads state, no gas (when called externally)
+    function getBalance(address _addr) external view returns (uint) {
+        return balances[_addr];
+    }
+
+    // Pure — no state read/write
+    function add(uint a, uint b) external pure returns (uint) {
+        return a + b;
+    }
+}
+```
+
+## Events
+
+```solidity
+contract Token {
+    event Transfer(address indexed from, address indexed to, uint amount);
+
+    function transfer(address to, uint amount) external {
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+    }
+}
+```
+
+<Tip>
+Events rất quan trọng — frontend đọc events để update UI, và events là cách inexpensive nhất để lưu dữ liệu on-chain.
+</Tip>
+
+## Error Handling
+
+```solidity
+// Require — kiểm tra điều kiện, revert nếu sai
+require(amount > 0, "Amount must be positive");
+require(msg.sender == owner, "Not authorized");
+
+// Revert — dừng execution với message
+if (amount > balance) {
+    revert("Insufficient balance");
+}
+
+// Assert — kiểm tra invariant (gas không refund)
+assert(totalSupply >= 0);
+```

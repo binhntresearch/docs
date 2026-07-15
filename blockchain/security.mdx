@@ -1,0 +1,310 @@
+---
+title: "Bảo mật Smart Contracts"
+description: "Bảo mật blockchain — smart contract vulnerabilities, reentrancy, access control, audits"
+icon: "shield-halved"
+---
+
+Smart contracts xử lý **giá trị tài chính thực** — một bug có thể mất hàng triệu USD. Đây là lĩnh vực bảo mật nghiêm ngặt nhất.
+
+## Các lỗ hổng phổ biến (Top 10)
+
+| ID | Vulnerability | Mô tả |
+|---|---|---|
+| SWC-107 | **Reentrancy** | Function bị gọi lại trước khi state update |
+| SWC-105 | **Access Control** | Thiếu `onlyOwner` modifier |
+| SWC-114 | **tx.origin** | Dùng `tx.origin` thay vì `msg.sender` |
+| SWC-101 | **Integer Overflow** | Solidity < 0.8 — arithmetic overflow |
+| SWC-116 | **Timestamp Dependence** | Block timestamp bị miner influence |
+| SWC-112 | **Delegatecall** | Storage collision attacks |
+| SWC-104 | **Re-entrancy through send** | Transfer không update state trước |
+| SWC-110 | **unchecked low-level call** | Không check return value |
+| SWC-128 | **Gas Griefing** | DoS via expensive operations |
+| SWC-136 | **Unencrypted Private Data** | on-chain secrets leak |
+
+## 1. Reentrancy Attack
+
+```solidity
+// ❌ VULNERABLE - DAO Hack (2016) $60M stolen
+contract VulnerableBank {
+    mapping(address => uint256) public balances;
+
+    function deposit() public payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw(uint256 amount) public {
+        require(balances[msg.sender] >= amount);
+
+        // ⚠️ External call TRƯỚC khi update state
+        (bool success,) = msg.sender.call{value: amount}("");
+        require(success);
+
+        // Attacker reentrancy: gọi withdraw() lại!
+        balances[msg.sender] -= amount;  // State update quá muộn
+    }
+}
+
+// ✅ SAFE - Checks-Effects-Interactions pattern
+contract SafeBank {
+    mapping(address => uint256) public balances;
+
+    function deposit() public payable {
+        balances[msg.sender] += msg.value;
+    }
+
+    function withdraw(uint256 amount) public {
+        require(balances[msg.sender] >= amount);
+
+        // 1. CHECK
+        // 2. EFFECT (update state FIRST)
+        balances[msg.sender] -= amount;
+
+        // 3. INTERACTION (external call LAST)
+        (bool success,) = msg.sender.call{value: amount}("");
+        require(success);
+    }
+}
+```
+
+### Use ReentrancyGuard
+
+```solidity
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+contract MyContract is ReentrancyGuard {
+    function withdraw() external nonReentrant {
+        // Protected from reentrancy
+    }
+}
+```
+
+## 2. Access Control
+
+```solidity
+// ❌ VULNERABLE - anyone can mint tokens
+contract Token {
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);  // No access control!
+    }
+}
+
+// ✅ SAFE - Use OpenZeppelin Ownable
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract SafeToken is Ownable {
+    function mint(address to, uint256 amount) external onlyOwner {
+        _mint(to, amount);
+    }
+
+    function transferOwnership(address newOwner) public override onlyOwner {
+        require(newOwner != address(0));
+        super.transferOwnership(newOwner);
+    }
+}
+
+// ✅ Or role-based access (AccessControl)
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+contract MyContract is AccessControl {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER");
+
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+    }
+
+    function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
+        _mint(to, amount);
+    }
+}
+```
+
+## 3. tx.origin Attack
+
+```solidity
+// ❌ VULNERABLE
+contract Wallet {
+    function transfer(address to, uint256 amount) external {
+        require(tx.origin == owner);  // ❌ Phishing attack!
+        // Attacker tricks user into calling this from their malicious contract
+    }
+}
+
+// ✅ SAFE - Use msg.sender
+contract SafeWallet {
+    function transfer(address to, uint256 amount) external {
+        require(msg.sender == owner);  // ✅ Direct calls only
+        // ...
+    }
+}
+```
+
+## 4. Integer Overflow
+
+```solidity
+// Solidity 0.8+ has built-in overflow checks
+pragma solidity ^0.8.20;  // Default: overflow → revert
+
+// For older versions, use SafeMath
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+using SafeMath for uint256;
+
+uint256 x = 255;
+uint256 y = x.add(1);  // SafeMath, throws on overflow
+```
+
+## Integer Overflow Example
+
+```solidity
+// Without overflow protection (pre-0.8):
+function withdraw(uint256 amount) external {
+    require(balances[msg.sender] - amount > 0);  // OVERFLOW!
+    balances[msg.sender] -= amount;
+    payable(msg.sender).transfer(amount);
+}
+
+// With Solidity 0.8+:
+// Automatically reverts on overflow - SAFE
+```
+
+## 5. Timestamp Dependence
+
+```solidity
+// ❌ VULNERABLE
+function isWinningNumber() external view returns (bool) {
+    return uint256(block.timestamp) % 100 == 7;
+    // ⚠️ Miner can manipulate timestamp slightly
+}
+
+// ✅ SAFE - Use block.number or VRF
+function isWinningNumber() external view returns (bool) {
+    return block.number % 100 == 7;  // Deterministic
+}
+
+// ✅ BETTER - Chainlink VRF for randomness
+import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+
+contract RandomWinner is VRFConsumerBase {
+    function getRandomWinner() external {
+        // Cryptographically secure randomness from Chainlink
+        ...
+    }
+}
+```
+
+## 6. Delegatecall Storage Collision
+
+```solidity
+// ❌ VULNERABLE - storage layout mismatch
+contract VulnerableProxy {
+    address public owner;
+    uint256 public data;  // slot 1
+
+    fallback() external payable {
+        (bool success,) = logic.delegatecall(msg.data);
+        require(success);
+    }
+}
+
+// Attacker calls helper contract with malicious function
+// that overwrites "owner" with attacker's address
+
+// ✅ SAFE - Use OpenZeppelin upgradeable contracts
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
+contract SafeUpgradeable is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
+    function initialize() public initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+    }
+}
+```
+
+## 7. Private Data on Blockchain
+
+<Warning>
+**Private variables trên Solidity KHÔNG private!** Chỉ là local — ai cũng có thể đọc storage.</Warning>
+
+```solidity
+// ❌ VULNERABLE - "private" is misleading
+contract Vulnerable {
+    uint256 private secret = 12345;  // Anyone can read this!
+}
+
+// Attacker reads storage directly:
+const value = await ethers.provider.getStorage(
+    contractAddress,
+    0  // slot 0
+);
+console.log(value);  // "12345"
+
+// ✅ SAFE - Don't put secrets on-chain
+// Use commit-reveal scheme, zero-knowledge proofs, or off-chain
+```
+
+## Testing với Hardhat
+
+```javascript
+const { expect } = require("chai");
+const { ethers } = require("hardhat");
+
+describe("Reentrancy Attack Test", function () {
+  it("Should prevent reentrancy attack", async function () {
+    const [owner, attacker] = await ethers.getSigners();
+
+    // Deploy vulnerable contract
+    const SafeBank = await ethers.getContractFactory("SafeBank");
+    const bank = await SafeBank.deploy();
+
+    // Setup victim
+    await bank.connect(attacker).deposit({ value: ethers.parseEther("1") });
+
+    // Try reentrancy attack
+    const attackerContract = await ethers.getContractFactory("Attacker");
+    const attacker = await attackerContract.deploy(bank.address);
+
+    await expect(
+      attacker.connect(attackerSigner).attack()
+    ).to.be.revertedWith("ReentrancyGuard: reentrant call");
+  });
+});
+```
+
+## Static Analysis Tools
+
+```bash
+# Slither - top Solidity analyzer
+pip install slither-analyzer
+slither contracts/MyContract.sol
+
+# Mythril - symbolic execution
+myth analyze contracts/MyContract.sol
+
+# Aderyn - Rust-based, very fast
+cargo install aderyn
+aderyn contracts/
+
+# Solhint - linter
+npm install -g solhint
+solhint contracts/*.sol
+```
+
+## Audit Checklist
+
+<Check>
+- [ ] Slither analysis passes (no high/medium issues)
+- [ ] Mythril symbolic execution passes
+- [ ] Test coverage > 95% cho critical functions
+- [ ] Fuzz testing với Echidna hoặc Foundry
+- [ ] Formal verification (Certora, K-framework) cho critical contracts
+- [ ] Multi-sig cho admin functions
+- [ ] Upgrade path documented (nếu upgradeable)
+- [ ] Emergency pause mechanism (Pausable)
+- [ ] Rate limiting cho sensitive operations
+- [ ] Events emitted cho tất cả state changes
+- [ ] OpenZeppelin contracts thay vì tự implement
+- [ ] Audit bởi firm uy tín (Trail of Bits, OpenZeppelin, Certora)
+</Check>

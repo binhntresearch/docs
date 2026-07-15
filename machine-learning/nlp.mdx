@@ -1,0 +1,194 @@
+---
+title: "Natural Language Processing"
+description: "Text classification, sentiment analysis, NER, summarization, embeddings"
+icon: "language"
+---
+
+NLP = cho máy tính hiểu và xử lý **ngôn ngữ tự nhiên** — text, speech, documents.
+
+## Text Preprocessing
+
+```python
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+def preprocess_text(text):
+    # Lowercase
+    text = text.lower()
+    # Remove HTML
+    text = re.sub(r'<.*?>', '', text)
+    # Remove special chars
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    # Tokenize
+    tokens = text.split()
+    # Remove stopwords
+    stop_words = set(stopwords.words('english'))
+    tokens = [t for t in tokens if t not in stop_words]
+    # Lemmatize
+    lemmatizer = WordNetLemmatizer()
+    tokens = [lemmatizer.lemmatize(t) for t in tokens]
+    return ' '.join(tokens)
+```
+
+## Word Embeddings
+
+```python
+# TF-IDF (Classical)
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+tfidf = TfidfVectorizer(max_features=5000)
+X = tfidf.fit_transform(texts)
+
+# Word2Vec (Learned embeddings)
+from gensim.models import Word2Vec
+
+model = Word2Vec(sentences, vector_size=100, window=5, min_count=2, sg=1)
+vector = model.wv['machine']  # 100-dimensional vector
+
+# Pre-trained GloVe
+import numpy as np
+embeddings_index = {}
+with open('glove.6B.100d.txt') as f:
+    for line in f:
+        word, coeffs = line.split(maxsplit=1)
+        embeddings_index[word] = np.fromstring(coeffs, dtype=float, sep=' ')
+```
+
+## Sentiment Analysis
+
+```python
+from transformers import pipeline
+
+# Pre-trained sentiment analysis
+sentiment = pipeline("sentiment-analysis")
+print(sentiment("I love this product!"))
+# [{'label': 'POSITIVE', 'score': 0.9998}]
+
+print(sentiment("This is terrible"))
+# [{'label': 'NEGATIVE', 'score': 0.9994}]
+
+# Vietnamese sentiment
+sentiment_vi = pipeline(
+    "sentiment-analysis",
+    model="wonphing/bert-base-cased-vietnamese"
+)
+```
+
+## Named Entity Recognition (NER)
+
+```python
+from transformers import pipeline
+
+ner = pipeline("ner", aggregation_strategy="simple")
+result = ner("Apple Inc. is based in Cupertino, California.")
+print(result)
+# [{'entity_group': 'ORG', 'word': 'Apple Inc.', 'score': 0.99},
+#  {'entity_group': 'LOC', 'word': 'Cupertino', 'score': 0.99},
+#  {'entity_group': 'LOC', 'word': 'California', 'score': 0.99}]
+```
+
+## Text Classification với Transformers
+
+```python
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import TrainingArguments, Trainer
+import torch
+from torch.utils.data import Dataset
+
+class TextDataset(Dataset):
+    def __init__(self, texts, labels, tokenizer, max_length=512):
+        self.texts = texts
+        self.labels = labels
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        encoding = self.tokenizer(
+            self.texts[idx],
+            max_length=self.max_length,
+            padding='max_length',
+            truncation=True,
+            return_tensors='pt'
+        )
+        return {
+            'input_ids': encoding['input_ids'].squeeze(),
+            'attention_mask': encoding['attention_mask'].squeeze(),
+            'labels': torch.tensor(self.labels[idx], dtype=torch.long)
+        }
+
+# Fine-tune BERT for classification
+model_name = "bert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+
+# Training
+training_args = TrainingArguments(
+    output_dir='./results',
+    num_train_epochs=3,
+    per_device_train_batch_size=16,
+    learning_rate=2e-5,
+    weight_decay=0.01,
+    evaluation_strategy="epoch"
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=val_dataset
+)
+
+trainer.train()
+```
+
+## Text Summarization
+
+```python
+from transformers import pipeline
+
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+
+text = """Long article text here about machine learning
+and its applications in various industries..."""
+
+summary = summarizer(text, max_length=150, min_length=50)
+print(summary[0]['summary_text'])
+```
+
+## RAG — Retrieval Augmented Generation
+
+```python
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import anthropic
+
+# Index documents
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+vectorstore = Chroma.from_documents(documents, embeddings)
+
+def rag_query(question):
+    # Retrieve
+    docs = vectorstore.similarity_search(question, k=5)
+    context = "\n\n".join([doc.page_content for doc in docs])
+
+    # Generate with Claude
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-sonnet-5-20250514",
+        system="Answer based ONLY on provided context.",
+        messages=[{"role": "user", "content": f"Context: {context}\n\nQ: {question}"}]
+    )
+    return response.content[0].text
+```
+
+<Tip>
+NLP trong 2025-2026 rất khác 2020 — transformers đã thống trị. Bắt đầu với Hugging Face, fine-tune pre-trained models thay vì train từ đầu. RAG là cách tốt nhất để tạo LLM app với knowledge riêng.
+</Tip>

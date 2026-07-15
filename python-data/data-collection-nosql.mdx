@@ -1,0 +1,181 @@
+---
+title: "Thu thập dữ liệu từ NoSQL"
+description: "MongoDB, Redis, Cassandra — document, key-value, column databases"
+icon: "server"
+---
+
+NoSQL databases linh hoạt hơn SQL — schema-less, scale horizontally, phù hợp unstructured data.
+
+## MongoDB
+
+### Setup
+
+```bash
+pip install pymongo pandas
+```
+
+### Basic Operations
+
+```python
+from pymongo import MongoClient
+import pandas as pd
+
+client = MongoClient('mongodb://localhost:27017/')
+db = client['mydb']
+collection = db['users']
+
+# Insert
+user_id = collection.insert_one({
+    'name': 'Alice',
+    'email': 'alice@example.com',
+    'created_at': pd.Timestamp.now(),
+    'preferences': {'theme': 'dark', 'lang': 'en'}
+}).inserted_id
+
+# Query
+user = collection.find_one({'email': 'alice@example.com'})
+
+# Multiple
+users = list(collection.find({'age': {'$gt': 18}}))
+
+# To DataFrame
+df = pd.DataFrame(users)
+```
+
+### Aggregation Pipeline
+
+```python
+pipeline = [
+    {'$match': {'status': 'active'}},
+    {'$group': {
+        '_id': '$country',
+        'count': {'$sum': 1},
+        'avg_age': {'$avg': '$age'},
+        'total_purchase': {'$sum': '$purchase_amount'}
+    }},
+    {'$sort': {'count': -1}},
+    {'$limit': 10}
+]
+
+results = list(collection.aggregate(pipeline))
+df = pd.DataFrame(results)
+```
+
+### Async với Motor
+
+```python
+import motor.motor_asyncio
+import asyncio
+
+async def fetch_async():
+    client = motor.motor_asyncio.AsyncIOMotorClient('mongodb://localhost:27017/')
+    db = client['mydb']
+    collection = db['users']
+
+    # Parallel queries
+    users_task = collection.find().to_list(length=100)
+    count_task = collection.count_documents({})
+
+    users, count = await asyncio.gather(users_task, count_task)
+
+    return users, count
+
+users, count = asyncio.run(fetch_async())
+```
+
+## Redis — Key-Value Store
+
+```python
+import redis
+import json
+
+r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+# Set/Get
+r.set('user:123', json.dumps({'name': 'Alice', 'email': 'alice@example.com'}))
+user = json.loads(r.get('user:123'))
+
+# With TTL (auto-expire)
+r.setex('session:abc', 3600, 'session_data')  # 1 hour
+
+# Hash (multiple fields)
+r.hset('user:123', mapping={
+    'name': 'Alice',
+    'email': 'alice@example.com',
+    'last_login': '2024-07-15T10:00:00'
+})
+user = r.hgetall('user:123')
+
+# To DataFrame via pipelines
+keys = r.keys('user:*')
+pipeline_data = []
+for key in keys:
+    data = json.loads(r.get(key))
+    data['_id'] = key
+    pipeline_data.append(data)
+df = pd.DataFrame(pipeline_data)
+```
+
+## Elasticsearch — Search Engine
+
+```python
+from elasticsearch import Elasticsearch
+import pandas as pd
+
+es = Elasticsearch(['http://localhost:9200'])
+
+# Search
+results = es.search(
+    index='products',
+    body={
+        'query': {
+            'match': {
+                'description': 'machine learning'
+            }
+        },
+        'size': 100
+    }
+)
+
+# Parse results
+hits = results['hits']['hits']
+df = pd.DataFrame([hit['_source'] for hit in hits])
+
+# Aggregation
+es.search(
+    index='products',
+    body={
+        'size': 0,
+        'aggs': {
+            'avg_price': {'avg': {'field': 'price'}},
+            'by_category': {'terms': {'field': 'category.keyword'}}
+        }
+    }
+)
+```
+
+## Cassandra — Wide Column
+
+```python
+from cassandra.cluster import Cluster
+from cassandra.query import BatchStatement
+
+cluster = Cluster(['localhost'])
+session = cluster.connect('mydb')
+
+# Query
+rows = session.execute(
+    "SELECT * FROM events WHERE user_id = %(user_id)s",
+    {'user_id': 'user_123'}
+)
+
+for row in rows:
+    print(row.event_name, row.timestamp)
+```
+
+<Tip>
+- **MongoDB:** Best general-purpose NoSQL, flexible schemas
+- **Redis:** Best caching, real-time, ephemeral data
+- **Elasticsearch:** Best full-text search, logs
+- **Cassandra:** Best time-series data, high write throughput
+</Tip>

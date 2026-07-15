@@ -1,0 +1,90 @@
+---
+title: "ClaudeCode Skills"
+description: "Các kỹ năng mà Claude Code có thể thực hiện trong dự án phần mềm"
+icon: "wand-magic-sparkles"
+---
+
+Claude Code có thể thực hiện nhiều kỹ năng lập trình — từ tạo dự án mới cho đến deploy lên production. Hiểu rõ từng kỹ năng giúp bạn mô tả yêu cầu chính xác hơn.
+
+## Kỹ năng phát triển
+
+<CardGroup>
+  <Card title="Tạo dự án mới" icon="folder-plus">
+    Khởi tạo project với đầy đủ tech stack: Next.js, TypeScript, Tailwind, shadcn/ui, Firebase...
+  </Card>
+  <Card title="Thêm tính năng" icon="plus">
+    Tạo page, component, API route, Cloud Function theo mô tả bằng ngôn ngữ tự nhiên
+  </Card>
+  <Card title="Sửa lỗi" icon="bug">
+    Phân tích lỗi từ console, terminal — sửa và verify lại
+  </Card>
+  <Card title="Refactor code" icon="arrows-rotate">
+    Tái cấu trúc code để sạch hơn, dùng pattern tốt hơn, tối ưu performance
+  </Card>
+  <Card title="Viết test" icon="vial">
+    Tạo unit test, integration test cho components và services
+  </Card>
+  <Card title="Tạo documentation" icon="file-lines">
+    Tự động tạo README, JSDoc comments, API documentation
+  </Card>
+</CardGroup>
+
+## Kỹ năng vận hành
+
+<Steps>
+  <Step title="Quản lý package">
+    Cài đặt, gỡ bỏ, cập nhật package qua npm/yarn. Tự động cập nhật package.json.
+  </Step>
+  <Step title="Terminal commands">
+    Chạy bất kỳ lệnh terminal nào: build, test, deploy, migration...
+  </Step>
+  <Step title="Git operations">
+    ```bash
+    git add .
+    git commit -m "..."
+    git push origin main
+    ```
+    Claude Code có thể thực hiện toàn bộ quy trình git.
+  </Step>
+  <Step title="File system">
+    Đọc, tạo, sửa, xóa file. Tìm kiếm trong codebase bằng regex hoặc pattern.
+  </Step>
+  <Step title="Deploy">
+    Kết nối Vercel, Firebase, GitHub và deploy tự động khi push code.
+  </Step>
+</Steps>
+
+## Kỹ năng tích hợp (qua MCP)
+
+| MCP Server | Chức năng |
+|---|---|
+| **Firebase MCP** | Tương tác trực tiếp với Firestore, Auth, Storage |
+| **GitHub MCP** | Quản lý repo, PR, issues, branches |
+| **Figma MCP** | Đọc design specs từ Figma để viết UI |
+| **Slack MCP** | Gửi thông báo tự động tới Slack channel |
+
+## Cách phát huy tối đa kỹ năng
+
+<Tip>
+Mô tả yêu cầu càng chi tiết thì Claude Code càng viết code đúng ý. Đừng tiếc thời gian mô tả — đó là đầu tư.
+</Tip>
+
+### Mô tả tốt vs mô tả tệ
+
+<CodeGroup>
+```text ❌ Mô tả tệ
+Tạo trang tasks cho tôi
+```
+
+```text ✅ Mô tả tốt
+Tạo trang /dashboard/tasks hiển thị danh sách công việc.
+Mỗi task hiển thị: tiêu đề, badge trạng thái (màu theo status),
+người phụ trách (avatar + tên), deadline.
+Có nút 'Thêm task' mở modal form.
+Dữ liệu lấy từ Firestore collection 'tasks', cập nhật realtime.
+```
+</CodeGroup>
+
+### Chia nhỏ yêu cầu lớn
+
+<Check>Mỗi prompt nên tạo ra 1 thay đổi có thể kiểm tra được. Sau mỗi prompt, mở trình duyệt kiểm tra trước khi tiếp tục.</Check>

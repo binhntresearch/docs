@@ -1,0 +1,142 @@
+---
+title: "Solidity nâng cao"
+description: "Inheritance, interfaces, assembly, patterns và gas optimization"
+icon: "code-branch"
+---
+
+Phần nâng cao của Solidity — inheritance, interfaces, common design patterns, và techniques tối ưu gas.
+
+## Inheritance & Interfaces
+
+```solidity
+// Interface — định nghĩa function signature
+interface IERC20 {
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address to, uint256 amount) external returns (bool);
+}
+
+// Abstract contract — partially implemented
+abstract contract Ownable {
+    address public owner;
+
+    constructor(address _owner) {
+        owner = _owner;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+
+    function transferOwnership(address newOwner) public virtual onlyOwner;
+}
+
+// Concrete contract
+contract MyToken is Ownable, IERC20 {
+    string public name;
+    uint256 public totalSupply;
+
+    constructor(string memory _name, address _owner) Ownable(_owner) {
+        name = _name;
+    }
+
+    function transferOwnership(address newOwner) public override onlyOwner {
+        owner = newOwner;
+    }
+}
+```
+
+## Design Patterns
+
+<CodeGroup>
+```solidity Access Control
+// Role-based access
+contract AccessControl {
+    mapping(bytes32 => mapping(address => bool)) private _roles;
+
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER");
+
+    function grantRole(bytes32 role, address account) external onlyOwner {
+        _roles[role][account] = true;
+    }
+
+    modifier hasRole(bytes32 role) {
+        require(_roles[role][msg.sender], "No role");
+        _;
+    }
+
+    function mint(address to, uint amount) external hasRole(MINTER_ROLE) {
+        _mint(to, amount);
+    }
+}
+```
+
+```solidity Proxy / Upgradeable
+// Minimal proxy pattern (EIP-1167)
+// Cho phép upgrade logic mà không thay đổi storage
+
+contract Proxy {
+    address public implementation;
+
+    constructor(address _impl) {
+        implementation = _impl;
+    }
+
+    fallback() external payable {
+        address impl = implementation;
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let result := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+}
+```
+</CodeGroup>
+
+## Gas Optimization
+
+| Kỹ thuật | Tiết kiệm | Ví dụ |
+|---|---|---|
+| **packed structs** | 20-30% | `uint96 thay vì uint256` |
+| **calldata > memory** | ~10% | Function input `calldata` thay vì `memory` |
+| **unchecked blocks** | ~10% | Khi overflow không thể xảy ra |
+| **mapping > array** | Variable | Lookup O(1) vs O(n) |
+| **short-circuit** | Variable | `require(a && b)` → check `a` trước |
+| **cache storage** | ~5% | `uint x = storageVar;` thay vì đọc nhiều lần |
+
+```solidity
+// Example: Gas optimized transfer
+function transfer(address to, uint256 amount) external returns (bool) {
+    // Cache storage reads
+    uint256 senderBalance = balances[msg.sender];
+
+    // Short-circuit + unchecked (no overflow with uint256)
+    require(senderBalance >= amount, "Insufficient");
+    unchecked {
+        balances[msg.sender] = senderBalance - amount;
+    }
+    balances[to] += amount;
+
+    return true;
+}
+```
+
+## Security Best Practices
+
+<Warning>
+- **Reentrancy:** Dùng Checks-Effects-Interactions pattern hoặc ReentrancyGuard
+- **Integer overflow:** Solidity ^0.8.0 có built-in checks
+- **Front-running:** Commit-reveal scheme cho sensitive operations
+- **Access control:** Luôn kiểm tra msg.sender
+- **Flash loan attacks:** Validate price oracle trong AMM
+</Warning>
+
+<Tip>
+Luôn audit smart contract trước khi deploy production. Dùng tools như Slither và Mythril để scan vulnerabilities tự động.
+</Tip>

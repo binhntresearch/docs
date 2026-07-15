@@ -1,0 +1,102 @@
+---
+title: "Tổng quan Agentic AI"
+description: "Agentic AI là gì, tại sao nó đang thay đổi cách chúng ta xây dựng phần mềm"
+icon: "robot"
+---
+
+Agentic AI là thế hệ AI tiếp theo — không chỉ **trả lời câu hỏi** mà còn **hành động, lập kế hoạch, sử dụng công cụ** và **tự thực hiện tasks phức tạp**.
+
+## Agentic AI vs Traditional AI
+
+<Tabs>
+  <Tab title="Traditional AI/LLM">
+    - **Input → Output:** Câu hỏi → Trả lời
+    - **No memory:** Mỗi conversation độc lập
+    - **No actions:** Chỉ generate text
+    - **No planning:** Không suy luận multi-step
+    - **No tools:** Không gọi API, không đọc file
+  </Tab>
+  <Tab title="Agentic AI">
+    - **Goal → Actions → Result:** Nhận goal → lên kế hoạch → thực thi
+    - **Memory:** Nhớ context qua nhiều turns
+    - **Tool Use:** Gọi API, đọc DB, gửi email, viết code
+    - **Planning:** Chia task lớn thành subtasks
+    - **Autonomy:** Tự quyết định khi nào cần input từ user
+  </Tab>
+</Tabs>
+
+## Ví dụ thực tế
+
+| Use Case | Traditional AI | Agentic AI |
+|---|---|---|
+| **Customer Support** | Chatbot trả lời FAQ | Agent xử lý đơn hàng, refund, escalate |
+| **Data Analysis** | Gợi ý query SQL | Agent tự query, phân tích, tạo dashboard |
+| **Coding** | Gợi ý code snippet | Agent tạo file, chạy test, fix bug, deploy |
+| **Research** | Summarize 1 bài báo | Agent search nhiều nguồn, synthesis, viết report |
+| **Trading** | Predict price | Agent monitor market, execute trades, manage risk |
+
+## Các thành phần của Agentic System
+
+```
+┌─────────────────────────────────────────────┐
+│           Agentic AI System                  │
+├─────────────────────────────────────────────┤
+│                                             │
+│  🧠 LLM Core (Claude, GPT, Gemini)         │
+│     ↓                                       │
+│  📋 Planner (Chia task, lập kế hoạch)      │
+│     ↓                                       │
+│  🔧 Tool Executor (Gọi API, chạy code)     │
+│     ↓                                       │
+│  💾 Memory (Short-term + Long-term)         │
+│     ↓                                       │
+│  🛡️ Guardrails (Safety, validation)        │
+│     ↓                                       │
+│  📊 Observer (Monitor, logging)             │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+## Agent Loop
+
+<Callout type="info">
+Mọi agent đều hoạt động theo vòng lặp: **Observe → Think → Act → Observe kết quả → Repeat** cho đến khi goal đạt được.
+</Callout>
+
+```
+User Goal
+    ↓
+┌──→ Observe (đọc context, memory, tool results)
+│       ↓
+│    Think (LLM suy luận, lên kế hoạch)
+│       ↓
+│    Act (thực hiện: gọi tool, tạo output)
+│       ↓
+│    Check: Goal achieved?
+│       ↓ No → Loop back
+└── Return Result
+```
+
+## Frameworks phổ biến
+
+| Framework | Company | Đặc điểm |
+|---|---|---|
+| **LangChain** | LangChain | Ecosystem lớn nhất, LangGraph cho orchestration |
+| **Claude Agent SDK** | Anthropic | Official, best for Claude, managed agents |
+| **CrewAI** | CrewAI | Multi-agent orchestration, role-based |
+| **AutoGen** | Microsoft | Multi-agent conversation framework |
+| **LlamaIndex** | LlamaIndex | RAG-focused agent framework |
+| **PydanticAI** | Pydantic | Type-safe agent framework |
+
+## Thị trường Agentic AI (2025-2026)
+
+<Check>
+- **$50B+ market** dự kiến đến 2030
+- **65% enterprises** đang pilot agentic systems
+- Top hiring: AI Agent Engineer, LLM Engineer
+- Top tools: LangGraph, Claude Agent SDK, CrewAI
+</Check>
+
+<Tip>
+Agentic AI không chỉ là xu hướng — nó là paradigm shift. Bắt đầu từ single agent đơn giản, rồi mở rộng sang multi-agent systems khi project phức tạp hơn.
+</Tip>

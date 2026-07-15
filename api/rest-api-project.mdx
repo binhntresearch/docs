@@ -1,0 +1,129 @@
+---
+title: "REST API Project"
+description: "Xây dựng REST API hoàn chỉnh — Task Management với Express + Prisma"
+icon: "rocket"
+---
+
+Dự án thực chiến — Task Management REST API hoàn chỉnh từ đầu với Claude Code.
+
+## Tech Stack
+
+```
+Node.js + TypeScript + Express + Prisma + PostgreSQL
++ JWT Auth + Zod Validation + Swagger + Jest + Docker
+```
+
+## Prompt Sequence với Claude Code
+
+<Steps>
+  <Step title="Project Setup">
+    ```
+    Tạo Node.js backend API với:
+    - Express + TypeScript + strict mode
+    - Prisma + PostgreSQL
+    - JWT authentication (bcrypt + jsonwebtoken)
+    - Zod validation
+    - Swagger docs
+    - Jest tests
+    - Docker Compose
+    - Pino structured logging
+    Tạo cấu trúc thư mục, config files, Docker setup
+    ```
+  </Step>
+  <Step title="Database Schema">
+    ```
+    Tạo Prisma schema:
+    - User: email, name, password, role (USER/ADMIN), timestamps
+    - Project: name, description, ownerId, timestamps
+    - Task: title, description, status (TODO/IN_PROGRESS/DONE),
+      priority, assigneeId, projectId, dueDate, timestamps
+
+    Thêm indexes, relations, enums. Generate migration.
+    ```
+  </Step>
+  <Step title="Auth Endpoints">
+    ```
+    Tạo auth endpoints:
+    - POST /api/v1/auth/register (validate, hash password)
+    - POST /api/v1/auth/login (verify, return JWT)
+    - POST /api/v1/auth/refresh-token
+    - GET /api/v1/auth/me
+    Viết tests cho mỗi endpoint
+    ```
+  </Step>
+  <Step title="Task CRUD">
+    ```
+    Tạo CRUD endpoints cho Tasks:
+    - GET /api/v1/tasks (list with pagination, filter by status/assignee)
+    - GET /api/v1/tasks/:id
+    - POST /api/v1/tasks (validate assignee, project exists)
+    - PUT /api/v1/tasks/:id (only assignee or admin)
+    - DELETE /api/v1/tasks/:id (only admin)
+    Response format: { data, pagination }
+    Viết integration tests
+    ```
+  </Step>
+  <Step title="Project CRUD">
+    ```
+    Tạo CRUD endpoints cho Projects:
+    - GET /api/v1/projects
+    - POST /api/v1/projects (admin only)
+    - PUT /api/v1/projects/:id (owner only)
+    - DELETE /api/v1/projects/:id (owner only)
+    Relation: Project has many Tasks
+    ```
+  </Step>
+  <Step title="Advanced Features">
+    ```
+    Thêm:
+    - Search: GET /api/v1/tasks?q=keyword
+    - Filter: ?status=todo&priority=high&assigneeId=1
+    - Sorting: ?sort=createdAt&order=desc
+    - Bulk operations: PATCH /api/v1/tasks/bulk-status
+    - Dashboard stats: GET /api/v1/stats
+    ```
+  </Step>
+  <Step title="Testing & Deploy">
+    ```
+    Viết comprehensive tests:
+    - Unit tests cho services
+    - Integration tests cho endpoints
+    - Auth scenarios tests
+    Setup Docker, CI/CD, deploy
+    ```
+  </Step>
+</Steps>
+
+## Expected File Structure
+
+```
+task-api/
+├── src/
+│   ├── app.ts, server.ts
+│   ├── routes/ (auth, users, tasks, projects)
+│   ├── controllers/
+│   ├── services/
+│   ├── middlewares/ (auth, validation, errorHandler)
+│   ├── validators/ (Zod schemas)
+│   ├── lib/ (prisma, logger)
+│   └── types/
+├── prisma/schema.prisma
+├── __tests__/
+├── Dockerfile, docker-compose.yml
+└── .github/workflows/ci.yml
+```
+
+## API Endpoints Summary
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | ❌ | Register new user |
+| `POST` | `/api/v1/auth/login` | ❌ | Login, get JWT |
+| `GET` | `/api/v1/auth/me` | ✅ | Current user profile |
+| `GET` | `/api/v1/projects` | ✅ | List projects |
+| `POST` | `/api/v1/projects` | ✅ Admin | Create project |
+| `GET` | `/api/v1/tasks` | ✅ | List tasks (paginated) |
+| `POST` | `/api/v1/tasks` | ✅ | Create task |
+| `PUT` | `/api/v1/tasks/:id` | ✅ | Update task |
+| `DELETE` | `/api/v1/tasks/:id` | ✅ Admin | Delete task |
+| `GET` | `/api/v1/stats` | ✅ | Dashboard statistics |

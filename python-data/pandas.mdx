@@ -1,0 +1,207 @@
+---
+title: "Pandas"
+description: "Xử lý và phân tích dữ liệu dạng bảng với Pandas"
+icon: "table"
+---
+
+Pandas là thư viện quan trọng nhất cho phân tích dữ liệu trong Python. Cung cấp hai cấu trúc dữ liệu chính: **Series** (1D) và **DataFrame** (2D dạng bảng).
+
+## Cấu trúc dữ liệu
+
+<Tabs>
+  <Tab title="Series">
+    Mảng 1 chiều có index (giống cột trong Excel).
+
+    ```python
+    import pandas as pd
+
+    scores = pd.Series([85, 92, 78, 90],
+                       index=['An', 'Bình', 'Chi', 'Dũng'])
+
+    print(scores)
+    # An      85
+    # Bình    92
+    # Chi     78
+    # Dũng    90
+
+    scores['An']     # 85
+    scores.mean()    # 86.25
+    ```
+  </Tab>
+  <Tab title="DataFrame">
+    Bảng 2D — giống một sheet Excel.
+
+    ```python
+    data = {
+        'name': ['An', 'Bình', 'Chi'],
+        'age': [25, 30, 28],
+        'score': [85, 92, 78]
+    }
+    df = pd.DataFrame(data)
+
+    print(df)
+    #    name  age  score
+    # 0    An   25     85
+    # 1   Bình   30     92
+    # 2   Chi   28     78
+    ```
+  </Tab>
+</Tabs>
+
+## Đọc dữ liệu
+
+Pandas hỗ trợ đọc nhiều định dạng phổ biến:
+
+```python
+import pandas as pd
+
+# CSV
+df = pd.read_csv('data.csv')
+
+# Excel
+df = pd.read_excel('data.xlsx', sheet_name='Sheet1')
+
+# JSON
+df = pd.read_json('data.json')
+
+# SQL
+df = pd.read_sql('SELECT * FROM users', connection)
+
+# Từ URL trực tiếp
+df = pd.read_csv('https://example.com/data.csv')
+```
+
+## Khám phá dữ liệu (EDA)
+
+```python
+df = pd.read_csv('sales.csv')
+
+# Xem 5 dòng đầu
+df.head()
+
+# Xem 5 dòng cuối
+df.tail()
+
+# Thông tin tổng quan
+df.info()
+
+# Thống kê mô tả
+df.describe()
+
+# Shape
+df.shape           # (rows, cols)
+
+# Tên cột
+df.columns
+
+# Kiểu dữ liệu từng cột
+df.dtypes
+
+# Số giá trị unique mỗi cột
+df.nunique()
+```
+
+## Chọn & Lọc dữ liệu
+
+<CodeGroup>
+```python Chọn cột
+# Một cột → Series
+df['name']
+
+# Nhiều cột → DataFrame
+df[['name', 'score']]
+```
+
+```python Chọn hàng (loc/iloc)
+# Theo label
+df.loc[0]              # Hàng đầu tiên
+df.loc[0:3]            # Hàng 0 đến 3
+
+# Theo vị trí
+df.iloc[0]              # Hàng đầu
+df.iloc[-1]             # Hàng cuối
+
+# Lọc theo điều kiện
+df[df['score'] > 80]
+df[df['city'] == 'Hanoi']
+```
+
+```python Query
+# Cách hiện đại, dễ đọc
+df.query('score > 80 and age < 30')
+df.query('city == "Hanoi"')
+```
+</CodeGroup>
+
+## Xử lý missing values
+
+```python
+# Phát hiện missing
+df.isnull().sum()           # Đếm missing mỗi cột
+df.isnull().any()           # Cột nào có missing?
+
+# Điền missing
+df['age'].fillna(0)                   # Điền 0
+df['age'].fillna(df['age'].mean())    # Điền mean
+df['age'].fillna(method='ffill')      # Forward fill
+
+# Xóa hàng có missing
+df.dropna()                # Xóa hàng có bất kỳ missing nào
+df.dropna(subset=['age'])  # Chỉ xóa nếu missing cột 'age'
+```
+
+## GroupBy & Aggregate
+
+```python
+# Nhóm theo city, tính tổng doanh thu
+df.groupby('city')['revenue'].sum()
+
+# Nhiều aggregation
+df.groupby('city').agg({
+    'revenue': 'sum',
+    'quantity': 'mean',
+    'order_id': 'count'
+})
+
+# Pivot table
+df.pivot_table(
+    values='revenue',
+    index='city',
+    columns='month',
+    aggfunc='sum'
+)
+```
+
+## Apply functions
+
+```python
+# Apply cho Series
+df['name_upper'] = df['name'].str.upper()
+
+# Apply với lambda
+df['age_group'] = df['age'].apply(lambda x: 'Young' if x < 30 else 'Senior')
+
+# Apply cho DataFrame (theo axis)
+df['total'] = df.apply(lambda row: row['price'] * row['quantity'], axis=1)
+```
+
+<Tip>
+Pandas là thư viện mạnh nhất cho data manipulation. Hầu hết các tác vụ phân tích dữ liệu thực tế đều có thể giải quyết với Pandas + NumPy.
+</Tip>
+
+## Bài tập
+
+<Steps>
+  <Step title="Bài 1">
+    Đọc file `sales.csv`, hiển thị 10 dòng đầu và thông tin cơ bản.
+  </Step>
+  <Step title="Bài 2">
+    Lọc các giao dịch có `revenue > 1,000,000`, sắp xếp theo ngày.
+  </Step>
+  <Step title="Bài 3">
+    Tính tổng doanh thu theo từng `city` và `month`.
+  </Step>
+  <Step title="Bài 4">
+    Phát hiện và xử lý missing values trong dataset.
+  </Step>
+</Steps>

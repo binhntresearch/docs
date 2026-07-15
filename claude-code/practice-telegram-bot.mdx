@@ -1,0 +1,124 @@
+---
+title: "Telegram Bot"
+description: "Xây dựng bot Telegram tích hợp với ứng dụng — gửi thông báo, nhận lệnh từ người dùng"
+icon: "robot"
+---
+
+Bài thực hành giúp bạn xây dựng một Telegram Bot tích hợp với Next.js + Firebase — bot có thể gửi thông báo và nhận lệnh từ người dùng.
+
+## Mục tiêu
+
+<Check>Tạo Telegram Bot qua BotFather · Tích hợp Telegram Bot API vào Next.js API Route · Gửi thông báo tự động khi có sự kiện trong Firestore · Xử lý lệnh từ người dùng (/start, /help, /tasks)</Check>
+
+## Quy trình thực hành
+
+<Steps>
+  <Step title="Tạo bot trên Telegram">
+    Mở Telegram, tìm **@BotFather**, gửi `/newbot`, làm theo hướng dẫn → nhận **Bot Token**.
+  </Step>
+  <Step title="Cài đặt Telegram SDK">
+    ```bash
+    npm install node-telegram-bot-api
+    ```
+  </Step>
+  <Step title="Tạo API Route webhook">
+    API tại `/api/telegram/webhook` nhận update từ Telegram.
+  </Step>
+  <Step title="Xử lý lệnh cơ bản">
+    Bot phản hồi `/start`, `/help`, `/tasks` (lấy data từ Firestore).
+  </Step>
+  <Step title="Gửi thông báo tự động">
+    Khi task mới được tạo → bot tự động gửi message cho người được assign.
+  </Step>
+  <Step title="Liên kết tài khoản">
+    User gõ `/link email@example.com` để liên kết tài khoản Telegram với Firebase user.
+  </Step>
+</Steps>
+
+## Luồng hoạt động
+
+```
+User (Telegram)
+  ↓ gửi /tasks
+Bot nhận message → gọi API Telegram
+  ↓
+API Route xử lý
+  ↓
+Truy vấn Firestore → lấy tasks của user
+  ↓
+Gửi response về Telegram
+```
+
+## Code mẫu — API Route webhook
+
+```typescript
+// app/api/telegram/webhook/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { getTasksForUser } from '@/services/tasks'
+
+const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`
+
+export async function POST(req: NextRequest) {
+  const update = await req.json()
+  const message = update.message
+
+  if (!message?.text) return NextResponse.json({ ok: true })
+
+  const chatId = message.chat.id
+  const text = message.text
+
+  if (text === '/start') {
+    await sendMessage(chatId,
+      'Xin chào! Gõ /tasks để xem danh sách công việc.')
+  }
+  else if (text === '/tasks') {
+    const tasks = await getTasksForUser(chatId)
+    await sendMessage(chatId,
+      `Bạn có ${tasks.length} công việc:\n` +
+      tasks.map(t => `- ${t.title} (${t.status})`).join('\n'))
+  }
+
+  return NextResponse.json({ ok: true })
+}
+
+async function sendMessage(chatId: number, text: string) {
+  await fetch(`${TELEGRAM_API}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text })
+  })
+}
+```
+
+## Các lệnh bot gợi ý
+
+| Lệnh | Chức năng |
+|---|---|
+| `/start` | Chào mừng, hướng dẫn sử dụng |
+| `/help` | Danh sách lệnh |
+| `/tasks` | Xem danh sách tasks của user |
+| `/tasks today` | Tasks deadline hôm nay |
+| `/new <title>` | Tạo task mới nhanh |
+| `/link <email>` | Liên kết tài khoản |
+
+## Prompt mẫu cho Claude Code
+
+```
+Tạo Telegram Bot tích hợp với ứng dụng Next.js + Firebase.
+
+Yêu cầu:
+- API Route POST /api/telegram/webhook xử lý update từ Telegram
+- Lệnh /start: gửi tin nhắn chào + hướng dẫn
+- Lệnh /tasks: lấy tasks của user từ Firestore, trả về danh sách
+- Lệnh /new <title>: tạo task mới trong Firestore
+- Tự động gửi notification khi task mới được giao cho user
+
+Cấu hình:
+- Biến môi trường TELEGRAM_BOT_TOKEN
+- Lưu chat_id của user vào Firestore document users/[uid]
+- Webhook URL: https://your-domain.com/api/telegram/webhook
+```
+
+<Tip>
+Telegram Bot hoàn toàn miễn phí. Sau khi deploy, dùng tính năng Set Webhook của Bot API để liên kết với domain Vercel của bạn.
+</Tip>

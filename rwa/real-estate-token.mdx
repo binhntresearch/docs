@@ -1,0 +1,160 @@
+---
+title: "Real Estate Token"
+description: "Token hóa bất động sản — từ legal SPV đến smart contract"
+icon: "house"
+---
+
+Dự án thực chiến đầu tiên — token hóa một tòa nhà thương mại thành security tokens.
+
+## Kiến trúc
+
+```
+Tòa nhà ($5M)
+    ↓
+SPV (BVI Company) — sở hữu tòa nhà
+    ↓
+SecurityToken (ERC-3643) — 5M tokens × $1
+    ↓
+Investors (KYC'd) — mua token, nhận share rent income
+```
+
+## Smart Contract
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+contract RealEstateToken is ERC20, Ownable, ReentrancyGuard {
+    struct Property {
+        string name;
+        string location;
+        uint256 totalValue;       // USD (6 decimals)
+        uint256 tokenSupply;
+        uint256 annualRentYield;  // bps (100 = 1%)
+        bool active;
+    }
+
+    struct Investor {
+        bool isKYCApproved;
+        uint256 investmentAmount;
+        uint256 lastDividendClaim;
+    }
+
+    Property public property;
+    mapping(address => Investor) public investors;
+    mapping(address => bool) public isWhitelisted;
+    uint256 public totalInvestors;
+    uint256 public totalDistributed;
+
+    event DividendDistributed(uint256 totalAmount, uint256 timestamp);
+    event DividendClaimed(address investor, uint256 amount);
+
+    constructor(
+        string memory name,
+        string memory symbol,
+        string memory _propertyName,
+        string memory _location,
+        uint256 _totalValue,
+        uint256 _tokenSupply,
+        uint256 _annualRentYield
+    ) ERC20(name, symbol) {
+        property = Property(_propertyName, _location, _totalValue, _tokenSupply, _annualRentYield, true);
+    }
+
+    function approveInvestor(address investor) external onlyOwner {
+        investors[investor] = Investor(true, 0, 0);
+        isWhitelisted[investor] = true;
+        totalInvestors++;
+    }
+
+    function mintToInvestor(address investor, uint256 amount) external onlyOwner {
+        require(isWhitelisted[investor], "Not whitelisted");
+        _mint(investor, amount);
+        investors[investor].investmentAmount += amount;
+    }
+
+    function claimDividend() external {
+        Investor storage inv = investors[msg.sender];
+        require(inv.investmentAmount > 0, "No tokens");
+
+        uint256 dividendPerToken = totalDistributed * 1e18 / totalSupply();
+        uint256 owed = inv.investmentAmount * dividendPerToken / 1e18;
+
+        if (owed > 0) {
+            inv.lastDividendClaim = block.timestamp;
+            payable(msg.sender).transfer(owed);
+            emit DividendClaimed(msg.sender, owed);
+        }
+    }
+
+    function distributeRent() external payable onlyOwner {
+        require(msg.value > 0, "No rent");
+        totalDistributed += msg.value;
+        emit DividendDistributed(msg.value, block.timestamp);
+    }
+
+    function _beforeTokenTransfer(address from, address to, uint256) internal override {
+        require(isWhitelisted[from] && isWhitelisted[to], "Not whitelisted");
+    }
+
+    receive() external payable {}
+}
+```
+
+## Frontend — Investment Dashboard
+
+```tsx
+// components/InvestmentDashboard.tsx
+'use client';
+import { useReadContract, useWriteContract } from 'wagmi';
+import { formatUnits } from 'viem';
+
+export function PropertyInvestment({ propertyAddress }) {
+  const { data: property } = useReadContract({
+    address: propertyAddress,
+    abi: realEstateAbi,
+    functionName: 'property'
+  });
+
+  const { data: myTokens } = useReadContract({
+    address: propertyAddress,
+    abi: realEstateAbi,
+    functionName: 'balanceOf',
+    args: [userAddress]
+  });
+
+  const { writeContract: claimDividend } = useWriteContract();
+
+  return (
+    <div className="card">
+      <h2>{property?.name}</h2>
+      <p>📍 {property?.location}</p>
+      <p>💰 Value: ${(Number(property?.totalValue) / 1e6).toLocaleString()}</p>
+      <p>🏠 My tokens: {formatUnits(myTokens || 0n, 18)}</p>
+      <p>📈 Annual yield: {Number(property?.annualRentYield) / 100}%</p>
+
+      <button onClick={() => claimDividend({
+        address: propertyAddress,
+        abi: realEstateAbi,
+        functionName: 'claimDividend'
+      })}>
+        Claim Dividend
+      </button>
+    </div>
+  );
+}
+```
+
+## Key Features
+
+<Check>
+- **KYC-gated:** Chỉ whitelisted addresses mới mua được
+- **Dividend distribution:** Rent income distribute theo % token
+- **Transfer restriction:** Không transfer cho non-whitelisted
+- **Transparent:** Mọi investor thấy trên-chain ai sở hữu bao nhiêu
+- **Compliant:** Reg D 506(c) compliant
+</Check>

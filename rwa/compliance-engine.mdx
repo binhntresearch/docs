@@ -1,0 +1,199 @@
+---
+title: "Compliance Engine"
+description: "Hệ thống compliance on-chain — KYC, AML, transfer restriction, reporting"
+icon: "gavel"
+---
+
+Compliance Engine là layer **bảo vệ** mọi RWA token — đảm bảo mọi giao dịch tuân thủ pháp luật.
+
+## Kiến trúc Compliance
+
+```
+User A (KYC'd, Reg D)
+    ↓ transfer tokens
+Compliance Engine
+    ├── Check 1: Is receiver KYC'd? ✓
+    ├── Check 2: Is transfer locked? ✓ (no lockup)
+    ├── Check 3: Investment limit OK? ✓ ($50K < $100K limit)
+    ├── Check 4: Max investors OK? ✓ (1,500 < 2,000)
+    ├── Check 5: Sanctions check? ✓ (not sanctioned)
+    └── Check 6: Country allowed? ✓ (US - Reg D)
+    ↓ all checks passed
+User B receives tokens ✓
+```
+
+## Compliance Rules Config
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract ComplianceEngine {
+    struct ComplianceConfig {
+        uint256 maxInvestors;          // Total cap
+        uint256 maxInvestmentPerUser;  // Per-investor cap (USD)
+        uint256 lockupDays;            // Lock-up after purchase
+        bool accreditedOnly;           // Accredited investors only
+        bool usPersonRestricted;       // US persons cannot buy (Reg S)
+    }
+
+    ComplianceConfig public config;
+
+    mapping(address => bool) public isKYCApproved;
+    mapping(address => bool) public isAccredited;
+    mapping(address => uint256) public investmentAmount;
+    mapping(address => bool) public isSanctioned;
+    mapping(address => uint256) public country;  // 2-letter country code
+    mapping(address => uint256) public lockupEnd;
+    mapping(address => bool) public isWhitelisted;
+
+    uint256 public totalInvestors;
+
+    event TransferAttempt(address from, address to, string reason, bool allowed);
+
+    modifier complianceCheck(address from, address to, uint256 amount) {
+        // 1. Whitelist check
+        require(isWhitelisted[from] && isWhitelisted[to], "Not whitelisted");
+
+        // 2. Sanctions check (OFAC, EU, etc.)
+        require(!isSanctioned[from] && !isSanctioned[to], "Sanctioned address");
+
+        // 3. KYC check
+        require(isKYCApproved[from] && isKYCApproved[to], "KYC required");
+
+        // 4. Accreditation check
+        if (config.accreditedOnly) {
+            require(isAccredited[to], "Accreditation required");
+        }
+
+        // 5. Lock-up check
+        require(block.timestamp >= lockupEnd[to], "In lock-up period");
+
+        // 6. Investment limit
+        require(
+            investmentAmount[to] + amount <= config.maxInvestmentPerUser,
+            "Exceeds investment limit"
+        );
+
+        // 7. Max investors
+        if (investmentAmount[to] == 0) {
+            require(totalInvestors + 1 <= config.maxInvestors, "Max investors reached");
+        }
+
+        // 8. US person restriction (Reg S)
+        if (config.usPersonRestricted) {
+            require(country[to] != 840, "US persons restricted"); // 840 = US code
+        }
+
+        _;
+    }
+
+    // Update investment record after transfer
+    function updateInvestmentRecord(address from, address to, uint256 amount) internal {
+        investmentAmount[from] -= amount;
+        investmentAmount[to] += amount;
+
+        if (investmentAmount[to] == amount) {
+            totalInvestors++;
+        }
+    }
+}
+```
+
+## Reporting
+
+```solidity
+// On-chain reporting for regulators
+contract ComplianceReporting {
+    struct TransferRecord {
+        address from;
+        address to;
+        uint256 amount;
+        uint256 timestamp;
+        bool compliant;
+    }
+
+    TransferRecord[] public transferHistory;
+
+    function logTransfer(address from, address to, uint256 amount, bool compliant) internal {
+        transferHistory.push(TransferRecord(from, to, amount, block.timestamp, compliant));
+    }
+
+    // Regulators can query
+    function getTransferHistory(uint256 start, uint256 end) external view returns (TransferRecord[] memory) {
+        uint256 len = min(end - start, transferHistory.length);
+        TransferRecord[] memory records = new TransferRecord[](len);
+        for (uint i = 0; i < len; i++) {
+            records[i] = transferHistory[start + i];
+        }
+        return records;
+    }
+}
+```
+
+## KYC Integration Flow
+
+<Steps>
+  <Step title="Investor Onboarding">
+    User submits identity documents via KYC provider (Synaps, Jumio)
+  </Step>
+  <Step title="Verification">
+    KYC provider verifies documents, returns approval + investor type
+  </Step>
+  <Step title="On-chain Whitelist">
+    Issuer calls `approveInvestor()` — whitelists address on-chain
+  </Step>
+  <Step title="Trading">
+    Investor can now buy/transfer tokens
+  </Step>
+</Steps>
+
+## AML Screening
+
+```javascript
+// AML screening before minting
+async function screenInvestor(address) {
+  const sanctions = await checkOFAC(address); // OFAC sanctions list
+  const pep = await checkPEP(address);       // Politically Exposed Person
+  const adverse = await checkAdverseMedia(address);
+
+  if (sanctions.match || pep.risk > 0.7 || adverse.found) {
+    await reportSuspiciousActivity(address);
+    return { approved: false, reason: 'AML screening failed' };
+  }
+
+  return { approved: true };
+}
+```
+
+## Audit Trail
+
+```solidity
+// Complete audit trail for every compliance event
+event InvestorApproved(address investor, uint8 investorType, uint256 country);
+event InvestorRemoved(address investor, string reason);
+event SanctionAdded(address investor, string source);
+event TransferRestricted(address from, address to, string reason);
+event LimitChanged(uint256 oldLimit, uint256 newLimit);
+event LockupExtended(address investor, uint256 newEnd);
+```
+
+## Regulatory Reporting
+
+<Tip>
+Regulators yêu cầu:
+- **Daily:** Transaction reports (Form 13F, Form PF)
+- **Quarterly:** Holdings report, compliance certifications
+- **Annually:** Audited financial statements
+- **Ad-hoc:** Suspicious Activity Reports (SARs)
+</Tip>
+
+## Best Practices
+
+<Check>
+- **Separation of duties:** Issuer vs Compliance officer vs Custodian
+- **Multi-sig:** Thay đổi compliance rules cần multi-signature
+- **Time-locked:** Changes có delay period (24-48h)
+- **Emergency pause:** freezeCapability trong trường hợp khẩn cấp
+- **Regulatory sandbox:** Test compliance rules trước khi production
+</Check>

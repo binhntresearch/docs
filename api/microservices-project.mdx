@@ -1,0 +1,162 @@
+---
+title: "Microservices Project"
+description: "Tách monolith thành microservices — API Gateway, message queue, inter-service communication"
+icon: "network-wired"
+---
+
+Dự án nâng cao — chuyển Task Management thành microservices architecture với Claude Code.
+
+## Kiến trúc
+
+```
+┌─────────────────┐
+│   API Gateway   │  ← Authentication, routing, rate limiting
+└────────┬────────┘
+         │
+    ┌────┼────┐
+    │    │    │
+┌───▼┐ ┌─▼──┐ ┌▼────┐
+│User│ │Task│ │Notif│  ← Each service có database riêng
+│Svc │ │Svc │ │Svc  │
+└───┬┘ └─┬──┘ └┬────┘
+    │    │     │
+  ┌─▼─┐┌─▼─┐┌──▼──┐
+  │DB ││DB ││DB   │
+  └───┘└───┘└─────┘
+       ↕ (RabbitMQ)
+```
+
+## Setup với Claude Code
+
+```
+Tách monolith thành 3 microservices:
+1. User Service: auth, user management
+2. Task Service: tasks CRUD
+3. Notification Service: email, push
+
+Yêu cầu:
+- API Gateway (Express) với JWT verification
+- Message queue (RabbitMQ) cho async communication
+- Database per service (PostgreSQL each)
+- Docker Compose cho orchestration
+- Shared types/interfaces package
+- Event-driven architecture
+- Circuit breaker pattern
+- Health checks
+```
+
+## API Gateway
+
+```typescript
+// gateway/src/server.ts
+import express from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import jwt from 'jsonwebtoken';
+
+const app = express();
+
+const SERVICES = {
+  users: 'http://user-service:3001',
+  tasks: 'http://task-service:3002',
+  notifications: 'http://notification-service:3003'
+};
+
+// Verify JWT at gateway
+const verifyAuth = (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// Public routes (no auth)
+app.use('/api/v1/auth', createProxyMiddleware({
+  target: SERVICES.users, changeOrigin: true
+}));
+
+// Protected routes
+app.use('/api/v1/users', verifyAuth, createProxyMiddleware({
+  target: SERVICES.users, changeOrigin: true
+}));
+app.use('/api/v1/tasks', verifyAuth, createProxyMiddleware({
+  target: SERVICES.tasks, changeOrigin: true
+}));
+app.use('/api/v1/notifications', verifyAuth, createProxyMiddleware({
+  target: SERVICES.notifications, changeOrigin: true
+}));
+```
+
+## Event-Driven Communication
+
+```typescript
+// Task Service — publish events
+import amqp from 'amqplib';
+
+class TaskEventPublisher {
+  async taskCreated(task) {
+    const channel = await this.getChannel();
+    channel.publish('tasks', 'task.created',
+      Buffer.from(JSON.stringify({ taskId: task.id, assigneeId: task.assigneeId }))
+    );
+  }
+
+  async taskCompleted(task) {
+    const channel = await this.getChannel();
+    channel.publish('tasks', 'task.completed',
+      Buffer.from(JSON.stringify({ taskId: task.id, creatorId: task.createdBy }))
+    );
+  }
+}
+
+// Notification Service — consume events
+async function startNotificationConsumer() {
+  const connection = await amqp.connect(process.env.RABBITMQ_URL);
+  const channel = await connection.createChannel();
+  await channel.assertExchange('tasks', 'topic');
+  const queue = await channel.assertQueue('notifications');
+
+  channel.consume(queue.queue, async (msg) => {
+    const event = JSON.parse(msg.content.toString());
+    const routingKey = msg.fields.routingKey;
+
+    if (routingKey === 'task.created') {
+      await notifyAssignee(event.taskId, event.assigneeId);
+    } else if (routingKey === 'task.completed') {
+      await notifyCreator(event.taskId, event.creatorId);
+    }
+
+    channel.ack(msg);
+  });
+}
+```
+
+## Docker Compose
+
+```
+Tạo docker-compose.yml cho microservices:
+- api-gateway (port 3000)
+- user-service (port 3001)
+- task-service (port 3002)
+- notification-service (port 3003)
+- user-db, task-db, notif-db (3 PostgreSQL)
+- rabbitmq (with management UI)
+- redis (shared cache)
+- Health checks cho mỗi service
+- Network isolation
+- Volume for data persistence
+```
+
+## Best Practices
+
+<Tip>
+- **Database per service:** Mỗi service có DB riêng, không share
+- **Async communication:** Dùng message queue cho cross-service events
+- **API contracts:** OpenAPI spec cho mỗi service
+- **Circuit breaker:** Ngừng gọi service down
+- **Centralized logging:** Ship logs về 1 nơi (ELK/Loki)
+- **Distributed tracing:** Track request qua nhiều services
+</Tip>

@@ -1,0 +1,184 @@
+---
+title: "SaaS API Project"
+description: "Multi-tenant SaaS API — subscription, billing, tenant isolation"
+icon: "building"
+---
+
+Dự án thực chiến cuối cùng — Multi-tenant SaaS API hoàn chỉnh với Claude Code.
+
+## Kiến trúc Multi-tenant
+
+```
+┌─────────────────┐
+│   API Gateway   │  ← Verify JWT, extract tenant_id
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│   SaaS Backend  │
+├─────────────────┤
+│  Tenant Context  │  ← Inject tenant_id vào mọi query
+│  RBAC            │  ← Roles theo tenant
+│  Plan Limits     │  ← Feature gating theo subscription
+│  Usage Metering  │  ← Track API usage per tenant
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  Shared Database │  ← tenant_id column trên mỗi table
+│  PostgreSQL      │
+└─────────────────┘
+```
+
+## Setup với Claude Code
+
+```
+Tạo SaaS API với Express + PostgreSQL:
+
+Multi-tenancy:
+- TenantContext middleware: extract tenant_id từ JWT
+- TenantScopedQuery: auto filter queries by tenant_id
+- Row-Level Security (RLS) policies
+
+Features:
+- Tenant CRUD (create, update, settings)
+- User management per tenant
+- Project/Resource management
+- Subscription management (free/pro/enterprise)
+- Plan limits enforcement
+- Usage metering (API calls, storage, seats)
+- Stripe integration (billing, webhooks)
+- Audit logging
+```
+
+## Tenant Middleware
+
+```typescript
+// middlewares/tenant.ts
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+
+export function tenantMiddleware(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return next();
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET) as any;
+    req.tenantId = payload.tenantId;
+    req.userId = payload.userId;
+    req.userRole = payload.role;
+  } catch {
+    // Invalid token — continue without tenant context
+  }
+
+  next();
+}
+```
+
+## Tenant-Scoped Service
+
+```typescript
+// services/project.service.ts
+class ProjectService {
+  constructor(private db: PrismaClient) {}
+
+  async list(tenantId: string, page: number, limit: number) {
+    // Auto filter by tenant_id
+    const [projects, total] = await Promise.all([
+      this.db.project.findMany({
+        where: { tenantId },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.db.project.count({ where: { tenantId } })
+    ]);
+
+    return { data: projects, pagination: { page, limit, total } };
+  }
+
+  async create(tenantId: string, data: CreateProjectDto) {
+    // Enforce plan limits
+    const count = await this.db.project.count({ where: { tenantId } });
+    const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } });
+
+    if (!checkPlanLimit(tenant.plan, 'projects', count)) {
+      throw new PlanLimitError('projects');
+    }
+
+    return this.db.project.create({
+      data: { ...data, tenantId }
+    });
+  }
+}
+```
+
+## Plan Limits
+
+```typescript
+const PLAN_LIMITS = {
+  free:     { seats: 5,    projects: 3,     storage_gb: 1,  api_calls_monthly: 1000 },
+  pro:      { seats: 25,   projects: 50,    storage_gb: 50, api_calls_monthly: 50000 },
+  enterprise: { seats: -1, projects: -1,    storage_gb: -1, api_calls_monthly: -1 }  // unlimited
+};
+
+function checkPlanLimit(plan: string, resource: string, current: number): boolean {
+  const limit = PLAN_LIMITS[plan]?.[resource];
+  if (limit === -1) return true;  // unlimited
+  return current < limit;
+}
+```
+
+## Stripe Webhook
+
+```
+Tạo Stripe webhook handler:
+- customer.subscription.created → activate tenant plan
+- customer.subscription.updated → change plan, update limits
+- invoice.payment_succeeded → update billing status
+- invoice.payment_failed → flag tenant, send dunning email
+- customer.subscription.deleted → downgrade to free plan
+
+Include HMAC signature verification
+Idempotent processing (handle duplicate webhooks)
+```
+
+## Audit Logging
+
+```typescript
+class AuditLogger {
+  async log(actorId: string, action: string, details: any) {
+    await this.db.auditLog.create({
+      data: {
+        tenantId: details.tenantId,
+        actorId,
+        action,       // "user.create", "project.delete"
+        targetType: details.targetType,
+        targetId: details.targetId,
+        changes: details.changes,
+        ipAddress: details.ip,
+        userAgent: details.ua
+      }
+    });
+  }
+}
+
+// Usage
+await auditLogger.log(userId, 'user.delete', {
+  tenantId: 'tenant_123',
+  targetType: 'user',
+  targetId: 'user_456',
+  ip: req.ip
+});
+```
+
+## SaaS API Endpoints Summary
+
+| Module | Endpoints |
+|---|---|
+| **Auth** | register, login, refresh, forgot-password |
+| **Tenants** | GET /me, PUT /me, GET /settings, PUT /settings |
+| **Users** | CRUD, invite, role management |
+| **Projects** | CRUD, members, activity |
+| **Billing** | GET /subscription, POST /checkout, POST /cancel |
+| **Usage** | GET /usage, GET /limits |
+| **Admin** | Dashboard stats, user management, tenant management |
+| **Webhooks** | POST /stripe, POST /internal |

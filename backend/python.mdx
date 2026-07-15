@@ -1,0 +1,201 @@
+---
+title: "Python Backend"
+description: "FastAPI, Django cho Python backend — async, Pydantic, ORM"
+icon: "python"
+---
+
+Python có 2 framework backend phổ biến: **FastAPI** (modern, async) và **Django** (batteries-included, mature). Cả hai đều rất tốt cho việc dùng Claude Code để build.
+
+## FastAPI — Modern & Fast
+
+```bash
+pip install fastapi uvicorn[standard] sqlalchemy pydantic
+```
+
+## Hello World FastAPI
+
+```python
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel, EmailStr
+from typing import List
+
+app = FastAPI(title="My API", version="1.0.0")
+
+class User(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    age: int | None = None
+
+users_db: dict[int, User] = {}
+
+@app.get("/users", response_model=List[User])
+async def list_users(skip: int = 0, limit: int = 100):
+    return list(users_db.values())[skip:skip + limit]
+
+@app.get("/users/{user_id}", response_model=User)
+async def get_user(user_id: int):
+    if user_id not in users_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    return users_db[user_id]
+
+@app.post("/users", response_model=User, status_code=201)
+async def create_user(user: User):
+    if user.id in users_db:
+        raise HTTPException(status_code=409, detail="User already exists")
+    users_db[user.id] = user
+    return user
+```
+
+## Pydantic Models — Validation
+
+```python
+from pydantic import BaseModel, EmailStr, Field, validator
+from datetime import datetime
+from enum import Enum
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
+
+class CreateUserRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    age: int = Field(ge=0, le=150)
+    role: UserRole = UserRole.USER
+
+    @validator("email")
+    def email_must_be_lowercase(cls, v):
+        return v.lower()
+
+class UpdateUserRequest(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    age: int | None = Field(None, ge=0, le=150)
+```
+
+## SQLAlchemy ORM
+
+```python
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+DATABASE_URL = "postgresql://user:pass@localhost:5432/mydb"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    age = Column(Integer, nullable=True)
+
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Routes với DB
+from fastapi import Depends
+
+@app.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+```
+
+## Async Database Operations
+
+```python
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+engine = create_async_engine("postgresql+asyncpg://user:pass@localhost:5432/mydb")
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
+
+@app.get("/users")
+async def list_users(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+    return users
+```
+
+## Middleware
+
+```python
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
+
+class TimingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        duration = time.time() - start
+        response.headers["X-Response-Time"] = f"{duration:.3f}s"
+        return response
+
+app.add_middleware(TimingMiddleware)
+```
+
+## Background Tasks
+
+```python
+from fastapi import BackgroundTasks
+
+def send_email(to: str, body: str):
+    # Slow task
+    pass
+
+@app.post("/users")
+async def create_user(user: UserCreate, background_tasks: BackgroundTasks):
+    db_user = create_user_in_db(user)
+    background_tasks.add_task(send_email, user.email, "Welcome!")
+    return db_user
+```
+
+## Django — Batteries-included
+
+```bash
+django-admin startproject myproject
+python manage.py startapp api
+```
+
+```python
+# Django + DRF (Django REST Framework)
+# api/views.py
+from rest_framework import viewsets
+from .models import User
+from .serializers import UserSerializer
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+# api/urls.py
+from rest_framework.routers import DefaultRouter
+from .views import UserViewSet
+
+router = DefaultRouter()
+router.register('users', UserViewSet)
+urlpatterns = router.urls
+```
+
+<Tip>
+FastAPI vs Django:
+- **FastAPI:** Modern async, type hints, auto-generated docs, microframework
+- **Django:** Admin panel có sẵn, ORM mature, batteries-included, community lớn
+- **Chọn FastAPI nếu:** Build API + frontend, modern stack
+- **Chọn Django nếu:** Cần admin panel, content-driven sites, mature ecosystem
+</Tip>

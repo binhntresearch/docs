@@ -1,0 +1,146 @@
+---
+title: "REST API Design"
+description: "RESTful principles — URL patterns, HTTP methods, status codes"
+icon: "sitemap"
+---
+
+Trước khi code, bạn cần nắm vững **REST principles** — Claude Code sẽ generate đúng theo chuẩn nếu bạn biết yêu cầu đúng.
+
+## URL Patterns
+
+<Tabs>
+  <Tab title="✅ Correct">
+    ```
+    GET    /api/users              # List users
+    GET    /api/users/123          # Get user 123
+    POST   /api/users              # Create user
+    PUT    /api/users/123          # Update user 123
+    DELETE /api/users/123          # Delete user 123
+
+    GET    /api/users/123/orders   # User's orders
+    GET    /api/posts?status=published  # Filter
+    GET    /api/posts?page=2&limit=20  # Pagination
+    ```
+  </Tab>
+  <Tab title="❌ Wrong">
+    ```
+    POST   /api/createUser         # Don't use verb
+    GET    /api/user/123           # Plural nouns
+    GET    /api/users?action=list  # Don't use query for CRUD
+    GET    /api/users/?search=alice  # Trailing slash
+    ```
+  </Tab>
+</Tabs>
+
+## HTTP Methods
+
+| Method | Idempotent | Body | Use case |
+|---|---|---|---|
+| `GET` | ✅ | ❌ | Read resources |
+| `POST` | ❌ | ✅ | Create new resource |
+| `PUT` | ✅ | ✅ | Replace entire resource |
+| `PATCH` | ✅ | ✅ | Partial update |
+| `DELETE` | ✅ | ❌ | Remove resource |
+
+## Status Codes
+
+<CodeGroup>
+```http 2xx Success
+200 OK                    — Request thành công
+201 Created               — Resource mới được tạo
+202 Accepted              — Request accepted, xử lý async
+204 No Content            — Success, không có body
+```
+
+```http 3xx Redirect
+301 Moved Permanently
+304 Not Modified
+```
+
+```http 4xx Client Error
+400 Bad Request           — Invalid input format
+401 Unauthorized          — Chưa authenticate
+403 Forbidden             — Không có quyền
+404 Not Found             — Resource không tồn tại
+409 Conflict              — Conflict với current state
+422 Unprocessable Entity — Validation error
+429 Too Many Requests     — Rate limit
+```
+
+```http 5xx Server Error
+500 Internal Server Error
+502 Bad Gateway
+503 Service Unavailable
+504 Gateway Timeout
+```
+</CodeGroup>
+
+## Response Format
+
+```json
+// Success với list + pagination
+{
+  "data": [
+    {"id": 1, "name": "Alice"},
+    {"id": 2, "name": "Bob"}
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 20,
+    "total": 150,
+    "total_pages": 8,
+    "has_next": true
+  }
+}
+
+// Success single resource
+{
+  "data": {
+    "id": 123,
+    "name": "Alice",
+    "email": "alice@example.com"
+  }
+}
+
+// Error
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid email format",
+    "details": [
+      {"field": "email", "message": "Must be valid email"}
+    ]
+  }
+}
+```
+
+## Versioning
+
+```
+GET /api/v1/users
+GET /api/v2/users  # Breaking changes
+```
+
+## Filename Conventions
+
+```
+POST /api/auth/register     # Noun endpoints
+POST /api/auth/login
+POST /api/auth/refresh
+
+GET  /api/products          # Resource endpoints
+POST /api/products
+```
+
+## Prompt cho Claude Code
+
+```
+Tạo REST API tuân thủ chuẩn:
+- Plural nouns cho collections: /api/users, /api/products
+- HTTP methods đúng: GET (read), POST (create), PUT (update), DELETE (delete)
+- Status codes chính xác: 200, 201, 204, 400, 401, 403, 404, 409, 422, 500
+- Response format: { data: {}, error: {} }
+- Pagination: ?page=X&limit=Y
+- Filtering: ?status=X, ?search=keyword
+- Validation với [Zod/Pydantic]
+```

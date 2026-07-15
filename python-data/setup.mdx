@@ -1,0 +1,116 @@
+---
+title: "Cài đặt môi trường"
+description: "Cài đặt Python, Jupyter Notebook và các thư viện cần thiết cho phân tích dữ liệu"
+icon: "download"
+---
+
+Hướng dẫn cài đặt đầy đủ môi trường phát triển Python cho phân tích dữ liệu.
+
+## Bạn cần cài gì
+
+<Check>
+Python 3.10+ · Jupyter Notebook hoặc JupyterLab · Các thư viện: NumPy, Pandas, Matplotlib, Seaborn · IDE: VS Code (khuyến nghị)
+</Check>
+
+## Cài đặt Python
+
+<Tabs>
+  <Tab title="Windows">
+    1. Truy cập [python.org/downloads](https://www.python.org/downloads/)
+    2. Tải bản **Python 3.11** hoặc mới hơn
+    3. Chạy installer — **tick vào "Add Python to PATH"** ở bước đầu tiên
+    4. Chọn **Install Now**
+  </Tab>
+  <Tab title="macOS">
+    Cách 1 — Tải từ python.org (giống Windows).
+
+    Cách 2 — Dùng Homebrew:
+    ```bash
+    brew install python@3.11
+    ```
+  </Tab>
+  <Tab title="Linux">
+    Python thường đã có sẵn. Cập nhật nếu cần:
+    ```bash
+    sudo apt update
+    sudo apt install python3 python3-pip
+    ```
+  </Tab>
+</Tabs>
+
+Verify cài đặt thành công:
+
+```bash
+python --version
+pip --version
+```
+
+## Cài đặt Jupyter Notebook
+
+<Steps>
+  <Step title="Tạo môi trường ảo (khuyến nghị)">
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # macOS/Linux
+    venv\Scripts\activate     # Windows
+    ```
+  </Step>
+  <Step title="Cài JupyterLab">
+    ```bash
+    pip install jupyterlab
+    ```
+  </Step>
+  <Step title="Khởi động JupyterLab">
+    ```bash
+    jupyter lab
+    ```
+    Trình duyệt sẽ mở tại `http://localhost:8888`
+  </Step>
+</Steps>
+
+## Cài đặt các thư viện cốt lõi
+
+```bash
+pip install numpy pandas matplotlib seaborn
+```
+
+Hoặc cài tất cả cùng lúc từ file `requirements.txt`:
+
+```txt
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+jupyterlab>=4.0.0
+```
+
+```bash
+pip install -r requirements.txt
+```
+
+## Kiểm tra môi trường
+
+Tạo notebook đầu tiên và chạy:
+
+```python
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+print("NumPy version:", np.__version__)
+print("Pandas version:", pd.__version__)
+
+# Tạo dữ liệu mẫu
+data = pd.DataFrame({
+    'name': ['An', 'Bình', 'Chi'],
+    'score': [85, 92, 78]
+})
+print(data)
+```
+
+Nếu chạy thành công và hiển thị bảng dữ liệu, môi trường đã sẵn sàng!
+
+<Tip>
+Dùng VS Code với extension Jupyter là cách tiện nhất — vừa có IDE mạnh, vừa có notebook trong cùng một cửa sổ.
+</Tip>

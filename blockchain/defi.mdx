@@ -1,0 +1,117 @@
+---
+title: "DeFi — Tài chính phi tập trung"
+description: "Xây dựng AMM, Lending protocol và Yield Farming"
+icon: "coins"
+---
+
+DeFi (Decentralized Finance) tái tạo các dịch vụ tài chính truyền thống trên blockchain — không cần ngân hàng hay bên trung gian.
+
+## Các giao thức DeFi chính
+
+| Giao thức | Chức năng | TVL (Total Value Locked) |
+|---|---|---|
+| **Uniswap** | AMM (Swap token) | ~$5B |
+| **Aave** | Lending/Borrowing | ~$10B |
+| **MakerDAO** | Stablecoin (DAI) | ~$8B |
+| **Lido** | Liquid Staking | ~$15B |
+| **Curve** | Stablecoin AMM | ~$3B |
+
+## AMM — Automated Market Maker
+
+<Callout type="info">
+Uniswap-style AMM dùng constant product formula: `x * y = k`. Không cần order book — giá tự điều chỉnh dựa trên tỷ lệ pool.
+</Callout>
+
+```solidity
+// Simplified AMM Contract
+contract SimpleAMM {
+    IERC20 public tokenA;
+    IERC20 public tokenB;
+
+    function swap(address tokenIn, uint amountIn) external returns (uint amountOut) {
+        require(tokenIn == address(tokenA) || tokenIn == address(tokenB));
+
+        uint reserveIn = IERC20(tokenIn).balanceOf(address(this));
+        uint reserveOut = (tokenIn == address(tokenA))
+            ? IERC20(tokenB).balanceOf(address(this))
+            : IERC20(tokenA).balanceOf(address(this));
+
+        // x * y = k
+        amountOut = (amountIn * reserveOut) / (reserveIn + amountIn);
+
+        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        IERC20(tokenIn == address(tokenA) ? tokenB : tokenA).transfer(msg.sender, amountOut);
+    }
+
+    // Liquidity
+    function addLiquidity(uint amountA, uint amountB) external returns (uint liquidity) {
+        // Mint LP token
+    }
+
+    function removeLiquidity(uint liquidity) external returns (uint amountA, uint amountB) {
+        // Burn LP token, return underlying tokens
+    }
+}
+```
+
+## Lending Protocol
+
+```solidity
+contract LendingPool {
+    mapping(address => uint) public deposits;
+    mapping(address => uint) public borrows;
+    uint public totalDeposits;
+    uint public constant LTV = 75; // 75% Loan-to-Value
+
+    // Deposit
+    function deposit(uint amount) external {
+        IERC20(token).transferFrom(msg.sender, address(this), amount);
+        deposits[msg.sender] += amount;
+        totalDeposits += amount;
+    }
+
+    // Borrow (need collateral)
+    function borrow(uint amount) external {
+        uint collateral = deposits[msg.sender] * LTV / 100;
+        require(collateral >= borrows[msg.sender] + amount, "Undercollateralized");
+
+        borrows[msg.sender] += amount;
+        IERC20(token).transfer(msg.sender, amount);
+    }
+
+    // Repay
+    function repay(uint amount) external {
+        IERC20(token).transferFrom(msg.sender, address(this), amount);
+        borrows[msg.sender] -= amount;
+    }
+}
+```
+
+## Flash Loans
+
+<Callout type="warning">
+Flash loan = vay không cần collateral, nhưng phải trả trong cùng 1 giao dịch. Nếu không trả = giao dịch revert toàn bộ.
+</Callout>
+
+```solidity
+function flashLoan(uint amount) external {
+    uint balanceBefore = IERC20(token).balanceOf(address(this));
+
+    IERC20(token).transfer(msg.sender, amount);
+
+    // Thực hiện logic ở đây (arbitrage, liquidation...)
+    ICallback(msg.sender).onFlashLoan(amount);
+
+    uint balanceAfter = IERC20(token).balanceOf(address(this));
+    require(balanceAfter >= balanceBefore + fee, "Insufficient repayment");
+}
+```
+
+## DeFi Risks
+
+<Warning>
+- **Smart contract bugs:** Contract bị hack = mất toàn bộ TVL
+- **Oracle manipulation:** Giá feed bị thao túng
+- **Rug pull:** Team bỏ chạy với tiền liquidity
+- **Impermanent loss:** LP bị loss khi giá token biến động mạnh
+</Warning>

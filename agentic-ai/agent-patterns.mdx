@@ -1,0 +1,174 @@
+---
+title: "Agent Patterns"
+description: "ReAct, Plan-and-Execute, Reflection, Multi-Agent patterns"
+icon: "diagram-project"
+---
+
+Mỗi agent pattern giải quyết một loại bài toán khác nhau. Hiểu rõ pattern giúp bạn chọn đúng kiến trúc cho use case.
+
+## ReAct (Reasoning + Acting)
+
+Phổ biến nhất — agent suy luận rồi hành động, lặp lại cho đến khi xong.
+
+```python
+# ReAct loop
+def react_agent(goal, tools, max_steps=10):
+    thoughts = []
+
+    for step in range(max_steps):
+        # Reason
+        thought = llm.predict(f"""
+        Goal: {goal}
+        Previous steps: {thoughts}
+        Available tools: {tools}
+        What should I do next?
+        """)
+        thoughts.append(thought)
+
+        # Act
+        if "FINAL ANSWER" in thought:
+            return extract_answer(thought)
+
+        tool_name, tool_input = parse_tool_call(thought)
+        result = execute_tool(tool_name, tool_input)
+        thoughts.append(f"Observation: {result}")
+```
+
+**Khi nào dùng:** Research, Q&A, multi-step tasks cần tìm thông tin.
+
+## Plan-and-Execute
+
+Agent tạo plan trước, rồi execute từng bước.
+
+```python
+def plan_and_execute(goal):
+    # Plan
+    plan = llm.predict(f"""
+    Break this goal into numbered steps: {goal}
+    Return as JSON list.
+    """)
+
+    results = []
+    for i, step in enumerate(plan):
+        # Execute each step
+        result = execute_step(step, context=results)
+        results.append(result)
+
+        # Re-plan if needed
+        if needs_replan(step, result):
+            plan = replan(goal, results)
+
+    return compile_results(results)
+```
+
+**Khi nào dùng:** Complex projects, coding tasks, writing tasks.
+
+## Reflection
+
+Agent tự đánh giá và cải thiện output.
+
+```python
+def reflect_and_improve(initial_output, criteria):
+    output = initial_output
+
+    for i in range(3):  # Max 3 reflection rounds
+        critique = llm.predict(f"""
+        Evaluate this output against criteria:
+        Output: {output}
+        Criteria: {criteria}
+        What can be improved?
+        """)
+
+        if "no improvements needed" in critique.lower():
+            break
+
+        output = llm.predict(f"""
+        Improve this output based on critique:
+        Output: {output}
+        Critique: {critique}
+        """)
+```
+
+**Khi nào dùng:** Code generation, writing, any quality-critical output.
+
+## Multi-Agent Patterns
+
+<Tabs>
+  <Tab title="Supervisor">
+    Supervisor agent điều phối worker agents.
+
+    ```
+    Supervisor
+    ├── Researcher Agent
+    ├── Analyst Agent
+    └── Writer Agent
+    ```
+
+    Supervisor quyết định agent nào thực hiện task nào.
+  </Tab>
+  <Tab title="Collaborative">
+    Nhiều agents thảo luận và đồng thuận.
+
+    ```
+    Agent A ←→ Agent B
+       ↕           ↕
+    Agent C ←→ Agent D
+    ```
+
+    Mỗi agent contribute expertise, kết quả là synthesis.
+  </Tab>
+  <Tab title="Pipeline">
+    Agents xếp hàng theo thứ tự xử lý.
+
+    ```
+    Agent 1 (Research) → Agent 2 (Analyze) → Agent 3 (Report)
+    ```
+
+    Output của agent này = input của agent tiếp theo.
+  </Tab>
+  <Tab title="Debate">
+    2 agents debate, judge agent quyết định.
+
+    ```
+    Agent Pro ←→ Agent Con
+            ↓
+       Judge Agent
+    ```
+
+    Giúp tạo balanced, well-reasoned output.
+  </Tab>
+</Tabs>
+
+## Tool Use Patterns
+
+```python
+# Parallel tool calls
+response = client.messages.create(
+    model="claude-sonnet-5-20250514",
+    tools=[search_web, read_db, call_api],
+    messages=[{"role": "user", "content": "Research competitors, check our DB, and call the API"}]
+)
+# Claude gọi cả 3 tools cùng lúc trong 1 response
+```
+
+## Error Recovery
+
+```python
+def resilient_agent(goal, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return agent_loop(goal)
+        except ToolError as e:
+            goal = f"Previous attempt failed: {e}. Retry with different approach."
+    return "Failed after retries"
+```
+
+## Choosing the Right Pattern
+
+| Use Case | Pattern | Lý do |
+|---|---|---|
+| Research | ReAct | Iterative discovery |
+| Coding | Plan-and-Execute | Steps cần rõ ràng |
+| Writing | Reflection | Quality improvement |
+| Complex workflow | Multi-Agent (Supervisor) | Nhiều specialists |
+| Quality-critical | Debate + Judge | Balanced output |

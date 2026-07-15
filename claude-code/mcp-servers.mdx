@@ -1,0 +1,81 @@
+---
+title: "MCP Servers"
+description: "Model Context Protocol — kết nối Claude Code với các dịch vụ bên ngoài"
+icon: "server"
+---
+
+MCP (Model Context Protocol) là giao thức cho phép Claude Code kết nối với các dịch vụ bên ngoài — mở rộng khả năng của AI trong phát triển phần mềm.
+
+## MCP là gì?
+
+<Tabs>
+  <Tab title="Khái niệm">
+    MCP (Model Context Protocol) là chuẩn giao tiếp cho phép Claude Code tương tác trực tiếp với các công cụ, API, và database bên ngoài.
+  </Tab>
+  <Tab title="Ví dụ">
+    Khi bạn có **Firebase MCP**, Claude Code có thể đọc/ghi Firestore, quản lý Authentication, upload file Storage — mà không cần bạn copy-paste code.
+  </Tab>
+</Tabs>
+
+## Các MCP server phổ biến
+
+<CardGroup>
+  <Card title="Firebase MCP" icon="fire">
+    Tương tác trực tiếp với Firestore, Auth, Storage, Cloud Functions từ Claude Code
+  </Card>
+  <Card title="GitHub MCP" icon="github">
+    Quản lý repository, pull request, issues, branches
+  </Card>
+  <Card title="Mintlify MCP" icon="book">
+    Đọc và chỉnh sửa tài liệu Mintlify thông qua Claude Code
+  </Card>
+  <Card title="Figma MCP" icon="figma">
+    Đọc design specs từ Figma để tự động generate UI code
+  </Card>
+  <Card title="Slack MCP" icon="slack">
+    Gửi thông báo tự động tới Slack channel khi có sự kiện
+  </Card>
+  <Card title="Stripe MCP" icon="credit-card">
+    Tích hợp thanh toán Stripe trực tiếp từ prompt
+  </Card>
+</CardGroup>
+
+## Cách cài đặt MCP
+
+<Steps>
+  <Step title="Mở cấu hình Claude Code">
+    Trong VS Code extension hoặc CLI, mở settings và tìm mục **MCP Servers**.
+  </Step>
+  <Step title="Thêm MCP server">
+    Cấu hình theo hướng dẫn của từng provider. Ví dụ Firebase MCP:
+
+    ```json
+    {
+      "mcpServers": {
+        "firebase": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-firebase"]
+        }
+      }
+    }
+    ```
+  </Step>
+  <Step title="Xác thực">
+    Làm theo hướng dẫn OAuth hoặc nhập API key tùy theo MCP.
+  </Step>
+  <Step title="Sử dụng">
+    Giờ bạn có thể yêu cầu Claude Code: "Dùng Firebase MCP tạo collection mới trong Firestore" — nó sẽ tự thực hiện.
+  </Step>
+</Steps>
+
+## Lợi ích của MCP
+
+<Check>
+**Truy cập trực tiếp:** Claude Code tương tác trực tiếp với service — không cần copy-paste code qua lại.
+
+**Giảm lỗi:** Không phải nhớ chính xác API hay cách gọi hàm — MCP cung cấp abstraction.
+
+**Workflow liền mạch:** Từ prompt → thực thi → verify — tất cả trong một phiên làm việc với Claude Code.
+
+**Mở rộng không giới hạn:** Bất kỳ service nào có MCP server đều có thể tích hợp.
+</Check>

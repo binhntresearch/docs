@@ -1,0 +1,180 @@
+---
+title: "Tổng quan"
+description: "Claude Code cho Backend Development — workflow và best practices"
+icon: "sparkles"
+---
+
+Claude Code là **AI coding assistant** giúp build API nhanh hơn 5-10 lần so với viết thủ công. Hiểu cách tận dụng nó = competitive advantage.
+
+## Tại sao dùng Claude Code cho API?
+
+<Tabs>
+  <Tab title="Tốc độ">
+    - Generate 100+ dòng code trong vài giây
+    - Tự động implement CRUD operations
+    - Schema migration tự động
+    - Tests được generate cùng code
+  </Tab>
+  <Tab title="Best Practices">
+    - Tuân thủ REST/GraphQL standards
+    - Error handling đầy đủ
+    - Validation tự động (Pydantic, Zod)
+    - Security defaults có sẵn
+  </Tab>
+  <Tab title="Knowledge">
+    - Biết nhiều framework (Express, FastAPI, NestJS, Django)
+    - Hiểu patterns (Repository, Service Layer, Controller)
+    - Apply best practices automatically
+    - Cập nhật với ecosystem
+  </Tab>
+</Tabs>
+
+## Workflow với Claude Code
+
+```
+1. Mô tả requirements (Vietnamese hoặc English)
+    ↓
+2. Claude Code generate code
+    ↓
+3. Review code — check security, edge cases
+    ↓
+4. Run code, test endpoints
+    ↓
+5. Iterate — yêu cầu fixes và improvements
+    ↓
+6. Deploy
+```
+
+## Workflow chi tiết
+
+<Steps>
+  <Step title="Khởi tạo dự án">
+    Yêu cầu Claude Code tạo project structure hoàn chỉnh:
+
+    ```
+    Tạo backend API Node.js với:
+    - Express + TypeScript
+    - Prisma + PostgreSQL
+    - JWT authentication
+    - Swagger documentation
+    - Docker Compose
+    - Jest tests
+    ```
+  </Step>
+  <Step title="Define Models">
+    Mô tả schema bằng ngôn ngữ tự nhiên:
+
+    ```
+    Tạo Prisma schema cho:
+    - User: email, name, password (hashed), role
+    - Product: name, description, price, stock
+    - Order: user_id, items[], total, status
+    - Review: user_id, product_id, rating, comment
+    ```
+  </Step>
+  <Step title="Generate CRUD">
+    Tạo endpoints cho mỗi resource:
+
+    ```
+    Tạo CRUD API cho Product:
+    - GET /api/products (list với pagination, filter, search)
+    - GET /api/products/:id
+    - POST /api/products (yêu cầu auth admin)
+    - PUT /api/products/:id
+    - DELETE /api/products/:id
+    Bao gồm validation, error handling, tests
+    ```
+  </Step>
+  <Step title="Add Features">
+    Bổ sung authentication, payment, etc:
+
+    ```
+    Thêm authentication:
+    - POST /api/auth/register
+    - POST /api/auth/login (return JWT)
+    - POST /api/auth/refresh-token
+    - Middleware verifyJWT
+    - Middleware requireRole
+    ```
+  </Step>
+  <Step title="Test & Debug">
+    Yêu cầu viết test cho endpoints:
+
+    ```
+    Viết Jest tests cho:
+    - Auth: register, login, refresh
+    - Products: CRUD + search + filter
+    - Test authentication scenarios
+    - Test error responses
+    Test với in-memory database, không phụ thuộc real DB
+    ```
+  </Step>
+  <Step title="Deploy">
+    Hoặc yêu cầu setup deployment:
+
+    ```
+    Setup deployment:
+    - Dockerfile multi-stage build
+    - GitHub Actions: test + build + deploy
+    - Health check endpoint
+    - Structured logging
+    - Docker Compose cho production
+    ```
+  </Step>
+</Steps>
+
+## Best Practices khi dùng Claude Code
+
+<Tip>
+- **Mô tả rõ ràng, cụ thể:** Càng chi tiết → code càng tốt
+- **Yêu cầu best practices:** Thêm "production-ready", "with error handling", "with tests"
+- **Review luôn code:** Đừng blind trust — AI vẫn có thể có bugs
+- **Iterate:** Prompt đầu có thể chưa hoàn hảo, tiếp tục refine
+- **Provide context:** Cho biết framework, database, constraints
+- **Version control:** Commit từng iteration, dễ rollback nếu cần
+</Tip>
+
+## Claude Code Prompt Templates
+
+### Tạo Project Từ Đầu
+```
+Tạo backend API với [framework] + TypeScript.
+Database: [PostgreSQL/MongoDB]
+Authentication: JWT
+Features:
+- [CRUD cho resources]
+- [Validation với library]
+- [Error handling]
+- [Tests]
+Include: Docker setup, env config, README
+```
+
+### Thêm Endpoint Mới
+```
+Thêm endpoint [METHOD] /api/[path]
+- Input: [params]
+- Output: [response shape]
+- Auth: [required/optional] với role [...]
+- Validate input với [Zod/Joi/Pydantic]
+- Error cases: [404, 401, ...]
+- Viết test với [Jest/pytest]
+```
+
+### Debug Error
+```
+API đang trả lỗi [error message]
+Code context: [paste relevant code]
+Expected: [expected behavior]
+Debug và fix, giải thích root cause
+```
+
+## Stack được recommend
+
+| Stack | Claude Code hỗ trợ |
+|---|---|
+| **Node.js + Express + Prisma + PostgreSQL** | ✅ Rất tốt |
+| **Node.js + NestJS + TypeORM** | ✅ Rất tốt |
+| **Python + FastAPI + SQLAlchemy** | ✅ Rất tốt |
+| **Python + Django + DRF** | ✅ Tốt |
+| **Go + Gin + GORM** | ✅ Tốt |
+| **Java + Spring Boot** | ⚠️ Cần review kỹ |

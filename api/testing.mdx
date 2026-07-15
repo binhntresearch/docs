@@ -1,0 +1,204 @@
+---
+title: "Testing"
+description: "Unit tests, integration tests, E2E tests — generate tests với Claude Code"
+icon: "vial"
+---
+
+Testing đảm bảo API hoạt động đúng và refactor an toàn. Claude Code rất giỏi generating tests — bạn mô tả endpoint, nó viết test case.
+
+## Test Strategy
+
+| Level | Tool | Speed | Coverage |
+|---|---|---|---|
+| **Unit** | Jest / Vitest | Milliseconds | Business logic |
+| **Integration** | Supertest / httpx | Seconds | API endpoints |
+| **E2E** | Playwright / Cypress | Minutes | Full workflows |
+
+## Express — Unit Tests
+
+```
+Tạo Jest tests cho UserService:
+- createUser: success, duplicate email error
+- getUserById: found, not found
+- updateUser: success, partial update, not found
+- deleteUser: success, not found
+- Mock Prisma client
+- Each test独立, không phụ thuộc state
+- Test cả happy path và error paths
+```
+
+```typescript
+// __tests__/services/user.service.test.ts
+import { UserService } from '../../src/services/user.service';
+import { prismaMock } from '../mocks/prisma';
+
+describe('UserService', () => {
+  let service: UserService;
+
+  beforeEach(() => {
+    service = new UserService();
+  });
+
+  describe('createUser', () => {
+    it('should create user with hashed password', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.create.mockResolvedValue({
+        id: 1, email: 'test@example.com', name: 'Test'
+      });
+
+      const user = await service.createUser({
+        email: 'test@example.com', password: 'plain123', name: 'Test'
+      });
+
+      expect(user.id).toBe(1);
+      expect(prismaMock.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            password: expect.not.stringContaining('plain123') // hashed
+          })
+        })
+      );
+    });
+
+    it('should throw if email already exists', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({ id: 1 } as any);
+
+      await expect(service.createUser({
+        email: 'test@example.com', password: 'p', name: 'T'
+      })).rejects.toThrow('Email already exists');
+    });
+  });
+});
+```
+
+## Express — Integration Tests
+
+```
+Tạo integration tests cho /api/v1/users endpoints:
+- Use supertest cho HTTP requests
+- Use in-memory SQLite hoặc test database
+- Test full flow: register → login → get profile → update → list
+- Test authentication middleware (missing token, invalid token)
+- Test pagination (page, limit)
+- Test error responses (404, 401, 403, 422)
+```
+
+```typescript
+// __tests__/routes/user.integration.test.ts
+import request from 'supertest';
+import { app } from '../../src/app';
+
+describe('User API Integration', () => {
+  let authToken: string;
+
+  beforeAll(async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'test@example.com', password: 'pass123', name: 'Test' });
+    authToken = res.body.data.token;
+  });
+
+  it('GET /api/v1/users - list users', async () => {
+    const res = await request(app)
+      .get('/api/v1/users')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeInstanceOf(Array);
+    expect(res.body.pagination).toHaveProperty('total');
+  });
+
+  it('GET /api/v1/users/:id - not found', async () => {
+    const res = await request(app)
+      .get('/api/v1/users/99999')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('GET /api/v1/users - unauthorized', async () => {
+    const res = await request(app).get('/api/v1/users');
+    expect(res.status).toBe(401);
+  });
+});
+```
+
+## FastAPI — pytest
+
+```
+Tạo pytest tests cho FastAPI Products endpoints:
+- Use TestClient + httpx
+- Use fixtures cho test database
+- Test CRUD flow hoàn chỉnh
+- Test pagination, filtering, search
+- Test authentication
+- Test validation errors
+- Factory fixtures cho sample data
+```
+
+```python
+import pytest
+from httpx import AsyncClient
+
+@pytest.mark.asyncio
+async def test_create_product(client, admin_headers):
+    response = await client.post("/api/v1/products/", json={
+        "name": "Test Product",
+        "price": 29.99,
+        "stock": 100
+    }, headers=admin_headers)
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Test Product"
+
+@pytest.mark.asyncio
+async def test_list_products_pagination(client, admin_headers):
+    # Create 10 products first
+    for i in range(10):
+        await client.post("/api/v1/products/", json={
+            "name": f"Product {i}", "price": 10 + i, "stock": 50
+        }, headers=admin_headers)
+
+    response = await client.get("/api/v1/products/?page=1&limit=3", headers=admin_headers)
+    data = response.json()
+    assert len(data["data"]) == 3
+    assert data["pagination"]["total"] == 10
+    assert data["pagination"]["total_pages"] == 4
+```
+
+## Test with Mocks
+
+```
+Tạo mocks cho:
+- Prisma client (hoặc database)
+- Email service (không gửi thật)
+- Payment service
+- S3/storage upload
+
+Sử dụng jest.mock hoặc monkeypatch
+Test rằng external services được gọi đúng arguments
+```
+
+## Run Tests
+
+```bash
+# Jest
+npx jest --coverage
+npx jest --watch
+
+# pytest
+pytest
+pytest -v --cov=app --cov-report=html
+```
+
+## Best Practices
+
+<Check>
+- **TDD approach:** Viết test trước, implement sau
+- **Mock external dependencies:** Database, email, API
+- **Test error paths:** 404, 401, 422, 500
+- **Test boundaries:** Empty input, max length, special chars
+- **Aim for 80%+ coverage:** Critical paths 100%
+- **CI integration:** Tests chạy trên mỗi PR
+</Check>

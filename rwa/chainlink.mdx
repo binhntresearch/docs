@@ -1,0 +1,170 @@
+---
+title: "Oracles & Data Feeds"
+description: "Chainlink, Price Feeds, NAV calculation và Off-chain verification"
+icon: "database"
+---
+
+RWA cần dữ liệu **off-chain** (giá tài sản thực, NAV, interest rates) — Oracles là cầu nối giữa thế giới thực và blockchain.
+
+## Tại sao cần Oracle?
+
+<Callout type="info">
+Smart contract chỉ thấy dữ liệu on-chain. Để biết giá bất động sản, lãi suất trái phiếu, hay NAV — cần Oracle feed dữ liệu từ off-chain lên on-chain.
+</Callout>
+
+## Chainlink
+
+Chainlink là **oracle network** phi tập trung — phổ biến nhất cho DeFi và RWA.
+
+### Price Feeds
+
+```solidity
+// Đọc giá từ Chainlink Price Feed
+import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
+
+contract PriceOracle is ChainlinkClient {
+    AggregatorV3Interface internal priceFeed;
+
+    constructor() {
+        // Gold Price Feed (USD)
+        priceFeed = AggregatorV3Interface(
+            0x42d083d91BC6B3913156BfEB1b50B851C23bc39D
+        );
+    }
+
+    function getGoldPrice() public view returns (int256) {
+        (
+            uint80 roundID,
+            int256 price,
+            ,
+            uint256 updatedAt,
+        ) = priceFeed.latestRoundData();
+
+        require(block.timestamp - updatedAt < 3600, "Stale price");
+        return price; // 8 decimals (e.g., 235000000000 = $2350.00)
+    }
+}
+```
+
+### Proof of Reserve
+
+```solidity
+// Verify gold vault reserves on-chain
+import "@chainlink/contracts/src/v0.8/interfaces/ProofOfReserveInterface.sol";
+
+contract GoldToken is ERC20 {
+    ProofOfReserveInterface public reserves;
+
+    constructor() {
+        reserves = ProofOfReserveInterface(0xReserveAddress);
+    }
+
+    // Verify that each token is backed by real gold
+    function verifyReserves() public view returns (bool) {
+        (, uint256 reserve) = reserves.getReserves();
+        require(reserve >= totalSupply(), "Insufficient reserves");
+        return true;
+    }
+}
+```
+
+## NAV Calculation
+
+NAV (Net Asset Value) = Tổng giá trị tài sản / Số token outstanding.
+
+```solidity
+// On-chain NAV calculation
+contract RWAVault {
+    IERC20 public token;
+    IPriceFeed public goldFeed;
+    IPriceFeed public silverFeed;
+
+    uint256 public goldOunces;
+    uint256 public silverOunces;
+
+    function calculateNAV() public view returns (uint256) {
+        uint256 goldValue = goldOunces * uint256(goldFeed.getLatestPrice());
+        uint256 silverValue = silverOunces * uint256(silverFeed.getLatestPrice());
+        uint256 totalValue = goldValue + silverValue;
+
+        uint256 supply = token.totalSupply();
+        return supply > 0 ? totalValue / supply : 0; // NAV per token
+    }
+}
+```
+
+## Off-chain Verification
+
+```javascript
+// Verify document hash on-chain (real estate title deed)
+async function verifyDocument(documentHash) {
+    const isVerified = await contract.documentHashes(documentHash);
+    console.log('Document verified:', isVerified);
+
+    // Store document hash on-chain for audit trail
+    const tx = await contract.storeDocumentHash(documentHash);
+    await tx.wait();
+}
+```
+
+## Chainlink Functions (Compute)
+
+```javascript
+// Custom compute — gọi external API, xử lý data
+import { createFunction } from '@chainlink/functions-toolkit';
+
+const computeSource = `
+  // Call external API
+  const response = await Functions.makeHttpRequest({
+    url: 'https://api.example.com/real-estate/valuation',
+    params: { propertyId: args.propertyId }
+  });
+  const valuation = response.data.value;
+  return Functions.encodeUint256(valuation);
+`;
+
+const result = await createFunction({
+  source: computeSource,
+  args: ['property_123'],
+  secrets: { apiKey: process.env.API_KEY }
+});
+```
+
+## Oracle Architecture cho RWA
+
+```
+┌──────────────────────────────────────┐
+│         Off-chain Data               │
+│  ┌──────────────────────────────┐    │
+│  │  Real Estate Valuation API   │    │
+│  │  Bond Price Feeds            │    │
+│  │  Gold/Silver Spot Price      │    │
+│  │  Interest Rate APIs          │    │
+│  └──────────────┬───────────────┘    │
+│                 ↓                    │
+│  ┌──────────────────────────────┐    │
+│  │     Chainlink Oracle Network  │    │
+│  │  (Decentralized Aggregation) │    │
+│  └──────────────┬───────────────┘    │
+└─────────────────┼────────────────────┘
+                  ↓
+┌──────────────────────────────────────┐
+│         Smart Contract               │
+│  ┌──────────────────────────────┐    │
+│  │  Price Feed / NAV Oracle     │    │
+│  │  → Used for token pricing    │    │
+│  │  → Used for compliance check │    │
+│  │  → Used for dividend calc    │    │
+│  └──────────────────────────────┘    │
+└──────────────────────────────────────┘
+```
+
+## Best Practices
+
+<Tip>
+- **Stale price protection:** Luôn check `updatedAt` — reject giá quá cũ
+- **Multiple oracles:** Dùng 2-3 sources để chống manipulation
+- **Circuit breaker:** Pause contract nếu oracle trả giá bất thường
+- **Fallback:** Có mechanism backup khi oracle down
+- **Audit trail:** Log mọi thay đổi giá on-chain
+</Tip>

@@ -1,0 +1,267 @@
+---
+title: "Thu thập dữ liệu từ REST API"
+description: "REST API — GitHub, Stripe, OpenWeather, Twitter — chi tiết cách fetch data"
+icon: "cloud"
+---
+
+REST APIs là nguồn data phổ biến nhất — hầu hết third-party services đều cung cấp REST API.
+
+## Setup
+
+```bash
+pip install requests httpx pandas
+```
+
+## Basic GET Request
+
+```python
+import requests
+import os
+
+# API Key từ environment variable
+api_key = os.environ["GITHUB_TOKEN"]
+
+# Headers cho authentication
+headers = {
+    "Authorization": f"Bearer {api_key}",
+    "Accept": "application/vnd.github.v3+json"
+}
+
+# GET request
+response = requests.get(
+    "https://api.github.com/users/octocat",
+    headers=headers
+)
+
+# Check status
+response.raise_for_status()  # Raise exception nếu 4xx/5xx
+
+# Parse JSON
+user = response.json()
+print(user["login"], user["public_repos"])
+```
+
+## Pagination
+
+```python
+def fetch_all_pages(url, headers=None):
+    all_items = []
+    page = 1
+
+    while True:
+        response = requests.get(
+            url,
+            headers=headers,
+            params={"page": page, "per_page": 100}
+        )
+        response.raise_for_status()
+        items = response.json()
+
+        if not items:
+            break
+
+        all_items.extend(items)
+        page += 1
+
+    return all_items
+
+# Usage
+repos = fetch_all_pages(
+    "https://api.github.com/users/octocat/repos",
+    headers=headers
+)
+```
+
+## Cursor-based Pagination
+
+```python
+def fetch_with_cursor(url, headers, params=None):
+    items = []
+    cursor = None
+
+    while True:
+        params = {**(params or {}), "limit": 100}
+        if cursor:
+            params["cursor"] = cursor
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        items.extend(data["data"])
+        cursor = data.get("next_cursor")
+
+        if not cursor:
+            break
+
+    return items
+
+# GitHub-style cursor pagination
+issues = fetch_with_cursor(
+    "https://api.github.com/repos/owner/repo/issues",
+    headers=headers,
+    params={"state": "open"}
+)
+```
+
+## Rate Limit Handling
+
+```python
+import time
+from requests.exceptions import HTTPError
+
+def fetch_with_retry(url, max_retries=3, **kwargs):
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, **kwargs)
+            response.raise_for_status()
+
+            # Check rate limit headers
+            remaining = int(response.headers.get("X-RateLimit-Remaining", 1))
+            if remaining < 5:
+                reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
+                sleep_time = max(reset_time - time.time(), 60)
+                print(f"Rate limit low, sleeping {sleep_time}s")
+                time.sleep(sleep_time)
+
+            return response.json()
+        except HTTPError as e:
+            if e.response.status_code == 429:
+                wait = 2 ** attempt
+                print(f"Rate limited, waiting {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+
+repos = fetch_with_retry(
+    "https://api.github.com/users/octocat/repos",
+    headers=headers
+)
+```
+
+## Async API Calls (Fast!)
+
+```python
+import httpx
+import asyncio
+
+async def fetch_async(urls):
+    async with httpx.AsyncClient(timeout=30) as client:
+        tasks = [client.get(url) for url in urls]
+        responses = await asyncio.gather(*tasks)
+        return [r.json() for r in responses]
+
+# Fetch 100 URLs concurrently trong 1s (vs 100s sequential)
+urls = [f"https://api.example.com/users/{i}" for i in range(100)]
+users = asyncio.run(fetch_async(urls))
+```
+
+## Authentication Types
+
+<Tabs>
+  <Tab title="Bearer Token">
+    ```python
+    headers = {"Authorization": "Bearer YOUR_TOKEN"}
+    response = requests.get(url, headers=headers)
+    ```
+  </Tab>
+  <Tab title="API Key (Header)">
+    ```python
+    headers = {"X-API-Key": "your-api-key"}
+    ```
+  </Tab>
+  <Tab title="API Key (Query)">
+    ```python
+    response = requests.get(url, params={"api_key": "your-key"})
+    ```
+  </Tab>
+  <Tab title="Basic Auth">
+    ```python
+    response = requests.get(
+        url,
+        auth=("username", "password")
+    )
+    ```
+  </Tab>
+  <Tab title="OAuth 2.0">
+    Xem chi tiết tại [Chi tiết OAuth](/python-data/data-collection-rest)
+  </Tab>
+</Tabs>
+
+## Common APIs Examples
+
+### GitHub API
+
+```python
+import requests
+
+headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
+
+# Get user info
+user = requests.get(
+    "https://api.github.com/user",
+    headers=headers
+).json()
+
+# Get user's repos
+repos = requests.get(
+    "https://api.github.com/user/repos",
+    headers=headers,
+    params={"sort": "updated", "per_page": 50}
+).json()
+
+# Create issue
+issue = requests.post(
+    "https://api.github.com/repos/owner/repo/issues",
+    headers={**headers, "Accept": "application/vnd.github+json"},
+    json={"title": "Bug report", "body": "Description..."}
+).json()
+```
+
+### OpenWeather API
+
+```python
+API_KEY = "your-openweather-key"
+
+params = {
+    "q": "Hanoi",
+    "appid": API_KEY,
+    "units": "metric"
+}
+
+weather = requests.get(
+    "https://api.openweathermap.org/data/2.5/weather",
+    params=params
+).json()
+
+print(f"{weather['name']}: {weather['main']['temp']}°C")
+print(f"Humidity: {weather['main']['humidity']}%")
+```
+
+### Stripe API
+
+```python
+import stripe
+
+stripe.api_key = STRIPE_SECRET_KEY
+
+# List recent customers
+customers = stripe.Customer.list(limit=10)
+
+# List charges
+charges = stripe.Charge.list(limit=100)
+
+# Convert to DataFrame
+import pandas as pd
+df = pd.DataFrame([{
+    'id': c.id,
+    'amount': c.amount,
+    'currency': c.currency,
+    'status': c.status,
+    'created': c.created
+} for c in charges.data])
+```
+
+<Tip>
+Luôn đọc **API documentation** đầu tiên — endpoints, parameters, rate limits, authentication. Store credentials trong **environment variables** hoặc **secret manager** (AWS Secrets Manager, Vault), không hardcode trong code.
+</Tip>

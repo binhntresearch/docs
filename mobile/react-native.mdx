@@ -1,0 +1,228 @@
+---
+title: "React Native"
+description: "Expo, components, navigation, state management cho React Native"
+icon: "react"
+---
+
+React Native (với Expo) là cách nhanh nhất để build mobile app từ developer đã biết React/TypeScript.
+
+## Setup
+
+```bash
+# Create Expo app
+npx create-expo-app@latest my-mobile-app --template blank-typescript
+cd my-mobile-app
+
+# Install navigation
+npx expo install expo-router
+
+# Install state management
+npm install zustand
+
+# Start dev server
+npx expo start
+```
+
+## Project Structure (Expo Router)
+
+```
+my-app/
+├── app/                    ← File-based routing (giống Next.js)
+│   ├── _layout.tsx         ← Root layout
+│   ├── index.tsx           ← Home screen "/"
+│   ├── (tabs)/             ← Tab navigation
+│   │   ├── _layout.tsx     ← Tab layout
+│   │   ├── index.tsx       ← Tab 1: Home
+│   │   ├── explore.tsx     ← Tab 2: Explore
+│   │   └── profile.tsx     ← Tab 3: Profile
+│   ├── +not-found.tsx      ← 404 screen
+│   └── modal.tsx           ← Modal screen
+├── components/
+│   ├── ui/                 ← Basic UI components
+│   └── features/           ← Feature-specific components
+├── services/
+│   └── api.ts
+├── stores/                 ← Zustand stores
+│   └── useAuthStore.ts
+└── app.json
+```
+
+## Components
+
+```tsx
+// components/TaskCard.tsx
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+interface TaskCardProps {
+  title: string;
+  status: 'todo' | 'in_progress' | 'done';
+  onPress: () => void;
+  onDelete: () => void;
+}
+
+export function TaskCard({ title, status, onPress, onDelete }: TaskCardProps) {
+  const statusColor = {
+    todo: '#9CA3AF',
+    in_progress: '#3B82F6',
+    done: '#10B981'
+  }[status];
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress}>
+      <View style={styles.content}>
+        <Text style={styles.title}>{title}</Text>
+        <View style={[styles.badge, { backgroundColor: statusColor }]}>
+          <Text style={styles.badgeText}>{status.replace('_', ' ')}</Text>
+        </View>
+      </View>
+      <TouchableOpacity onPress={onDelete}>
+        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  content: { flex: 1 },
+  title: { fontSize: 16, fontWeight: '600', color: '#111' },
+  badge: { marginTop: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
+  badgeText: { color: '#FFF', fontSize: 12 }
+});
+```
+
+## Navigation — Expo Router
+
+```tsx
+// app/_layout.tsx
+import { Stack } from 'expo-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+
+export default function RootLayout() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      </Stack>
+    </QueryClientProvider>
+  );
+}
+
+// app/(tabs)/_layout.tsx
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function TabLayout() {
+  return (
+    <Tabs>
+      <Tabs.Screen name="index" options={{
+        title: 'Home',
+        tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />
+      }} />
+      <Tabs.Screen name="explore" options={{
+        title: 'Explore',
+        tabBarIcon: ({ color, size }) => <Ionicons name="compass" size={size} color={color} />
+      }} />
+      <Tabs.Screen name="profile" options={{
+        title: 'Profile',
+        tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />
+      }} />
+    </Tabs>
+  );
+}
+
+// Navigate programmatically
+import { useRouter } from 'expo-router';
+const router = useRouter();
+router.push('/modal');
+router.replace('/(tabs)');
+```
+
+## State Management — Zustand
+
+```tsx
+// stores/useAuthStore.ts
+import { create } from 'zustand';
+
+interface AuthState {
+  user: { id: string; name: string; email: string } | null;
+  token: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  token: null,
+
+  login: async (email, password) => {
+    const response = await fetch('https://api.example.com/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const { user, token } = await response.json();
+    set({ user, token });
+  },
+
+  logout: () => set({ user: null, token: null })
+}));
+
+// Usage in component
+function ProfileScreen() {
+  const { user, logout } = useAuthStore();
+  return <Text>{user?.name}</Text>;
+}
+```
+
+## AsyncStorage
+
+```tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Save
+await AsyncStorage.setItem('user_token', token);
+
+// Read
+const token = await AsyncStorage.getItem('user_token');
+
+// Delete
+await AsyncStorage.removeItem('user_token');
+```
+
+## App Icon & Splash Screen
+
+```json
+// app.json
+{
+  "expo": {
+    "name": "My App",
+    "slug": "my-app",
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain" },
+    "ios": { "bundleIdentifier": "com.myapp.ios" },
+    "android": { "package": "com.myapp.android" }
+  }
+}
+```
+
+<Tip>
+Claude Code cực kỳ tốt cho React Native: mô tả screen/component bằng ngôn ngữ tự nhiên, Claude tạo code Expo + TypeScript chuẩn. Kết hợp Expo Router cho navigation và Zustand cho state management.
+</Tip>

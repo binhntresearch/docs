@@ -1,0 +1,96 @@
+---
+title: "MetaMask & Wallet"
+description: "Cài đặt MetaMask, quản lý wallet và kết nối với DApp"
+icon: "wallet"
+---
+
+MetaMask là browser extension wallet phổ biến nhất — cho phép người dùng quản lý tài khoản Ethereum và tương tác với DApp.
+
+## Cài đặt MetaMask
+
+<Steps>
+  <Step title="Tải extension">
+    Truy cập [metamask.io](https://metamask.io) → Install for Chrome/Firefox
+  </Step>
+  <Step title="Tạo wallet">
+    Tạo password → Backup seed phrase (12 từ) → **LƯU AN TOÀN**
+  </Step>
+  <Step title="Thêm testnet">
+    Thêm Sepolia testnet để test DApp không tốn tiền thật
+  </Step>
+  <Step title="Get test ETH">
+    Vào Sepolia Faucet (sepoliafaucet.com) để nhận free ETH test
+  </Step>
+</Steps>
+
+<Warning>
+**Seed phrase (12 từ khôi phục)** là chìa khóa vào toàn bộ tài sản. Không bao giờ chia sẻ, không lưu online, không chụp ảnh. Nếu mất seed phrase = mất tất cả.
+</Warning>
+
+## Kết nối DApp với ethers.js
+
+```javascript
+import { ethers } from "ethers";
+
+// Kết nối MetaMask
+async function connectWallet() {
+  if (!window.ethereum) {
+    alert("Vui lòng cài MetaMask!");
+    return;
+  }
+
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const accounts = await provider.send("eth_requestAccounts", []);
+  const signer = await provider.getSigner();
+
+  console.log("Connected:", accounts[0]);
+
+  // Get balance
+  const balance = await provider.getBalance(accounts[0]);
+  console.log("Balance:", ethers.formatEther(balance), "ETH");
+
+  return { provider, signer, account: accounts[0] };
+}
+```
+
+## Tương tác với Smart Contract
+
+```javascript
+const CONTRACT_ADDRESS = "0x...";
+const ABI = [...]; // Contract ABI từ Hardhat compile
+
+async function readContract() {
+  const { provider } = await connectWallet();
+  const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+
+  const name = await contract.name();
+  const balance = await contract.balanceOf(userAddress);
+
+  console.log("Token:", name, "Balance:", balance.toString());
+}
+
+async function writeContract(amount) {
+  const { signer } = await connectWallet();
+  const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+  const tx = await contract.transfer(recipientAddress, amount);
+  console.log("TX hash:", tx.hash);
+
+  await tx.wait(); // Đợi confirm
+  console.log("Confirmed!");
+}
+```
+
+## Switch Network
+
+```javascript
+// Chuyển sang Sepolia testnet
+await window.ethereum.request({
+  method: 'wallet_switchEthereumChain',
+  params: [{ chainId: '0xaa36a7' }] // Sepolia
+});
+```
+
+<Tip>
+Luôn dùng testnet trước khi test trên mainnet. Sepolia là testnet chính của Ethereum hiện tại.
+</Tip>

@@ -1,0 +1,266 @@
+---
+title: "NestJS"
+description: "Build NestJS API với Claude Code — modules, controllers, services"
+icon: "code-branch"
+---
+
+NestJS là framework **opinionated** Node.js — cung cấp architecture rõ ràng (modules, controllers, services). Claude Code rất giỏi generating code NestJS theo chuẩn.
+
+## Setup với Claude Code
+
+```
+Tạo NestJS + TypeScript + TypeORM API:
+- NestJS 10.x
+- TypeORM với PostgreSQL
+- Class-validator cho DTOs
+- JWT authentication (Passport)
+- Swagger auto-generated
+- Jest tests
+- Docker Compose
+
+Sử dụng modular architecture:
+- AuthModule, UsersModule, ProductsModule
+- Shared services (EmailService, CacheService)
+- Guards, Interceptors, Pipes
+```
+
+## NestJS Module Structure
+
+```
+src/
+├── main.ts                 ← Bootstrap
+├── app.module.ts           ← Root module
+├── common/
+│   ├── decorators/
+│   ├── filters/             ← Exception filters
+│   ├── guards/              ← Auth, Role guards
+│   ├── interceptors/        ← Logging, Transform
+│   ├── pipes/               ← Validation pipe
+│   ├── middlewares/
+│   └── dto/
+├── config/
+│   ├── database.config.ts
+│   ├── auth.config.ts
+│   └── swagger.config.ts
+├── modules/
+│   ├── auth/
+│   │   ├── auth.module.ts
+│   │   ├── auth.controller.ts
+│   │   ├── auth.service.ts
+│   │   ├── strategies/
+│   │   │   ├── jwt.strategy.ts
+│   │   │   └── local.strategy.ts
+│   │   ├── dto/
+│   │   └── guards/
+│   │       └── jwt-auth.guard.ts
+│   ├── users/
+│   └── products/
+└── database/
+    ├── entities/
+    │   ├── user.entity.ts
+    │   └── product.entity.ts
+    └── migrations/
+```
+
+## Generate Module
+
+```
+Tạp Products module với NestJS:
+
+Endpoints:
+- GET /api/v1/products (list + filter + pagination)
+- GET /api/v1/products/:id
+- POST /api/v1/products (Admin only)
+- PUT /api/v1/products/:id
+- DELETE /api/v1/products/:id
+
+Requirements:
+- TypeORM Entity với relations (Category, Reviews)
+- DTOs với class-validator
+- ProductsService với business logic
+- ProductsController với Swagger decorators
+- Role-based guards (Admin only for write)
+- Pagination DTO reusable
+- Custom NotFoundException
+- File upload for product images
+```
+
+## Entity
+
+```typescript
+// modules/products/entities/product.entity.ts — Output
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Category } from '../../categories/entities/category.entity';
+import { Review } from '../../reviews/entities/review.entity';
+
+@Entity('products')
+export class Product {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ length: 200 })
+  name: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  price: number;
+
+  @Column({ type: 'integer', default: 0 })
+  stock: number;
+
+  @Column({ length: 255, nullable: true })
+  image: string;
+
+  @Column({ default: true })
+  isActive: boolean;
+
+  @ManyToOne(() => Category, category => category.products)
+  category: Category;
+
+  @OneToMany(() => Review, review => review.product)
+  reviews: Review[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
+```
+
+## Controller với Swagger
+
+```typescript
+// modules/products/products.controller.ts — Output
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ProductsService } from './products.service';
+import { CreateProductDto, UpdateProductDto, ProductResponseDto, PaginatedProductsDto } from './dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+
+@ApiTags('Products')
+@Controller('api/v1/products')
+export class ProductsController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List all products' })
+  async list(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('category') category?: string,
+    @Query('search') search?: string
+  ): Promise<PaginatedProductsDto> {
+    return this.productsService.findAll({ page, limit, category, search });
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string): Promise<ProductResponseDto> {
+    return this.productsService.findOne(+id);
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  async create(@Body() createProductDto: CreateProductDto): Promise<ProductResponseDto> {
+    return this.productsService.create(createProductDto);
+  }
+
+  @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'manager')
+  async update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
+    return this.productsService.update(+id, updateProductDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  async remove(@Param('id') id: string) {
+    return this.productsService.remove(+id);
+  }
+}
+```
+
+## Service Layer
+
+```
+Tôi muốn ProductsService với:
+- findAll({page, limit, category, search}) - pagination + filter
+- findOne(id) - throw NotFoundException
+- create(dto) - validate, save, return DTO
+- update(id, dto) - update fields, return updated
+- remove(id) - delete, return success message
+- Sử dụng TypeORM repository
+- Logging mỗi operation
+- Handle DB exceptions
+```
+
+## DTO với Validation
+
+```
+Tạo DTOs cho Product:
+
+CreateProductDto:
+- @IsString @IsNotEmpty name (max 200)
+- @IsOptional @IsString description (max 2000)
+- @IsNumber @Min(0) price
+- @IsInt @Min(0) stock
+- @IsOptional @IsString image URL
+- @IsInt categoryId
+
+UpdateProductDto:
+- Tất cả fields optional
+- @ValidateIf cho nested updates
+
+ProductResponseDto:
+- id, name, description, price, stock, image, isActive
+- category: CategoryResponseDto (nested)
+- createdAt, updatedAt
+- @Expose() để control output
+
+PaginatedProductsDto:
+- items: ProductResponseDto[]
+- meta: { total, page, limit, totalPages }
+```
+
+## Guards & Decorators
+
+```
+Tạo JWT-based authentication:
+- @Roles() decorator set metadata
+- RolesGuard kiểm tra user.role in roles
+- JwtAuthGuard verify JWT token
+- @CurrentUser() decorator extract user from request
+- Combine guards với @UseGuards()
+```
+
+## Exception Filter
+
+```
+Tạo global exception filter:
+- Catch tất cả exceptions (HTTP, validation, DB)
+- Format response: { error: { code, message, details? } }
+- Log errors với stack trace
+- Hide internal errors trong production
+- Return proper status codes
+```
+
+## Swagger Setup
+
+```typescript
+// main.ts
+const config = new DocumentBuilder()
+  .setTitle('My API')
+  .setDescription('API documentation')
+  .setVersion('1.0')
+  .addBearerAuth()
+  .build();
+
+await SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, config));
+```

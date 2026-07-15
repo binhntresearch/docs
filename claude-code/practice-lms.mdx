@@ -1,0 +1,205 @@
+---
+title: "Dự án LMS"
+description: "Xây dựng hệ thống quản lý học tập — khóa học, học viên, bài giảng, điểm số"
+icon: "book-open"
+---
+
+Dự án lớn nhất — Hệ thống quản lý học tập (Learning Management System) với đầy đủ tính năng: khóa học, học viên, bài giảng, điểm số, chứng chỉ, thanh toán.
+
+## Tổng quan tính năng
+
+| Vai trò | Tính năng |
+|---|---|
+| **Admin** | Quản lý khóa học, users, báo cáo doanh thu, settings |
+| **Giáo viên** | Tạo bài giảng, chấm bài, xem danh sách học viên |
+| **Học viên** | Đăng ký khóa học, xem bài giảng, làm bài tập, xem điểm |
+
+## Kiến trúc dự án
+
+```
+lms-app/
+├── app/
+│   ├── (auth)/login/page.tsx
+│   ├── (auth)/register/page.tsx
+│   │
+│   ├── dashboard/                    ← Admin Dashboard
+│   │   ├── page.tsx                  ← Thống kê tổng quan
+│   │   ├── courses/
+│   │   ├── students/
+│   │   └── reports/
+│   │
+│   ├── teacher/                      ← Teacher Dashboard
+│   │   ├── page.tsx
+│   │   ├── courses/[id]/
+│   │   ├── lessons/
+│   │   └── grades/
+│   │
+│   ├── student/                      ← Student Dashboard
+│   │   ├── page.tsx
+│   │   ├── my-courses/
+│   │   ├── courses/[id]/
+│   │   └── certificates/
+│   │
+│   ├── api/
+│   │   ├── send-email/route.ts
+│   │   ├── payment/
+│   │   ├── ai/
+│   │   └── webhooks/
+│   │
+│   └── [course-slug]/               ← Public pages
+│       ├── page.tsx                  ← Course landing
+│       └── enroll/page.tsx
+│
+├── components/
+│   ├── ui/
+│   ├── layout/
+│   ├── courses/
+│   ├── teacher/
+│   ├── student/
+│   └── shared/
+│
+├── services/
+│   ├── firebase.ts
+│   ├── auth.ts
+│   ├── courses.ts
+│   ├── lessons.ts
+│   ├── enrollments.ts
+│   ├── grades.ts
+│   ├── payments.ts
+│   └── storage.ts
+│
+├── functions/                       ← Cloud Functions
+│   ├── src/
+│   │   ├── triggers/
+│   │   ├── scheduled/
+│   │   └── api/
+│   └── package.json
+│
+├── firestore.rules
+└── storage.rules
+```
+
+## Cấu trúc dữ liệu Firestore
+
+```
+📁 Firestore
+├── 👥 users/
+│   ├── {uid}/
+│   │   ├── name, email, phone
+│   │   ├── role: "admin" | "teacher" | "student"
+│   │   ├── avatarUrl
+│   │   └── createdAt
+│
+├── 📚 courses/
+│   ├── {courseId}/
+│   │   ├── name, description, slug
+│   │   ├── thumbnailUrl, price
+│   │   ├── teacherId
+│   │   ├── status: "draft" | "published" | "archived"
+│   │   ├── createdAt, updatedAt
+│   │   │
+│   │   └── 📖 lessons/ (subcollection)
+│   │       ├── {lessonId}/
+│   │       │   ├── title, content, videoUrl
+│   │       │   ├── duration, order
+│   │       │   └── type: "video" | "text" | "quiz"
+│   │
+├── 📝 enrollments/
+│   ├── {studentId_courseId}/
+│   │   ├── studentId, courseId
+│   │   ├── status: "active" | "completed" | "dropped"
+│   │   ├── enrolledAt, completedAt
+│   │   └── progress: 75 (%)
+│
+├── 📊 grades/
+│   ├── {gradeId}/
+│   │   ├── studentId, courseId, lessonId
+│   │   ├── score, maxScore
+│   │   ├── gradedAt, gradedBy
+│   │   └── feedback
+│
+├── 💰 payments/
+│   ├── {paymentId}/
+│   │   ├── studentId, courseId, amount
+│   │   ├── status: "pending" | "completed" | "failed"
+│   │   └── paymentMethod, createdAt
+│
+└── 📄 certificates/
+    ├── {certId}/
+    │   ├── studentId, courseId
+    │   ├── issuedAt, certificateUrl
+    │   └── score
+```
+
+## Cloud Functions
+
+| Function | Trigger | Mô tả |
+|---|---|---|
+| `onEnrollmentCreated` | Firestore onCreate | Gửi email xác nhận đăng ký |
+| `onLessonCompleted` | Firestore onUpdate | Cập nhật progress enrollment |
+| `onGradeCreated` | Firestore onCreate | Kiểm tra điều kiện cấp chứng chỉ |
+| `dailyReminder` | Scheduled 8:00 AM | Nhắc học viên có bài mới |
+| `weeklyReport` | Scheduled Monday 8:00 | Tổng hợp tuần cho admin |
+| `sendEmail` | HTTP | Gửi email qua Resend |
+
+## Quy trình xây dựng
+
+<Steps>
+  <Step title="Phase 1 — Setup & Core">
+    Setup dự án Next.js + Firebase + shadcn/ui. Tạo cấu trúc thư mục, authentication, role-based routing.
+  </Step>
+  <Step title="Phase 2 — Course Management">
+    CRUD Courses, Lessons. Upload video lên Cloud Storage. Hiển thị danh sách khóa học công khai.
+  </Step>
+  <Step title="Phase 3 — Enrollment & Learning">
+    Đăng ký khóa học,.progress tracking, quiz/test.
+  </Step>
+  <Step title="Phase 4 — Grading & Certificates">
+    Chấm bài, hệ thống điểm, tự động cấp chứng chỉ khi đạt điều kiện.
+  </Step>
+  <Step title="Phase 5 — Payment">
+    Tích hợp VNPay/MoMo, webhook xác nhận thanh toán.
+  </Step>
+  <Step title="Phase 6 — Email & Notifications">
+    Email templates, Cloud Functions trigger, daily reminders.
+  </Step>
+  <Step title="Phase 7 — AI Features">
+    Tạo câu hỏi tự động, chấm bài essay, chatbot hỗ trợ.
+  </Step>
+  <Step title="Phase 8 — Security & Deploy">
+    Security Rules chi tiết, deploy Vercel, test production.
+  </Step>
+</Steps>
+
+## Security Rules
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /courses/{courseId} {
+      allow read: if resource.data.status == 'published'
+               || request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+                || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if request.auth.uid == resource.data.studentId
+               || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth != null;
+    }
+
+    match /grades/{gradeId} {
+      allow read: if request.auth.uid == resource.data.studentId
+               || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin','teacher'];
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin','teacher'];
+    }
+  }
+}
+```
+
+<Tip>
+Dự án LMS rất lớn — mỗi phase nên hoàn thành trước khi sang phase tiếp. Kiểm tra kỹ từng phần trước khi tích hợp.
+</Tip>

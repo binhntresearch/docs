@@ -1,0 +1,237 @@
+---
+title: "API & Offline"
+description: "REST, WebSocket, Offline-first, Push Notifications cho mobile"
+icon: "plug"
+---
+
+Mobile apps cần làm việc với APIs, handle offline, và gửi push notifications — tất cả đều quan trọng cho production app.
+
+## API Integration — React Native
+
+```tsx
+// services/api.ts
+import { useAuthStore } from '../stores/useAuthStore';
+
+const BASE_URL = 'https://api.example.com';
+
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const { token } = useAuthStore.getState();
+
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : '',
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Usage
+const tasks = await apiRequest<Task[]>('/tasks');
+const newTask = await apiRequest<Task>('/tasks', {
+  method: 'POST',
+  body: JSON.stringify({ title: 'New task' })
+});
+```
+
+## TanStack Query (React Query)
+
+```tsx
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Fetch tasks
+export function useTasks() {
+  return useQuery({
+    queryKey: ['tasks'],
+    queryFn: () => apiRequest<Task[]>('/tasks'),
+    staleTime: 30_000  // Cache 30 seconds
+  });
+}
+
+// Create task
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { title: string }) =>
+      apiRequest<Task>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
+  });
+}
+
+// Usage
+function TaskList() {
+  const { data: tasks, isLoading } = useTasks();
+  const createTask = useCreateTask();
+
+  if (isLoading) return <ActivityIndicator />;
+
+  return (
+    <FlatList
+      data={tasks}
+      keyExtractor={(item) => item.id.toString()}
+      renderItem={({ item }) => <TaskCard {...item} />}
+    />
+  );
+}
+```
+
+## Offline-First — React Native
+
+```tsx
+// AsyncStorage-based offline cache
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+class OfflineCache {
+  static async get<T>(key: string): Promise<T | null> {
+    const cached = await AsyncStorage.getItem(`cache:${key}`);
+    return cached ? JSON.parse(cached) : null;
+  }
+
+  static async set(key: string, data: any, ttl: number = 3600000): Promise<void> {
+    const entry = { data, expiresAt: Date.now() + ttl };
+    await AsyncStorage.setItem(`cache:${key}`, JSON.stringify(entry));
+  }
+}
+
+// Network-aware fetch
+async function fetchWithCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const cached = await OfflineCache.get<T>(key);
+  const isOnline = await NetInfo.fetch().then(n => n.isConnected);
+
+  if (isOnline) {
+    try {
+      const data = await fetcher();
+      await OfflineCache.set(key, data);
+      return data;
+    } catch {
+      return cached || throw new Error('No network and no cache');
+    }
+  }
+
+  return cached || throw new Error('No network and no cache');
+}
+```
+
+## Push Notifications — Expo
+
+```tsx
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+
+// Request permission
+async function registerForPushNotifications() {
+  if (!Device.isDevice) return;
+
+  const { status } = await Notifications.requestPermissionsAsync();
+  if (status !== 'granted') return;
+
+  const token = await Notifications.getExpoPushTokenAsync();
+  return token.data;
+}
+
+// Listen for notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false
+  })
+});
+
+// In component
+useEffect(() => {
+  const subscription = Notifications.addNotificationReceivedListener(notification => {
+    console.log('Notification received:', notification);
+  });
+
+  return () => subscription.remove();
+}, []);
+```
+
+## WebSocket Real-time
+
+```tsx
+// hooks/useWebSocket.ts
+import { useEffect, useRef, useState } from 'react';
+
+export function useWebSocket(url: string) {
+  const [messages, setMessages] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const ws = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    ws.current = new WebSocket(url);
+
+    ws.current.onopen = () => setConnected(true);
+    ws.current.onclose = () => {
+      setConnected(false);
+      // Auto-reconnect after 3 seconds
+      setTimeout(() => {
+        ws.current = new WebSocket(url);
+      }, 3000);
+    };
+    ws.current.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      setMessages(prev => [...prev, msg]);
+    };
+
+    return () => ws.current?.close();
+  }, [url]);
+
+  const send = (data: any) => ws.current?.send(JSON.stringify(data));
+
+  return { messages, connected, send };
+}
+```
+
+## Image Upload
+
+```tsx
+import * as ImagePicker from 'expo-image-picker';
+
+async function pickAndUpload() {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8
+  });
+
+  if (!result.canceled) {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: result.assets[0].uri,
+      type: 'image/jpeg',
+      name: 'avatar.jpg'
+    });
+
+    await fetch('https://api.example.com/upload', {
+      method: 'POST',
+      body: formData,
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  }
+}
+```
+
+## Best Practices
+
+<Tip>
+- **Cache everything:** Cache API responses để app dùng offline
+- **Retry logic:** Auto-retry failed requests với exponential backoff
+- **Token refresh:** Handle 401 → refresh token automatically
+- **Image optimization:** Compress images trước khi upload
+- **Push notifications:** Luôn ask permission at appropriate time, không ask ngay khi mở app
+- **WebSocket:** Implement heartbeat + auto-reconnect
+</Tip>

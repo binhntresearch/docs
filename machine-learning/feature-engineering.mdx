@@ -1,0 +1,202 @@
+---
+title: "Feature Engineering"
+description: "Encoding, scaling, selection, dimensionality reduction cho ML"
+icon: "wrench"
+---
+
+Feature engineering = **biến raw data thành features** tốt cho ML models — thường quyết định 80% performance của model.
+
+## Encoding Categorical Variables
+
+```python
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder, OrdinalEncoder, OneHotEncoder
+
+df = pd.DataFrame({
+    'color': ['red', 'blue', 'green', 'red'],
+    'size': ['S', 'M', 'L', 'XL'],
+    'price': [10, 20, 30, 40]
+})
+
+# 1. Label Encoding (ordinal)
+le = LabelEncoder()
+df['size_encoded'] = le.fit_transform(df['size'])  # S=2, M=1, L=0, XL=3
+
+# 2. One-Hot Encoding (nominal)
+df_encoded = pd.get_dummies(df, columns=['color'], prefix='color')
+
+# 3. Ordinal Encoding (with explicit order)
+size_order = [['S', 'M', 'L', 'XL']]
+oe = OrdinalEncoder(categories=size_order)
+df['size_ordinal'] = oe.fit_transform(df[['size']])
+```
+
+## Scaling Numerical Features
+
+```python
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+import numpy as np
+
+X = np.array([[1, 100], [2, 200], [3, 300], [4, 400]])
+
+# Standard Scaler — mean=0, std=1 (for most algorithms)
+scaler = StandardScaler()
+X_std = scaler.fit_transform(X)
+
+# MinMax Scaler — range [0, 1] (for neural networks)
+mm = MinMaxScaler()
+X_mm = mm.fit_transform(X)
+
+# Robust Scaler — resistant to outliers (use when outliers)
+rs = RobustScaler()
+X_rs = rs.fit_transform(X)
+```
+
+| Scaler | When to use |
+|---|---|
+| StandardScaler | Most ML (Linear, Logistic, SVM, Neural Nets) |
+| MinMaxScaler | Neural Networks, image processing |
+| RobustScaler | Data có outliers |
+| No scaling | Tree-based (RF, XGBoost) |
+
+## Creating New Features
+
+```python
+import pandas as pd
+import numpy as np
+
+df = pd.DataFrame({
+    'date': pd.date_range('2024-01-01', periods=100),
+    'sales': np.random.randint(100, 1000, 100)
+})
+
+# Date features
+df['day_of_week'] = df['date'].dt.dayofweek
+df['month'] = df['date'].dt.month
+df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
+
+# Interaction features
+df['price_per_unit'] = df['sales'] / df['sales'].sum() * 100
+
+# Polynomial features (for non-linear relationships)
+from sklearn.preprocessing import PolynomialFeatures
+
+poly = PolynomialFeatures(degree=2, include_bias=False)
+X_poly = poly.fit_transform(X)
+```
+
+## Feature Selection
+
+```python
+from sklearn.feature_selection import (
+    SelectKBest, f_classif, mutual_info_classif,
+    SelectFromModel, RFE
+)
+
+# 1. Statistical tests (ANOVA F-value)
+selector = SelectKBest(score_func=f_classif, k=10)
+X_selected = selector.fit_transform(X, y)
+
+# 2. Mutual Information (catches non-linear)
+selector = SelectKBest(score_func=mutual_info_classif, k=10)
+
+# 3. Tree-based importance
+from sklearn.ensemble import RandomForestClassifier
+rf = RandomForestClassifier()
+rf.fit(X, y)
+selector = SelectFromModel(rf, threshold='median')
+X_selected = selector.transform(X)
+
+# 4. Recursive Feature Elimination (slow but thorough)
+rfe = RFE(
+    estimator=RandomForestClassifier(),
+    n_features_to_select=10
+)
+X_selected = rfe.fit_transform(X, y)
+```
+
+## Handling Missing Values
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.impute import SimpleImputer
+
+df = pd.DataFrame({
+    'age': [25, 30, np.nan, 45, np.nan],
+    'income': [50000, np.nan, 75000, 90000, 60000]
+})
+
+# Numeric: mean, median, constant
+imputer = SimpleImputer(strategy='mean')
+df['age'] = imputer.fit_transform(df[['age']])
+
+# Categorical: most frequent
+from sklearn.impute import SimpleImputer
+imputer = SimpleImputer(strategy='most_frequent')
+df['category'] = imputer.fit_transform(df[['category']]).ravel()
+
+# Advanced: KNN imputation
+from sklearn.impute import KNNImputer
+imputer = KNNImputer(n_neighbors=3)
+df_imputed = pd.DataFrame(imputer.fit_transform(df), columns=df.columns)
+```
+
+## Dimensionality Reduction
+
+```python
+from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+# PCA — unsupervised, captures variance
+pca = PCA(n_components=10)
+X_pca = pca.fit_transform(X_scaled)
+
+# LDA — supervised, separates classes best
+lda = LinearDiscriminantAnalysis(n_components=2)
+X_lda = lda.fit_transform(X, y)
+
+# t-SNE — for visualization (slow, don't use for features)
+from sklearn.manifold import TSNE
+tsne = TSNE(n_components=2, random_state=42)
+X_tsne = tsne.fit_transform(X)
+```
+
+## Binning Continuous Variables
+
+```python
+import pandas as pd
+
+df = pd.DataFrame({'age': [22, 35, 45, 65, 28, 50]})
+
+# Equal-width bins
+df['age_bin'] = pd.cut(df['age'], bins=3, labels=['young', 'middle', 'senior'])
+
+# Equal-frequency bins (quantiles)
+df['age_quantile'] = pd.qcut(df['age'], q=3, labels=['low', 'mid', 'high'])
+
+# Custom bins
+bins = [0, 18, 30, 50, 100]
+labels = ['teen', 'young_adult', 'middle', 'senior']
+df['age_group'] = pd.cut(df['age'], bins=bins, labels=labels)
+```
+
+## Text Features
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+
+texts = ["Machine learning is fun", "Deep learning is powerful", "ML is great"]
+
+# Bag of words
+cv = CountVectorizer(max_features=100)
+X_bow = cv.fit_transform(texts)
+
+# TF-IDF (better than BoW)
+tfidf = TfidfVectorizer(max_features=100, ngram_range=(1, 2))
+X_tfidf = tfidf.fit_transform(texts)
+```
+
+<Tip>
+Tree-based models (XGBoost, RandomForest) thường không cần scaling hay encoding — chúng handle raw features. Nhưng neural networks và linear models thì cần. Choose scaler based on model + data.
+</Tip>

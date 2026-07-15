@@ -1,0 +1,139 @@
+---
+title: "Account Abstraction (ERC-4337)"
+description: "Smart Wallet, gasless transactions, social recovery"
+icon: "wallet"
+---
+
+Account Abstraction (AA) cho phép tạo **Smart Account** — loại ví thông minh có thể lập trình được, thay thế ví EOAs truyền thống (MetaMask).
+
+## Tại sao cần AA?
+
+<CardGroup>
+  <Card title="Gasless transactions" icon="gas-pump">
+    DApp trả gas thay user — onboarding không cần mua ETH
+  </Card>
+  <Card title="Social recovery" icon="users">
+    Quên seed phrase? Recover qua 2/3 guardian (bạn bè, family)
+  </Card>
+  <Card title="Multi-chain" icon="link">
+    Một account cho nhiều chain — không cần ETH trên mỗi chain
+  </Card>
+  <Card title="Batch transactions" icon="layer-group">
+    Approve + Swap trong 1 transaction
+  </Card>
+</CardGroup>
+
+## Kiến trúc ERC-4337
+
+```
+┌─────────────────────────────────────────┐
+│           User Operation                  │
+│  (sender, callData, gasLimit, ...)       │
+└──────────────┬───────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  EntryPoint Contract (Singleton)          │
+│  → Bundlers submit UserOps               │
+└──────────────┬───────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  Smart Account (per user)                │
+│  → Verify signature, execute callData    │
+└─────────────────────────────────────────┘
+```
+
+## Sử dụng với Permissionless.js
+
+```bash
+npm install permissionless viem
+```
+
+```javascript
+import { createBundlerClient } from 'permissionless';
+import { createSmartAccountClient } from 'permissionless/accounts';
+import { createPimlicoPaymasterClient } from 'permissionless/paymaster';
+
+// Bước 1: Tạo Smart Account từ owner
+const owner = privateKeyToAccount(ownerPrivateKey);
+
+const smartAccount = await createSmartAccountClient({
+  chain: sepolia,
+  owner,
+  factoryAddress: '0xYourFactory', // SimpleAccount factory
+  entryPoint: ENTRY_POINT_ADDRESS
+});
+
+// Bước 2: Send UserOp (có thể kèm paymaster cho gasless)
+const bundler = createBundlerClient({
+  chain: sepolia,
+  transport: http('https://bundler.example')
+});
+
+const paymaster = createPimlicoPaymasterClient({
+  transport: http('https://paymaster.example')
+});
+
+const userOpHash = await smartAccount.sendUserOperation({
+  calls: [{
+    to: '0xRecipient',
+    value: 0n,
+    data: '0x' // function call data
+  }],
+  paymaster: paymaster // Gas trả bởi DApp
+});
+
+await bundler.waitForUserOperationReceipt({ hash: userOpHash });
+```
+
+## Smart Account với Safe
+
+```javascript
+import { createSafeAccount } from 'permissionless/accounts/safe';
+
+const safeAccount = await createSafeAccount({
+  client: publicClient,
+  owners: [owner],
+  threshold: 2, // 2-of-3 multisig
+  saltNonce: 0n
+});
+```
+
+## Session Keys
+
+```javascript
+// Cấp session key cho Game — có thể gọi 1 contract cụ thể, hết hạn sau 1 ngày
+const sessionKeyData = encodeFunctionData({
+  abi: sessionManagerAbi,
+  functionName: 'createSession',
+  args: [{
+    signer: gameContract,
+    validUntil: Math.floor(Date.now() / 1000) + 86400, // 1 day
+    permissions: [{
+      contractAddress: nftContract,
+      selector: 'mint(address)'
+    }]
+  }]
+});
+
+await smartAccount.execute([{
+  to: sessionManager,
+  data: sessionKeyData
+}]);
+```
+
+## Stack AA Production
+
+<Tip>
+Production stack cho Account Abstraction:
+
+- **Bundler:** Pimlico, Stackup, Alchemy
+- **Paymaster:** Pimlico (hỗ trợ sponsorship)
+- **Smart Account:** Safe (battle-tested) hoặc SimpleAccount
+- **SDK:** permissionless.js, Biconomy SDK
+</Tip>
+
+## Lợi ích cho DApp
+
+<Check>
+**Onboarding dễ:** User không cần hiểu ETH, gas, seed phrase · **Conversion cao hơn:** Không cần transaction đầu tiên tốn gas · **UX tốt hơn:** Social login với Session Keys, không cần approve mỗi lần · **Cross-chain:** Native multi-chain support
+</Check>

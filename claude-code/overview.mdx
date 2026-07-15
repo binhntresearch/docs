@@ -1,0 +1,127 @@
+---
+title: "Tổng quan"
+description: "Danh sách công nghệ sử dụng để xây dựng ứng dụng với Next.js, Firebase, Vercel, Tailwind CSS, shadcn/ui và react-table"
+icon: "layers"
+---
+
+Kiến trúc phần mềm hiện đại với **Next.js + Firebase** — Frontend lo giao diện, Firebase lo toàn bộ backend. Bạn chỉ cần mô tả yêu cầu cho Claude Code và tập trung vào sản phẩm.
+
+<CardGroup>
+  <Card title="Next.js" icon="react">
+    Framework React cho web app, hỗ trợ SSR, SSG và App Router
+  </Card>
+  <Card title="Firebase" icon="fire">
+    Backend serverless: Firestore, Auth, Storage, Cloud Functions
+  </Card>
+  <Card title="Vercel" icon="cloud">
+    Nền tảng deploy tối ưu cho Next.js với CDN toàn cầu
+  </Card>
+  <Card title="Tailwind CSS" icon="paintbrush">
+    Utility-first CSS framework, phiên bản 4.x
+  </Card>
+  <Card title="shadcn/ui" icon="puzzle-piece">
+    Bộ UI components có thể tùy biến, xây trên Radix UI
+  </Card>
+  <Card title="react-table" icon="table">
+    Headless table library mạnh mẽ cho React
+  </Card>
+</CardGroup>
+
+## Tại sao chọn kiến trúc này?
+
+<Tabs>
+  <Tab title="Kiến trúc truyền thống">
+    - Tự thuê, cài đặt, bảo trì server
+    - Tự cài MySQL/PostgreSQL
+    - Tự code auth server
+    - Tự cấu hình CI/CD
+    - Chi phí ban đầu: $20-100/tháng
+    - Thời gian setup: Vài ngày
+    - Bảo mật: Tự cập nhật, tự vá lỗi
+  </Tab>
+  <Tab title="Next.js + Firebase">
+    - Firebase và Vercel lo toàn bộ server
+    - Firestore (managed, realtime)
+    - Firebase Auth (sẵn sàng dùng)
+    - Push code → tự động deploy
+    - Chi phí ban đầu: $0 (gói miễn phí đủ dùng)
+    - Thời gian setup: Vài giờ
+    - Bảo mật: Google quản lý
+  </Tab>
+</Tabs>
+
+## Sơ đồ kiến trúc tổng thể
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    KIẾN TRÚC ỨNG DỤNG                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  🖥️  FRONTEND (Next.js + Vercel)                           │
+│  ├── Giao diện người dùng (Pages, Layouts, Components)     │
+│  ├── Routing tự động theo thư mục                          │
+│  ├── Server Components (SEO, tốc độ)                       │
+│  ├── Client Components (tương tác, realtime)               │
+│  └── Firebase SDK (kết nối backend)                        │
+│                          ↕                                  │
+│  ☁️  BACKEND & DATABASE (Firebase + Google Cloud)           │
+│  ├── Firestore (database NoSQL, realtime)                  │
+│  ├── Authentication (đăng nhập/đăng ký)                    │
+│  ├── Cloud Storage (lưu file)                              │
+│  └── Cloud Functions (logic tự động)                       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Luồng hoạt động
+
+<Steps>
+  <Step title="Người dùng truy cập ứng dụng">
+    Mở trình duyệt, truy cập ứng dụng (ví dụ `app.congty.com`)
+  </Step>
+  <Step title="Next.js hiển thị giao diện">
+    Trang login, dashboard, danh sách task… được render tương ứng
+  </Step>
+  <Step title="Firebase SDK gửi yêu cầu">
+    Khi người dùng thao tác (đăng nhập, tạo task, upload file), Firebase SDK gửi yêu cầu lên Firebase
+  </Step>
+  <Step title="Firebase xử lý và trả kết quả">
+    Firebase kiểm tra quyền, lưu/đọc dữ liệu, trả kết quả về
+  </Step>
+  <Step title="Giao diện cập nhật tự động">
+    Cập nhật ngay lập tức — không cần reload trang
+  </Step>
+</Steps>
+
+## Khi nào nên dùng kiến trúc này?
+
+<Check>
+**Phù hợp:** Ứng dụng web startup, MVP · Ứng dụng nội bộ doanh nghiệp · Dashboard quản lý · Ứng dụng cần realtime (chat, cộng tác) · Task management, CRM, LMS · Prototype nhanh để validate ý tưởng
+</Check>
+
+<Warning>
+**Cân nhắc thêm:** Ứng dụng cần query SQL phức tạp (JOIN, GROUP BY nặng) · Hệ thống xử lý giao dịch tài chính quy mô lớn · Ứng dụng yêu cầu latency cực thấp (dưới 10ms)
+</Warning>
+
+## Tổng hợp dependencies
+
+```json
+{
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "firebase": "^11.0.0",
+    "@tanstack/react-table": "^8.0.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+<Note>
+shadcn/ui được cài qua CLI và copy source vào project — không xuất hiện trong `dependencies`.
+</Note>

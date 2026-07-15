@@ -1,0 +1,153 @@
+---
+title: "Prompt Engineering cho Agent"
+description: "Kỹ thuật viết system prompt, tool descriptions và agent instructions"
+icon: "pen-fancy"
+---
+
+Prompt engineering cho agent khác với prompt cho chatbot — agent cần **clear instructions**, **tool descriptions** và **behavioral guardrails**.
+
+## Agent System Prompt Structure
+
+```python
+SYSTEM_PROMPT = """
+You are a research assistant agent.
+
+## Capabilities
+- Search the web for information
+- Read and summarize documents
+- Create structured reports
+
+## Instructions
+1. Always cite sources with URLs
+2. If information is uncertain, say so
+3. Break complex research into steps
+4. Present findings in structured format
+
+## Tools Available
+- web_search: Search the internet
+- read_document: Read a document by URL
+- create_report: Generate formatted report
+
+## Constraints
+- Do not make up information
+- Do not access files without permission
+- Stop and ask user when task is ambiguous
+"""
+```
+
+## Tool Description Best Practices
+
+<CodeGroup>
+```python ❌ Bad descriptions
+tools = [
+    {
+        "name": "search",
+        "description": "Searches stuff",
+        "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}}
+    }
+]
+```
+
+```python ✅ Good descriptions
+tools = [
+    {
+        "name": "web_search",
+        "description": "Search the internet for current information. Use this when you need to find facts, news, or data that you don't already know. Returns a list of relevant web pages with titles and snippets.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query. Be specific and include relevant keywords."
+                },
+                "num_results": {
+                    "type": "integer",
+                    "description": "Number of results to return (default: 5)",
+                    "default": 5
+                }
+            },
+            "required": ["query"]
+        }
+    }
+]
+```
+</CodeGroup>
+
+## Agent Patterns trong Prompt
+
+### ReAct (Reasoning + Acting)
+
+```
+You are a ReAct agent. For each user request:
+
+1. THOUGHT: Analyze what you need to do and why
+2. ACTION: Choose and execute a tool
+3. OBSERVATION: Review the tool result
+4. Repeat until you have enough information
+5. FINAL ANSWER: Provide your response
+
+Format each step clearly with THOUGHT/ACTION/OBSERVATION labels.
+```
+
+### Plan-and-Execute
+
+```
+You are a planning agent. For complex tasks:
+
+1. PLAN: Break the task into numbered subtasks
+2. EXECUTE: Complete each subtask one by one
+3. VERIFY: Check each result before moving on
+4. REPORT: Summarize what you accomplished
+
+Always show your plan before executing.
+```
+
+## Guardrails trong Prompt
+
+```python
+GUARDRAILS = """
+## Safety Rules
+- Never execute code that could delete files or data
+- Never send emails or messages without explicit user approval
+- Never access personal information without authorization
+- If asked to do something harmful, refuse and explain why
+- Always confirm before irreversible actions (delete, send, publish)
+"""
+```
+
+## Few-Shot Examples
+
+```
+## Example interactions
+
+User: "What's the weather in Tokyo?"
+Assistant: I'll check the weather for Tokyo.
+[TOOL CALL: get_weather(location="Tokyo")]
+[RESULT: Tokyo, 28°C, partly cloudy]
+Based on current data, Tokyo is 28°C with partly cloudy skies.
+
+User: "Compare Tesla and Apple stock prices"
+Assistant: I'll look up both stock prices for comparison.
+[TOOL CALL: get_stock(symbol="TSLA")]
+[RESULT: TSLA $245.30, +2.1%]
+[TOOL CALL: get_stock(symbol="AAPL")]
+[RESULT: AAPL $198.50, +0.8%]
+```
+
+## Self-Reflection Prompt
+
+```python
+REFLECTION_PROMPT = """
+After completing a task, reflect:
+1. Did I achieve the user's goal?
+2. Were there any errors? How did I handle them?
+3. Could I have done it more efficiently?
+4. What would I do differently next time?
+
+Be honest about limitations and uncertainties.
+"""
+```
+
+<Tip>
+System prompt cho agent phải rõ ràng: capabilities, constraints, format. LLM tuân thủ instructions tốt hơn khi chúng cụ thể và có examples.
+</Tip>

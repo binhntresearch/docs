@@ -1,0 +1,93 @@
+---
+title: "Tổng quan Mobile"
+description: "Mobile development so với web, so sánh React Native vs Flutter"
+icon: "mobile"
+---
+
+Mobile development = xây dựng ứng dụng chạy trên **smartphone/tablet**. Cross-platform frameworks cho phép viết **1 codebase chạy cả iOS + Android**.
+
+## React Native vs Flutter
+
+<Tabs>
+  <Tab title="React Native (Expo)">
+    - **Ngôn ngữ:** TypeScript/JavaScript (same as React web)
+    - **UI:** Native components — render thật trên mỗi platform
+    - **Community:** Rất lớn, nhiều libraries
+    - **Hot reload:** Expo Fast Refresh instant
+    - **Native modules:** Easy truy cập native APIs
+    - **Phù hợp:** Dev đã biết React, cần native feel
+  </Tab>
+  <Tab title="Flutter">
+    - **Ngôn ngữ:** Dart (mới, nhưng dễ học)
+    - **UI:** Custom widgets — render riêng, không dùng native components
+    - **Performance:** Cao hơn RN (compiled native)
+    - **Hot reload:** Excellent
+    - **Phù hợp:** App cần UI custom, performance cao
+  </Tab>
+</Tabs>
+
+## So sánh chi tiết
+
+| Feature | React Native (Expo) | Flutter |
+|---|---|---|
+| **Language** | TypeScript | Dart |
+| **UI Render** | Native components | Custom widgets |
+| **Performance** | Good (bridge) | Better (compiled) |
+| **Hot Reload** | Excellent | Excellent |
+| **Community** | Larger | Growing fast |
+| **Library Ecosystem** | npm (huge) | pub.dev (large) |
+| **Native Module** | Easy (Expo SDK) | Medium |
+| **Learning Curve** | Dễ nếu biết React | Dễ nếu mới bắt đầu |
+| **Build Time** | Fast (Expo) | Faster |
+| **App Size** | ~15-25 MB | ~10-20 MB |
+| **Industry Adoption** | ~70% cross-platform | ~30% cross-platform |
+
+## Mobile vs Web Development
+
+| Web | Mobile |
+|---|---|
+| Browser, resize freely | Fixed screen, phone-specific |
+| Mouse + keyboard | Touch, gestures |
+| CSS + responsive | StyleSheet / Flutter widgets |
+| Routing via URL | Navigation stack |
+| State: React/Svelte | State: React Native + Zustand, Flutter + BLoC |
+| SEO matters | No SEO (app store) |
+| Deploy: push to server | Deploy: App Store + Play Store review |
+
+## Expo — React Native Made Easy
+
+<Callout type="info">
+**Expo** = framework giúp React Native development đơn giản hơn nhiều. Không cần Xcode hay Android Studio để bắt đầu.
+</Callout>
+
+```bash
+# Setup Expo project
+npx create-expo-app@latest my-app
+cd my-app
+npx expo start
+
+# Scan QR code với Expo Go app trên điện thoại
+```
+
+## Claude Code cho Mobile
+
+<Check>
+Claude Code có thể:
+- ✅ Tạo React Native / Flutter components từ mô tả
+- ✅ Xây navigation screens logic
+- ✅ Implement state management (Zustand, BLoC)
+- ✅ Tích hợp API, push notifications
+- ✅ Debug native crashes
+- ✅ Setup EAS Build (Expo Application Services)
+- ✅ Optimize performance
+</Check>
+
+## Chọn framework cho dự án?
+
+| Use case | Framework |
+|---|---|
+| Đã biết React/web | React Native (Expo) |
+| UI custom, animations | Flutter |
+| MVP nhanh nhất | Expo + Claude Code |
+| Native performance | Flutter hoặc React Native |
+| Team lớn, enterprise | React Native (lớn hơn ecosystem) |

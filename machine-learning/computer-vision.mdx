@@ -1,0 +1,142 @@
+---
+title: "Computer Vision"
+description: "Image classification, object detection, segmentation với CNNs và transfer learning"
+icon: "eye"
+---
+
+Computer Vision = cho máy tính "nhìn" và hiểu nội dung hình ảnh — image classification, detection, segmentation.
+
+## Image Classification — Transfer Learning
+
+```python
+import torch
+import torchvision.models as models
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+
+# Pre-trained model (transfer learning)
+model = models.resnet50(pretrained=True)
+
+# Replace最后一层 cho classification
+num_features = model.fc.in_features
+model.fc = torch.nn.Linear(num_features, num_classes)  # Custom classes
+
+# Freeze early layers
+for param in list(model.parameters())[:-10]:
+    param.requires_grad = False
+
+# Transform
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(10),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+```
+
+## Object Detection — YOLO
+
+```python
+# YOLOv8 — Real-time object detection
+from ultralytics import YOLO
+
+# Load pre-trained YOLO
+model = YOLO('yolov8n.pt')  # nano model
+
+# Predict
+results = model('image.jpg')
+
+# Detect custom objects (fine-tune)
+model.train(data='my_dataset.yaml', epochs=100)
+```
+
+## Image Segmentation — U-Net
+
+```python
+import torch
+import torch.nn as nn
+
+class UNet(nn.Module):
+    def __init__(self, in_channels=3, out_channels=1):
+        super().__init__()
+        # Encoder
+        self.enc1 = nn.Sequential(nn.Conv2d(3, 64, 3, padding=1), nn.ReLU(), nn.Conv2d(64, 64, 3, padding=1), nn.ReLU())
+        self.pool = nn.MaxPool2d(2)
+        # Bottleneck
+        self.bottleneck = nn.Sequential(nn.Conv2d(64, 128, 3, padding=1), nn.ReLU())
+        # Decoder
+        self.upconv = nn.ConvTranspose2d(128, 64, 2, stride=2)
+        self.dec1 = nn.Sequential(nn.Conv2d(128, 64, 3, padding=1), nn.ReLU())
+        self.final = nn.Conv2d(64, 1, 1)
+
+    def forward(self, x):
+        e1 = self.enc1(x)
+        p1 = self.pool(e1)
+        b = self.bottleneck(p1)
+        d1 = self.upconv(b)
+        d1 = torch.cat([d1, e1], dim=1)
+        return torch.sigmoid(self.dec1(d1))
+```
+
+## Data Augmentation
+
+```python
+from torchvision import transforms
+
+augmentation = transforms.Compose([
+    transforms.RandomResizedCrop(224),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+    transforms.RandomRotation(15),
+    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                       std=[0.229, 0.224, 0.225])
+])
+```
+
+## OpenCV Basics
+
+```python
+import cv2
+import numpy as np
+
+# Read image
+img = cv2.imread('image.jpg')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# Resize
+resized = cv2.resize(img, (224, 224))
+
+# Edge detection
+edges = cv2.Canny(gray, 100, 200)
+
+# Face detection (Haar cascades)
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+for (x,y,w,h) in faces:
+    cv2.rectangle(img, (x,y), (x+w,y+h), (255,0,0), 2)
+```
+
+## Model Deployment cho Vision
+
+```python
+# ONNX export
+import torch.onnx
+dummy = torch.randn(1, 3, 224, 224)
+torch.onnx.export(model, dummy, "model.onnx", opset_version=11)
+
+# TensorRT (NVIDIA GPU)
+from torch2trt import torch2trt
+model_trt = torch2trt(model, [dummy])
+
+# Mobile deployment (CoreML)
+import coremltools as ct
+mlmodel = ct.convert(model, inputs=[ct.ImageType(shape=(1, 3, 224, 224))])
+mlmodel.save("model.mlmodel")
+```
+
+<Tip>
+CV trong 2025-2026: transfer learning là king — dùng pre-trained models (ResNet, EfficientNet, ViT) và fine-tune trên data riêng. Không cần train từ đầu trừ khi có dataset rất lớn (100K+ images). Ultralytics YOLOv8+ là best choice cho object detection.
+</Tip>

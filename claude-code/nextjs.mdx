@@ -1,0 +1,187 @@
+---
+title: "Next.js - Frontend"
+description: "Framework React phổ biến nhất để xây dựng ứng dụng web hiện đại"
+icon: "react"
+---
+
+Next.js là framework phổ biến nhất để xây dựng ứng dụng web hiện đại, được tạo bởi Vercel, xây dựng trên React. Next.js được sử dụng bởi Netflix, TikTok, Twitch, Nike và hàng triệu ứng dụng khác.
+
+<CardGroup>
+  <Card title="Server Components" icon="server">
+    Render trên server — nhanh, SEO tốt, bảo mật API key
+  </Card>
+  <Card title="App Router" icon="route">
+    Routing tự động theo cấu trúc thư mục
+  </Card>
+  <Card title="API Routes" icon="code">
+    Viết backend API endpoint trong cùng dự án Next.js
+  </Card>
+  <Card title="Vercel Deploy" icon="cloud">
+    Deploy 1 click, preview cho mỗi pull request
+  </Card>
+</CardGroup>
+
+## Tại sao không dùng HTML thuần túy?
+
+| Vấn đề | HTML thuần túy | Next.js |
+|---|---|---|
+| Nhiều trang | Copy-paste lặp lại | Components tái sử dụng |
+| Dữ liệu động | Khó xử lý | API Routes + Server Components |
+| Tốc độ tải | Client-side render | Server-side render (SSR) |
+| SEO | Khó crawl nội dung động | Hỗ trợ SSR |
+| Xác thực | Tự code | NextAuth + Firebase Auth |
+| Deploy | Tự cấu hình server | 1 click lên Vercel |
+
+## Các khái niệm cốt lõi
+
+### Pages — Mỗi trang = Một URL
+
+Mỗi UI page tương ứng với một URL. Next.js tự động tạo URL từ cấu trúc thư mục.
+
+```
+yourapp.com/                    ← Trang chủ
+yourapp.com/login               ← Đăng nhập
+yourapp.com/dashboard           ← Dashboard
+yourapp.com/dashboard/tasks     ← Danh sách tasks
+yourapp.com/dashboard/tasks/123 ← Chi tiết task (dynamic route)
+```
+
+### Components — Khối xây dựng giao diện
+
+<CardGroup>
+  <Card title="Sidebar">
+    Menu bên trái xuất hiện trên mọi trang dashboard
+  </Card>
+  <Card title="TaskCard">
+    Hiển thị 1 task với title, status, deadline
+  </Card>
+  <Card title="UserAvatar">
+    Ảnh đại diện — dùng ở header, task list, comments
+  </Card>
+  <Card title="StatusBadge">
+    Nhãn trạng thái "In Progress" / "Complete"
+  </Card>
+  <Card title="TaskForm">
+    Form tạo/sửa task trong modal
+  </Card>
+</CardGroup>
+
+<Tip>
+Thay đổi một component → tất cả nơi dùng nó cập nhật theo. Đây là sức mạnh của component-based UI.
+</Tip>
+
+### Server vs Client Components
+
+| Loại | Chạy ở đâu | Dùng khi nào |
+|---|---|---|
+| **Server Component** | Trên server (Vercel) | Lấy dữ liệu, render HTML, bảo mật API key |
+| **Client Component** | Trong trình duyệt | Xử lý click, nhập liệu, cập nhật realtime |
+
+<Tabs>
+  <Tab title="Server Component — Lấy dữ liệu">
+    ```tsx
+    // app/dashboard/tasks/page.tsx — Server Component
+    import { getTasks } from '@/services/tasks'
+
+    export default async function TasksPage() {
+      const tasks = await getTasks()
+      return <TaskList tasks={tasks} />
+    }
+    ```
+  </Tab>
+  <Tab title="Client Component — Tương tác">
+    ```tsx
+    // components/AddTaskButton.tsx — Client Component
+    'use client'
+    import { useState } from 'react'
+
+    export function AddTaskButton() {
+      const [open, setOpen] = useState(false)
+      return (
+        <Button onClick={() => setOpen(true)}>
+          Thêm task
+        </Button>
+      )
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Layout — Khung chung cho nhiều trang
+
+Layout là phần UI xuất hiện trên nhiều trang mà không cần viết lại: header, sidebar, footer.
+
+```
+┌──────────────────────────────────────────┐
+│  Header (logo, notification, avatar)     │ ← Layout gốc
+├──────────┬───────────────────────────────┤
+│          │                               │
+│ Sidebar  │      Nội dung trang           │ ← Layout dashboard
+│ (menu)   │   (thay đổi theo URL)         │
+│          │                               │
+└──────────┴───────────────────────────────┘
+```
+
+### API Routes — Backend nhẹ trong cùng dự án
+
+| Khi nào dùng API Route | Khi nào dùng Firebase trực tiếp |
+|---|---|
+| Cần giấu API key bí mật | Đọc/ghi dữ liệu Firestore |
+| Gọi VNPay, Stripe, ZaloPay | Đăng nhập/đăng ký |
+| Gọi Claude, OpenAI, Gemini | Upload file lên Storage |
+| Gửi email Resend, SendGrid | Lắng nghe realtime |
+
+## 4 chế độ hiển thị trang
+
+| Chế độ | Khi nào dùng | Ví dụ |
+|---|---|---|
+| **SSR** | Trang cá nhân hóa, dữ liệu luôn mới | Dashboard, profile |
+| **SSG** | Nội dung ít thay đổi, cần tốc độ tối đa | Blog, docs |
+| **ISR** | Kết hợp tốc độ SSG với cập nhật định kỳ | Catalog, leaderboard |
+| **CSR** | Sau đăng nhập, không cần SEO | Kanban board, chat |
+
+## Bắt đầu với Next.js — 3 bước
+
+<Steps>
+  <Step title="Khởi tạo dự án">
+    Yêu cầu Claude Code tạo dự án Next.js 15 với TypeScript, Tailwind CSS 4, shadcn/ui, Firebase.
+  </Step>
+  <Step title="Cấu hình Firebase">
+    Tạo file `lib/firebase.ts`, thêm biến môi trường `NEXT_PUBLIC_FIREBASE_*` trong `.env.local`.
+  </Step>
+  <Step title="Bắt đầu xây dựng">
+    Mô tả tính năng đầu tiên cho Claude Code, ví dụ:
+
+    ```
+    Tạo trang /login với form đăng nhập bằng Google.
+    Sau khi đăng nhập thành công → chuyển đến /dashboard.
+    ```
+  </Step>
+</Steps>
+
+## Câu hỏi thường gặp
+
+<AccordionGroup>
+  <Accordion title="Next.js vs React?">
+    React là thư viện UI (chỉ làm UI layer — không có routing, SSR, backend).
+
+    Next.js xây dựng trên React và bổ sung tất cả: routing, SSR/SSG, API Routes, image/font optimization, Vercel deploy.
+
+    React như động cơ xe, Next.js như chiếc xe hoàn chỉnh.
+  </Accordion>
+  <Accordion title="TypeScript là gì — có cần học không?">
+    TypeScript là phiên bản JavaScript có thêm type checking — giúp giảm lỗi runtime.
+
+    Bạn không cần học để dùng Claude Code — Claude Code viết TypeScript cho bạn, và thường viết tốt hơn JavaScript thuần.
+  </Accordion>
+  <Accordion title="Có cần hiểu React không?">
+    Không, đặc biệt với Claude Code. Bạn mô tả giao diện và tính năng bằng ngôn ngữ tự nhiên — Claude Code tự viết.
+
+    Mô tả càng chi tiết → kết quả càng đúng ý.
+  </Accordion>
+  <Accordion title="Mobile app thì sao?">
+    Next.js xây dựng web app chạy tốt trên mobile browser. Có thể thêm PWA để cài như app.
+
+    Nếu cần app native (App Store, CH Play), dùng React Native hoặc Flutter. Firebase là backend chung, mobile app kết nối cùng database.
+  </Accordion>
+</AccordionGroup>

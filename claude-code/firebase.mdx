@@ -1,0 +1,205 @@
+---
+title: "Firebase - Backend"
+description: "Hướng dẫn Firebase dành cho người không biết code: Firestore, Authentication, Storage, Cloud Functions"
+icon: "fire"
+---
+
+Firebase là nền tảng backend do Google xây dựng và vận hành, cho phép tạo ứng dụng hoàn chỉnh mà không cần quản lý server. Hạ tầng được Firebase xử lý — bạn tập trung vào logic và giao diện.
+
+## Serverless nghĩa là gì?
+
+"Serverless" không có nghĩa là không có server — chúng có, nhưng bạn không cần quan tâm đến chúng.
+
+<Tabs>
+  <Tab title="Cách truyền thống">
+    Thuê server → cài OS → cài database → viết API → bảo trì 24/7
+
+    Bạn phải lo mọi thứ: máy chủ vật lý, OS, security patches, scaling...
+  </Tab>
+  <Tab title="Cách với Firebase (Serverless)">
+    Viết logic code → Firebase xử lý toàn bộ hạ tầng → tự động scale → trả phí theo mức sử dụng → Google quản lý bảo mật
+
+    Bạn chỉ tập trung vào code — phần còn lại Firebase lo.
+  </Tab>
+</Tabs>
+
+## Các dịch vụ chính của Firebase
+
+| Dịch vụ | Mô tả |
+|---|---|
+| **Firestore** | Cơ sở dữ liệu NoSQL realtime, lưu trữ toàn bộ dữ liệu ứng dụng |
+| **Authentication** | Xác thực người dùng — hỗ trợ Google, Email, Phone OTP |
+| **Cloud Storage** | Lưu trữ file — ảnh, video, PDF với kiểm soát quyền truy cập |
+| **Cloud Functions** | Logic phía server — chạy tự động khi có sự kiện hoặc theo lịch |
+
+## Firestore — Cơ sở dữ liệu
+
+Firestore là nơi lưu toàn bộ dữ liệu của ứng dụng. So sánh giống một bảng tính Google Sheets cực kỳ mạnh mẽ cho lập trình.
+
+### Cấu trúc dữ liệu mẫu
+
+```
+📁 Firestore Database
+│
+├── 👥 users/                     ← Thông tin người dùng
+│   ├── user_123/
+│   │   ├── name: "Nguyễn Văn A"
+│   │   ├── email: "a@gmail.com"
+│   │   └── role: "admin"
+│   └── user_456/
+│       └── name: "Trần Thị B"
+│
+├── 📋 tasks/                     ← Danh sách công việc
+│   ├── task_001/
+│   │   ├── title: "Làm báo cáo tháng 4"
+│   │   ├── status: "in_progress"
+│   │   ├── assignee: "user_123"
+│   │   └── deadline: "2026-04-15"
+│   └── task_002/
+│       └── title: "Họp với khách hàng"
+│
+└── 🏢 projects/                  ← Dự án
+    └── project_001/
+        └── name: "Dự án ABC"
+```
+
+### Tính năng đặc biệt: Realtime
+
+Firestore cập nhật theo thời gian thực:
+
+<Tip>
+Khi một thành viên đổi trạng thái task, tất cả màn hình khác cập nhật ngay lập tức — không cần reload.
+</Tip>
+
+### Giới hạn miễn phí (Spark plan)
+
+<Check>
+- **50,000** reads/ngày
+- **20,000** writes/ngày
+- **1 GB** storage
+
+Đủ cho startup hoặc ứng dụng nội bộ nhỏ.
+</Check>
+
+## Authentication — Xác thực người dùng
+
+| Phương thức | Mô tả | Phù hợp |
+|---|---|---|
+| **Email & Password** | Đăng ký/đăng nhập bằng email — Firebase tự mã hóa mật khẩu | Hầu hết ứng dụng |
+| **Google Sign-In** | Bấm "Đăng nhập với Google" → chọn tài khoản → xong | Người dùng Workspace |
+| **Phone OTP** | Gửi OTP qua SMS → nhập mã → đăng nhập | Fintech, banking |
+| **GitHub / Microsoft** | Login qua tài khoản nền tảng khác | Developer tools |
+| **Anonymous** | Dùng thử không cần tạo tài khoản | Onboarding nhanh |
+
+Sau khi đăng nhập, Firebase cấp mỗi user một **UID** duy nhất (ví dụ: `xK9mNp2QrLo5vWcT8uEd`). Mọi dữ liệu Firestore có thể được bảo vệ theo UID.
+
+## Cloud Storage — Lưu trữ file
+
+Firestore lưu text, số, ngày tháng — nhưng không phù hợp cho file lớn. Cloud Storage giải quyết điều đó:
+
+| Loại ứng dụng | File cần lưu |
+|---|---|
+| Task management | Ảnh đính kèm task, tài liệu PDF |
+| E-commerce | Ảnh sản phẩm |
+| Social app | Ảnh đại diện, ảnh bài đăng, video |
+| HR system | Hợp đồng PDF, CV |
+| LMS | Video bài giảng, slide, bài tập |
+
+<Tabs>
+  <Tab title="Giới hạn miễn phí">
+    - 5 GB storage
+    - 1 GB/day download
+    - Upload không giới hạn
+  </Tab>
+  <Tab title="Bảo mật">
+    Giống Firestore, cấu hình ai được xem/download file nào:
+
+    - Ảnh avatar → Ai cũng xem được
+    - Hợp đồng PDF → Chỉ HR và người đó xem được
+    - Video khóa học → Chỉ học viên đã thanh toán
+  </Tab>
+</Tabs>
+
+## Cloud Functions — Tự động hóa logic
+
+Một số tác vụ cần chạy "phía sau" — không thể để trình duyệt người dùng xử lý: gửi email, gọi API, xử lý webhook.
+
+### 3 loại trigger phổ biến
+
+<Steps>
+  <Step title="Trigger từ Firestore">
+    Tự động chạy khi dữ liệu thay đổi.
+
+    **Ví dụ:** Task đổi status → "completed" → gửi email chúc mừng tự động.
+  </Step>
+  <Step title="Trigger theo lịch">
+    Chạy tự động vào thời gian đặt sẵn (cron job).
+
+    **Ví dụ:** Thứ Hai 8:00 AM → gửi weekly summary cho manager.
+  </Step>
+  <Step title="Trigger từ HTTP (API)">
+    Tạo URL endpoint để frontend hoặc service khác gọi.
+
+    **Ví dụ:** Frontend gọi API thanh toán → Function xử lý Stripe → trả URL thanh toán.
+  </Step>
+</Steps>
+
+<Warning>
+Cloud Functions **không có** trong gói Spark (miễn phí). Cần gói **Blaze** (pay-as-you-go) — nhưng có 2 triệu lượt gọi miễn phí/tháng.
+</Warning>
+
+## So sánh gói miễn phí vs trả phí
+
+| Dịch vụ | Spark (Miễn phí) | Blaze (Trả theo dùng) |
+|---|---|---|
+| Firestore đọc | 50,000/ngày | $0.06 / 100,000 lần |
+| Firestore ghi | 20,000/ngày | $0.18 / 100,000 lần |
+| Cloud Storage | 5 GB | $0.026/GB/tháng |
+| Authentication | Không giới hạn | Không giới hạn |
+| Cloud Functions | ❌ Không có | ✅ 2M lần/tháng miễn phí |
+| Hosting | 10 GB / tháng | $0.15/GB |
+
+## Bắt đầu với Firebase — 5 bước
+
+<Steps>
+  <Step title="Tạo tài khoản Firebase">
+    Truy cập firebase.google.com → Get started → Sign in with Google.
+  </Step>
+  <Step title="Tạo project mới">
+    Click **Add project** → Đặt tên (ví dụ: `my-task-app`) → Chọn Google Analytics → Create project.
+  </Step>
+  <Step title="Bật các dịch vụ cần dùng">
+    Trong Firebase Console:
+    - **Firestore Database** → Create database → Region `asia-southeast1` → Test mode
+    - **Authentication** → Email/Password + Google
+    - **Storage** → Start in test mode
+  </Step>
+  <Step title="Lấy thông tin cấu hình">
+    Project Settings → Your apps → Add Web App (`</>`) → Copy `firebaseConfig`.
+
+    ```javascript
+    const firebaseConfig = {
+      apiKey: "AIzaSy...",
+      authDomain: "my-task-app.firebaseapp.com",
+      projectId: "my-task-app",
+      storageBucket: "my-task-app.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abc123"
+    };
+    ```
+  </Step>
+  <Step title="Giao cho Claude Code">
+    Dán firebaseConfig vào prompt và mô tả ứng dụng bạn muốn xây:
+
+    ```
+    Đây là firebaseConfig của project Firebase của tôi: [dán vào đây]
+
+    Tôi muốn xây ứng dụng quản lý công việc với Next.js.
+    Bắt đầu bằng cách cài Firebase SDK và tạo file cấu hình kết nối.
+    ```
+  </Step>
+</Steps>
+
+<Note>
+Lưu `firebaseConfig` vào `.env.local` và thêm `.env.local` vào `.gitignore` — không commit lên public repo.
+</Note>

@@ -1,0 +1,59 @@
+---
+title: "Landing page"
+description: "Xây dựng trang landing page giới thiệu sản phẩm với Next.js và Tailwind CSS"
+icon: "globe"
+---
+
+Xây dựng trang landing page giới thiệu sản phẩm/dịch vụ với Next.js và Tailwind CSS — bài thực hành giúp bạn làm chủ giao diện web hiện đại.
+
+## Mục tiêu
+
+<Check>Tạo landing page hoàn chỉnh với Hero, Features, Pricing, FAQ · Sử dụng Tailwind CSS 4 utility classes · Thêm animations và responsive design</Check>
+
+## Yêu cầu giao diện
+
+| Phần | Mô tả |
+|---|---|
+| **Hero** | Tiêu đề lớn, mô tả ngắn, CTA button |
+| **Features** | Grid 3-4 tính năng chính với icon |
+| **Pricing** | 3 gói giá (Free, Pro, Enterprise) |
+| **FAQ** | Accordion câu hỏi thường gặp |
+| **Footer** | Links, social, copyright |
+
+## Prompt gợi ý cho Claude Code
+
+```
+Tạo landing page cho sản phẩm TaskMaster (app quản lý công việc).
+
+Giao diện:
+- Hero section với headline "Quản lý công việc thông minh hơn",
+  mô tả ngắn, 2 CTA: "Bắt đầu miễn phí" và "Xem demo"
+- Features section: 6 tính năng chính với icon Lucide
+- How it works: 3 bước đơn giản
+- Pricing: 3 gói (Free, Pro, Team) với card so sánh
+- FAQ: 6 câu hỏi thường gặp dạng accordion
+- CTA cuối trang
+- Footer với links và social icons
+
+Style: Minimal, modern, gradient backgrounds, smooth animations.
+Responsive trên mobile, tablet, desktop.
+Sử dụng shadcn/ui components.
+```
+
+## Bài tập mở rộng
+
+<Tabs>
+  <Tab title="Theme tối/sáng">
+    Yêu cầu Claude Code thêm dark mode toggle — lưu preference vào localStorage.
+  </Tab>
+  <Tab title="A/B test">
+    Thử 2 phiên bản headline khác nhau, đo tỉ lệ click CTA.
+  </Tab>
+  <Tab title="SEO optimization">
+    Thêm metadata, Open Graph tags, structured data cho SEO.
+  </Tab>
+</Tabs>
+
+## Kiểm tra sau khi hoàn thành
+
+<Check>Mở trang trên mobile (Chrome DevTools → toggle device) · Kiểm tra Lighthouse score (Performance, Accessibility) · Verify dark mode hoạt động mượt</Check>

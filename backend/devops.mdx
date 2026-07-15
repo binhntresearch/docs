@@ -1,0 +1,258 @@
+---
+title: "DevOps cho Backend"
+description: "Docker, CI/CD, Logging, Monitoring, Deploy cho backend"
+icon: "docker"
+---
+
+DevOps giúp backend chạy ổn định trên production — containerization, deployment, monitoring.
+
+## Dockerfile
+
+```dockerfile
+# Multi-stage build
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy built artifacts
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+
+USER node
+EXPOSE 3000
+
+CMD ["node", "dist/main.js"]
+```
+
+## Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/mydb
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=mydb
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+## CI/CD với GitHub Actions
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy Backend
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Railway
+        uses: bervProject/railway-deploy@main
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service: backend
+```
+
+## Structured Logging
+
+```python
+import structlog
+
+logger = structlog.get_logger()
+
+# Format: JSON for production, pretty for dev
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ]
+)
+
+# Usage with context
+log = logger.bind(user_id=123, request_id="abc")
+log.info("user_signup", email="alice@example.com")
+log.error("payment_failed", amount=100, error="timeout")
+```
+
+```json
+{"event": "user_signup", "email": "alice@example.com", "user_id": 123, "request_id": "abc", "level": "info", "timestamp": "2026-07-15T10:30:00Z"}
+```
+
+## Monitoring Stack
+
+<Tabs>
+  <Tab title="Open Source">
+    - **Prometheus:** Metrics collection
+    - **Grafana:** Visualization, dashboards
+    - **Loki:** Log aggregation (ELK alternative)
+    - **Tempo:** Distributed tracing
+    - **Alertmanager:** Alerting
+  </Tab>
+  <Tab title="Managed">
+    - **Datadog:** All-in-one APM
+    - **New Relic:** Application monitoring
+    - **Sentry:** Error tracking
+    - **LogRocket:** Frontend + backend logging
+  </Tab>
+</Tabs>
+
+## Health Checks
+
+```python
+@app.get("/health")
+async def health(db: Session = Depends(get_db)):
+    """Liveness probe — is process running?"""
+    return {"status": "ok"}
+
+@app.get("/ready")
+async def readiness(db: Session = Depends(get_db), redis: Redis = Depends(get_redis)):
+    """Readiness probe — can we serve traffic?"""
+    checks = {}
+
+    try:
+        db.execute("SELECT 1")
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {e}"
+
+    try:
+        await redis.ping()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"error: {e}"
+
+    is_ready = all(v == "ok" for v in checks.values())
+    return JSONResponse(
+        status_code=200 if is_ready else 503,
+        content={"ready": is_ready, "checks": checks}
+    )
+```
+
+## Metrics
+
+```python
+from prometheus_client import Counter, Histogram, generate_latest
+
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total HTTP requests",
+    ["method", "endpoint", "status"]
+)
+REQUEST_DURATION = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request duration",
+    ["method", "endpoint"]
+)
+
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+
+    endpoint = request.scope["route"].path
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=endpoint,
+        status=response.status_code
+    ).inc()
+    REQUEST_DURATION.labels(
+        method=request.method,
+        endpoint=endpoint
+    ).observe(duration)
+
+    return response
+
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=type_("text/plain"))
+```
+
+## Deployment Checklist
+
+<Check>
+- [ ] Dockerfile multi-stage for small images
+- [ ] docker-compose cho local dev
+- [ ] CI/CD pipeline (test + build + deploy)
+- [ ] Environment variables in secrets (never in code)
+- [ ] Health check endpoints
+- [ ] Graceful shutdown (handle SIGTERM)
+- [ ] Structured logging
+- [ ] Prometheus metrics
+- [ ] Error tracking (Sentry)
+- [ ] Auto-scaling configuration
+- [ ] Database backups automatic
+- [ ] CDN cho static assets
+- [ ] HTTPS everywhere (Let's Encrypt)
+</Check>

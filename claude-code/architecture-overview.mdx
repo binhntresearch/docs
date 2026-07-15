@@ -1,0 +1,100 @@
+---
+title: "Kiến trúc phần mềm - Tổng quan"
+description: "Kiến trúc ứng dụng web hiện đại: Next.js (Frontend) + Firebase (Backend & Database)"
+icon: "layers"
+---
+
+Hướng dẫn chi tiết kiến trúc ứng dụng web hiện đại: **Frontend + Backend serverless** — sử dụng Next.js cho giao diện và Firebase cho toàn bộ hạ tầng phía sau.
+
+## Kiến trúc phần mềm là gì?
+
+Kiến trúc phần mềm là bản thiết kế tổng thể mô tả cách các thành phần của ứng dụng được tổ chức và giao tiếp với nhau. Giống như bản vẽ kiến trúc nhà — bạn cần biết phòng khách ở đâu, nhà bếp nối với phòng ăn thế nào — trước khi bắt tay xây.
+
+## Tổng quan kiến trúc: 2 tầng chính
+
+| Tầng | Vai trò | Công nghệ | Ví dụ cụ thể |
+|---|---|---|---|
+| **Frontend** | Giao diện người dùng | Next.js | Trang đăng nhập, dashboard, form tạo task |
+| **Backend** | Xử lý logic, bảo mật | Firebase (Cloud Functions, Auth) | Xác thực user, gửi email thông báo |
+| **Database** | Lưu trữ dữ liệu | Firebase (Firestore) | Danh sách tasks, users, projects |
+
+## Sơ đồ kiến trúc tổng thể
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    KIẾN TRÚC ỨNG DỤNG                       │
+├─────────────────────────────────────────────────────────────┤
+│  🖥️  FRONTEND (Next.js + Vercel)                           │
+│  ├── Giao diện người dùng (Pages, Layouts, Components)     │
+│  ├── Routing tự động theo thư mục                          │
+│  ├── Server Components (SEO, tốc độ)                       │
+│  ├── Client Components (tương tác, realtime)               │
+│  └── Firebase SDK (kết nối backend)                        │
+│                          ↕                                  │
+│  ☁️  BACKEND & DATABASE (Firebase + Google Cloud)           │
+│  ├── Firestore (database NoSQL, realtime)                  │
+│  ├── Authentication (đăng nhập/đăng ký)                    │
+│  ├── Cloud Storage (lưu file)                              │
+│  └── Cloud Functions (logic tự động)                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Luồng hoạt động tổng quát
+
+<Steps>
+  <Step title="Người dùng mở trình duyệt">
+    Truy cập ứng dụng (ví dụ `app.congty.com`)
+  </Step>
+  <Step title="Next.js hiển thị giao diện">
+    Trang login, dashboard, danh sách task… được render tương ứng
+  </Step>
+  <Step title="Firebase SDK gửi yêu cầu">
+    Khi người dùng thao tác (đăng nhập, tạo task, upload file) → Firebase SDK gửi yêu cầu
+  </Step>
+  <Step title="Firebase xử lý và trả kết quả">
+    Kiểm tra quyền, lưu/đọc dữ liệu, trả kết quả về
+  </Step>
+  <Step title="Giao diện cập nhật tự động">
+    Nhờ realtime listener — cập nhật ngay không cần reload
+  </Step>
+</Steps>
+
+## Cách 2 tầng giao tiếp với nhau
+
+Frontend (Next.js) và Backend (Firebase) hoạt động độc lập nhưng giao tiếp qua **Firebase SDK** — bộ công cụ cài trong dự án Next.js.
+
+### Ví dụ: Luồng tạo task mới
+
+1. **Người dùng mở form** — Bấm "Thêm task" → Dialog hiện ra với form nhập liệu
+2. **Người dùng điền thông tin** — Nhập tiêu đề, mô tả, chọn người phụ trách, deadline
+3. **Gửi dữ liệu lên Firebase** — Bấm "Lưu" → Firebase SDK gọi `addDoc()` ghi vào Firestore
+4. **Firestore lưu và phát sự kiện** — Document mới được lưu, phát sự kiện realtime đến mọi thiết bị
+5. **Giao diện cập nhật tự động** — Bảng danh sách cập nhật ngay lập tức, không reload
+6. **Cloud Function chạy tự động** (nếu cấu hình) — Gửi email/notification cho người phụ trách
+
+<Tip>
+Frontend lo giao diện, Firebase lo backend. Bạn mô tả yêu cầu cho Claude Code — nó tự xây dựng cả 2 phần.
+</Tip>
+
+## Dùng Claude Code để xây dựng theo kiến trúc này
+
+<Steps>
+  <Step title="Thiết lập dự án">
+    Yêu cầu Claude Code khởi tạo dự án Next.js 15 + TypeScript + Tailwind + shadcn/ui + Firebase.
+  </Step>
+  <Step title="Thiết kế cấu trúc dữ liệu">
+    Mô tả dữ liệu cần lưu bằng ngôn ngữ thường — Claude Code đề xuất Firestore schema.
+  </Step>
+  <Step title="Xây Authentication">
+    Tạo trang đăng nhập Google/Email → lưu user vào Firestore → redirect `/dashboard`.
+  </Step>
+  <Step title="Xây từng trang">
+    Theo thứ tự ưu tiên. Ví dụ: `/dashboard/tasks` với bảng dữ liệu realtime, nút thêm, modal form.
+  </Step>
+  <Step title="Cấu hình bảo mật">
+    Yêu cầu Claude Code viết Firestore Security Rules theo role.
+  </Step>
+  <Step title="Deploy lên Vercel">
+    Hướng dẫn deploy + cấu hình biến môi trường trên Vercel.
+  </Step>
+</Steps>

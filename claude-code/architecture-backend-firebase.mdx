@@ -1,0 +1,271 @@
+---
+title: "Backend - Google Firebase"
+description: "Cách tổ chức backend với Firebase: 5 thành phần chính"
+icon: "fire"
+---
+
+Firebase là bộ công cụ gồm nhiều dịch vụ, mỗi dịch vụ giải quyết một bài toán backend cụ thể.
+
+## 5 thành phần trong hệ sinh thái Firebase
+
+<CardGroup>
+  <Card title="Firestore" icon="database">
+    Cơ sở dữ liệu NoSQL realtime
+  </Card>
+  <Card title="Authentication" icon="shield-halved">
+    Xác thực người dùng
+  </Card>
+  <Card title="Cloud Storage" icon="box-archive">
+    Lưu trữ file lớn
+  </Card>
+  <Card title="Cloud Functions" icon="bolt">
+    Logic phía server, tự động theo sự kiện
+  </Card>
+  <Card title="Security Rules" icon="lock">
+    Bảo mật dữ liệu
+  </Card>
+</CardGroup>
+
+<Tip>
+**Phép so sánh tòa nhà văn phòng:**
+- **Firestore** = Tủ hồ sơ (lưu trữ tài liệu, danh sách)
+- **Authentication** = Bảo vệ sảnh (kiểm tra thẻ nhân viên)
+- **Cloud Storage** = Kho lưu trữ (lưu thùng hồ sơ lớn, bản vẽ)
+- **Cloud Functions** = Nhân viên tự động (khi có hồ sơ mới → tự gửi email)
+- **Security Rules** = Nội quy tòa nhà (phòng nào ai được vào)
+</Tip>
+
+## Bố cục backend trong dự án
+
+```
+my-task-app/
+├── services/                    ← KẾT NỐI FIREBASE (trong dự án Next.js)
+│   ├── firebase.ts
+│   ├── auth.ts
+│   ├── tasks.ts
+│   ├── projects.ts
+│   └── storage.ts
+│
+├── firestore.rules              ← SECURITY RULES (bảo mật Firestore)
+├── storage.rules                ← SECURITY RULES (bảo mật Storage)
+│
+├── functions/                   ← CLOUD FUNCTIONS (chạy trên server Google)
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── triggers/
+│   │   ├── scheduled/
+│   │   └── api/
+│   └── package.json
+│
+└── firebase.json                ← CẤU HÌNH Firebase project
+```
+
+## 1. Firestore — Cơ sở dữ liệu
+
+### Firestore là gì?
+
+Firestore tổ chức dữ liệu theo **Collections** (bộ sưu tập) chứa **Documents** (tài liệu).
+
+<Tip>
+**Phép so sánh:** Collection = Ngăn kéo · Document = Tờ hồ sơ trong ngăn kéo · Fields = Các mục trong hồ sơ
+</Tip>
+
+### Thiết kế cấu trúc dữ liệu
+
+```
+📁 Firestore Database
+│
+├── 👥 users (Collection)
+│   ├── user_001 (Document)
+│   │   ├── name: "Nguyễn Văn A"
+│   │   ├── email: "a@gmail.com"
+│   │   ├── role: "admin"
+│   │   ├── department: "Engineering"
+│   │   └── avatarUrl: "https://..."
+│   └── user_002 (Document)
+│
+├── 📋 tasks (Collection)
+│   ├── task_001 (Document)
+│   │   ├── title: "Làm báo cáo Q1"
+│   │   ├── description: "Tổng hợp số liệu..."
+│   │   ├── status: "in_progress"
+│   │   ├── priority: "high"
+│   │   ├── assigneeId: "user_001"
+│   │   ├── projectId: "project_001"
+│   │   └── deadline: 2026-04-30
+│   │
+│   └── 💬 comments (Subcollection)
+│       ├── comment_001
+│       └── comment_002
+│
+└── 🏢 projects (Collection)
+    └── project_001 (Document)
+        ├── name: "Dự án ABC"
+        └── members: ["user_001", "user_002"]
+```
+
+### Subcollections — Dữ liệu lồng nhau
+
+| Subcollection | Collection riêng |
+|---|---|
+| Dữ liệu chỉ có ý nghĩa trong context document cha | Dữ liệu cần truy vấn độc lập |
+| Comments của 1 task | Tasks (cần lọc, tìm tất cả) |
+| Activity log của 1 task | Users (hiển thị ở nhiều nơi) |
+
+## 2. Authentication — Xác thực người dùng
+
+Authentication quản lý toàn bộ vòng đời user: đăng ký, đăng nhập, quên mật khẩu, đăng xuất.
+
+### UID — Chìa khóa liên kết dữ liệu
+
+```
+Firebase Authentication               Firestore Database
+┌──────────────────────┐              ┌──────────────────────┐
+│ UID: xK9mNp2Q...     │──────────── │ users/xK9mNp2Q...    │
+│ Email: a@gmail.com   │              │   name: "Nguyễn Văn A"│
+│ Provider: Google     │              │   role: "admin"       │
+└──────────────────────┘              └──────────────────────┘
+```
+
+## 3. Cloud Storage — Lưu trữ file
+
+```
+📦 Cloud Storage
+├── avatars/user_001/profile.jpg
+├── tasks/task_001/bao-cao-q1.pdf
+├── projects/project_001/proposal.pdf
+└── exports/report-2026-04.pdf
+```
+
+### Kiểm soát quyền truy cập file
+
+| Loại file | Ai được xem |
+|---|---|
+| Ảnh avatar | Tất cả user đã đăng nhập |
+| File đính kèm task | Thành viên cùng project |
+| File xuất báo cáo | Chỉ admin |
+
+## 4. Cloud Functions — Logic phía server
+
+### 3 loại Cloud Functions
+
+<Steps>
+  <Step title="Firestore Triggers — Phản ứng với dữ liệu">
+    | Trigger | Khi nào chạy |
+    |---|---|
+    | **onCreate** | Document mới được tạo |
+    | **onUpdate** | Document được cập nhật |
+    | **onDelete** | Document bị xóa |
+    | **onWrite** | Bất kỳ thay đổi nào |
+  </Step>
+  <Step title="Scheduled Functions — Chạy theo lịch">
+    | Function | Lịch chạy | Công việc |
+    |---|---|---|
+    | **weeklyReport** | Thứ Hai 8:00 | Tổng hợp tasks tuần, gửi email manager |
+    | **dailyReminder** | Mỗi ngày 8:00 | Nhắc tasks sắp deadline |
+    | **cleanupOldData** | Mỗi ngày 1:00 | Xóa notifications đã đọc quá 30 ngày |
+  </Step>
+  <Step title="HTTP Functions — API endpoints">
+    | Function | URL | Công dụng |
+    |---|---|---|
+    | **sendEmail** | POST /sendEmail | Gửi email qua SendGrid |
+    | **generateReport** | POST /generateReport | Tạo PDF báo cáo |
+    | **webhookHandler** | POST /webhook | Nhận webhook từ Stripe, Slack |
+  </Step>
+</Steps>
+
+## 5. Security Rules — Bảo mật dữ liệu
+
+Security Rules là bộ quy tắc xác định ai được đọc/ghi dữ liệu nào. Chúng chạy trên server Firebase — không thể bypass từ client.
+
+### Ví dụ Firestore Rules
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == userId;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth.uid == resource.data.assigneeId;
+      allow delete: if request.auth.uid == resource.data.createdBy;
+    }
+  }
+}
+```
+
+### Các cấp độ bảo mật
+
+| Cấp | Quy tắc | Dùng khi nào |
+|---|---|---|
+| **Public** | Ai cũng đọc được | Trang công khai, landing page |
+| **Authenticated** | Đã đăng nhập mới đọc/ghi | Mặc định cho hầu hết data |
+| **Owner only** | Chỉ chủ sở hữu | Thông tin cá nhân, cài đặt riêng |
+| **Role-based** | Theo vai trò (admin, member) | Quản lý users, xóa dữ liệu |
+| **Team-based** | Theo nhóm/project | Tasks chỉ thấy bởi team members |
+| **Deny all** | Chặn hoàn toàn từ client | Data chỉ Cloud Functions truy cập |
+
+## Cách 5 thành phần phối hợp
+
+Luồng tạo task hoàn chỉnh:
+
+```
+Frontend (tạo task)
+  ↓
+Services/auth.ts → Authentication xác thực
+  ↓
+Services/tasks.ts → Firestore ghi task document
+  ↓
+Cloud Functions trigger onTaskCreated
+  ↓
+Tạo notification + gửi email
+  ↓
+Security Rules kiểm tra quyền ở mọi bước
+```
+
+## Chi phí Firebase
+
+<Tabs>
+  <Tab title="Spark (Miễn phí)">
+    | Dịch vụ | Giới hạn |
+    |---|---|
+    | Firestore | 50K reads/ngày, 20K writes/ngày, 1 GB storage |
+    | Authentication | Không giới hạn |
+    | Cloud Storage | 5 GB storage, 1 GB download/ngày |
+    | Cloud Functions | ❌ Không có |
+  </Tab>
+  <Tab title="Blaze (Trả theo dùng)">
+    | Dịch vụ | Chi phí |
+    |---|---|
+    | Firestore | $0.06/100K reads, $0.18/100K writes |
+    | Cloud Storage | $0.026/GB/tháng |
+    | Cloud Functions | 2M lượt/tháng miễn phí |
+    | Authentication | Miễn phí (Phone OTP có phí SMS) |
+  </Tab>
+</Tabs>
+
+## Câu hỏi thường gặp
+
+<AccordionGroup>
+  <Accordion title="Có cần viết Security Rules ngay từ đầu không?">
+    Khi tạo Firestore lần đầu, Firebase cho phép chọn test mode (mở 30 ngày) — đủ cho giai đoạn phát triển.
+
+    **Trước khi deploy cho người dùng thật, BẮT BUỘC phải viết Security Rules.**
+  </Accordion>
+  <Accordion title="Firebase Emulator là gì?">
+    Firebase Emulator là phiên bản Firebase chạy trên máy tính, mô phỏng Firestore, Auth, Storage, Functions mà không cần internet hay ảnh hưởng data thật.
+
+    Dùng khi phát triển/test trên local, test Cloud Functions trước khi deploy.
+  </Accordion>
+  <Accordion title="Dữ liệu có mất khi Firebase gặp sự cố?">
+    Firebase có SLA 99.95% uptime — thời gian ngừng hoạt động tối đa khoảng 4 giờ/năm.
+
+    Dữ liệu được replicate trên nhiều data center. Firestore hỗ trợ backup tự động.
+  </Accordion>
+</AccordionGroup>

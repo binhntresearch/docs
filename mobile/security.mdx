@@ -1,0 +1,461 @@
+---
+title: "Bảo mật Mobile"
+description: "Bảo mật cho mobile apps — secure storage, certificate pinning, root detection, biometric"
+icon: "shield-halved"
+---
+
+Mobile apps cần bảo vệ **data on-device**, **API keys trong app**, và **network communication** — đặc biệt khi app lưu trữ tokens, user data locally.
+
+## Attack Vectors chính
+
+| Vector | Mô tả | Tác động |
+|---|---|---|
+| **Reverse engineering** | Decompile APK/IPA, đọc source code | Lộ API keys, business logic |
+| **MITM attack** | Intercept network traffic | Steal tokens, modify data |
+| **Device rooted/jailbroken** | Bypass OS security | Easy reverse engineering |
+| **Insecure storage** | Plain text in SharedPreferences | Data accessible after root |
+| **Clipboard hijacking** | Read clipboard | Steal passwords |
+| **Screenshot/log leak** | Sensitive data in screenshots | Privacy exposure |
+| **Side-channel attacks** | Timing, power analysis | Crypto key extraction |
+
+## 1. Secure Storage
+
+### ❌ BAD - Insecure Storage
+
+```typescript
+// AsyncStorage saves PLAIN TEXT in app sandbox on Android
+await AsyncStorage.setItem('auth_token', token);
+await AsyncStorage.setItem('user_credentials', JSON.stringify({...}));
+
+// UserDefaults trên iOS - plaintext, backed up to iCloud
+UserDefaults.standard.set(token, forKey: "auth_token");
+```
+
+### ✅ GOOD - Encrypted Storage
+
+```typescript
+// React Native - use react-native-keychain (uses Keychain/Keystore)
+import * as Keychain from 'react-native-keychain';
+
+async function storeTokenSecurely(token: string) {
+  await Keychain.setGenericPassword('auth_token', token, {
+    service: 'myApp.auth',
+    accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
+    accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    storage: Keychain.STORAGE_TYPE.AES_GCM  // Hardware-backed encryption
+  });
+}
+
+async function getToken() {
+  const credentials = await Keychain.getGenericPassword({
+    service: 'myApp.auth',
+    authenticationPrompt: {
+      title: 'Authenticate to access your data',
+    }
+  });
+  return credentials ? credentials.password : null;
+}
+```
+
+```kotlin
+// Android - EncryptedSharedPreferences (Jetpack Security)
+val masterKey = MasterKey.Builder(context)
+  .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+  .build()
+
+val sharedPreferences = EncryptedSharedPreferences.create(
+  context,
+  "secret_shared_prefs",
+  masterKey,
+  EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+  EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+
+sharedPreferences.edit()
+  .putString("auth_token", token)
+  .apply()
+```
+
+```swift
+// iOS - Keychain (native)
+let tokenData = token.data(using: .utf8)!
+
+// Save to Keychain with biometric protection
+let query: [String: Any] = [
+  kSecClass as String: kSecClassGenericPassword,
+  kSecAttrService as String: "myApp.auth",
+  kSecAttrAccount as String: "user",
+  kSecValueData as String: tokenData,
+  kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+  kSecAccessControl as String: SecAccessControlCreateWithFlags(
+    nil,
+    kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+    .userPresence
+  )!
+]
+SecItemAdd(query as CFDictionary, nil)
+```
+
+## 2. Certificate Pinning
+
+```typescript
+// React Native - use react-native-ssl-pinning
+import { fetch } from 'react-native-ssl-pinning';
+
+// ⚠️ Pin certificate public key (not full cert)
+const PUBLIC_KEY_HASH = 'sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+
+async function makeSecureRequest(url: string) {
+  return fetch(url, {
+    method: 'GET',
+    sslPinning: {
+      certs: [PUBLIC_KEY_HASH],  // Pin public key hash
+    },
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+}
+```
+
+```swift
+// iOS native
+class PinningDelegate: NSObject, URLSessionDelegate {
+  func urlSession(
+    _ session: URLSession,
+    didReceive challenge: URLAuthenticationChallenge,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+  ) {
+    guard let serverTrust = challenge.protectionSpace.serverTrust,
+          let serverCert = SecTrustGetCertificateAtIndex(serverTrust, 0) else {
+      completionHandler(.cancelAuthenticationChallenge, nil)
+      return
+    }
+
+    let serverCertData = SecCertificateCopyData(serverCert) as Data
+    let serverHash = sha256(data: serverCertData)
+
+    // Compare with pinned hash
+    if serverHash == PINNED_HASH {
+      completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    } else {
+      completionHandler(.cancelAuthenticationChallenge, nil)  // Block!
+    }
+  }
+}
+```
+
+```xml
+<!-- Android network_security_config.xml -->
+<network-security-config>
+  <base-config>
+    <trust-anchors>
+      <certificates src="system" />
+    </trust-anchors>
+  </base-config>
+
+  <domain-config>
+    <domain includeSubdomains="true">api.myapp.com</domain>
+    <pin-set expiration="2026-12-31">
+      <!-- Pin public key, with backup -->
+      <pin digest="SHA-256">PublicKeyHash1=</pin>
+      <pin digest="SHA-256">PublicKeyHash2=</pin>  <!-- Backup key -->
+    </pin-set>
+  </domain-config>
+</network-security-config>
+```
+
+## 3. Root/Jailbreak Detection
+
+```typescript
+import Jailbreak from 'react-native-jailbreak-detector';
+
+async function isDeviceCompromised(): Promise<boolean> {
+  const isRooted = await RootChecker.isRooted();        // Android
+  const isJailbroken = await Jailbreak.isJailbroken(); // iOS
+
+  if (isRooted || isJailbroken) {
+    // Option 1: Block sensitive operations
+    // Option 2: Show warning
+    // Option 3: Disable certain features
+
+    return true;
+  }
+
+  return false;
+}
+
+// Optionally block app from running
+async function initializeApp() {
+  if (await isDeviceCompromised()) {
+    if (appMode === 'secure') {
+      Alert.alert('Security Alert', 'This device appears to be modified. Some features will be disabled.');
+      // Disable sensitive features
+    }
+  }
+}
+```
+
+## 4. Biometric Authentication
+
+```typescript
+import * as LocalAuthentication from 'expo-local-authentication';
+
+async function authenticateWithBiometrics(): Promise<boolean> {
+  // Check if biometric hardware is available
+  const compatible = await LocalAuthentication.hasHardwareAsync();
+  const enrolled = await LocalAuthentication.isEnrolledAsync();
+
+  if (!compatible || !enrolled) {
+    return false;
+  }
+
+  // Authenticate
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage: 'Authenticate to access your data',
+    cancelLabel: 'Cancel',
+    disableDeviceFallback: false,  // Allow passcode if biometric fails
+  });
+
+  return result.success;
+}
+
+// Combine with secure storage
+async function getSecureToken(): Promise<string | null> {
+  const authenticated = await authenticateWithBiometrics();
+  if (!authenticated) return null;
+
+  // Only access keychain after biometric success
+  const credentials = await Keychain.getGenericPassword();
+  return credentials?.password || null;
+}
+```
+
+## 5. Secure Random Number Generation
+
+```typescript
+// ❌ BAD - Math.random() is NOT cryptographically secure
+const token = Math.random().toString(36).substring(2);
+
+// ✅ GOOD - Use crypto-secure
+import * as Crypto from 'expo-crypto';
+
+const randomBytes = await Crypto.getRandomBytesAsync(32);
+const token = Buffer.from(randomBytes).toString('hex');
+
+// iOS native equivalent
+import CryptoKit  // SecRandomCopyBytes
+
+// Android equivalent
+import java.security.SecureRandom
+SecureRandom random = new SecureRandom();
+byte[] bytes = new byte[32];
+random.nextBytes(bytes);
+```
+
+## 6. Deep Link / URL Scheme Security
+
+```typescript
+// ❌ VULNERABLE - All URLs accepted
+const scheme = Linking.getInitialURL();
+// Attacker can craft: myapp://transfer?to=attacker&amount=1000
+
+// ✅ VALIDATE scheme & parameters
+Linking.addEventListener('url', ({ url }) => {
+  if (!url.startsWith('myapp://')) {
+    Log.warn('Suspicious URL scheme blocked');
+    return;
+  }
+
+  const params = new URL(url).searchParams;
+
+  // Validate params
+  const amount = parseFloat(params.get('amount'));
+  if (amount > 1000) {
+    Log.warn('Amount exceeds safety limit');
+    return;
+  }
+
+  // Whitelist allowed actions
+  const action = params.get('action');
+  if (!['view', 'open'].includes(action)) {
+    return;
+  }
+
+  handleDeepLink(params);
+});
+```
+
+## 7. Prevent Screen Capture (Sensitive Screens)
+
+```typescript
+// iOS
+import { usePreventScreenCapture } from 'expo-screen-capture';
+
+function SecureScreen() {
+  usePreventScreenCapture();
+
+  return <View>...</View>;
+}
+
+// Android
+<activity
+  android:windowSoftInputMode="stateAlwaysHidden"
+  android:excludeFromRecents="true"
+  android:configChanges="keyboardHidden|orientation|screenSize"
+  android:hardwareAccelerated="true"
+  android:launchMode="singleTask"
+/>
+```
+
+```typescript
+// Auto-blur sensitive content when app goes background
+import { AppState } from 'react-native';
+
+useEffect(() => {
+  const subscription = AppState.addEventListener('change', (nextState) => {
+    setShouldBlur(nextState === 'background');
+  });
+  return () => subscription.remove();
+}, []);
+```
+
+## 8. Network Security
+
+```typescript
+// ❌ NEVER allow HTTP in production
+axios.get('http://api.myapp.com/data');  // Vulnerable to MITM!
+
+// ✅ HTTPS only with cert pinning
+async function safeFetch(url: string) {
+  // Validate URL
+  if (!url.startsWith('https://')) {
+    throw new Error('HTTPS required');
+  }
+
+  // Configure timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+      // TLS config handled at native level
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+```
+
+## 9. Detect Rooted/Jailbroken + Emulator
+
+```typescript
+import { isJailBroken, isEmulator } from 'react-native-device-info';
+
+async function assessDeviceRisk(): Promise<'low' | 'medium' | 'high'> {
+  const rooted = await isJailBroken();
+  const emulator = await isEmulator();
+  const hasHooks = await detectFrida();  // Custom check for Frida framework
+
+  let risk: 'low' | 'medium' | 'high' = 'low';
+
+  if (rooted) risk = 'high';
+  else if (emulator) risk = 'medium';
+  else if (hasHooks) risk = 'medium';
+
+  return risk;
+}
+```
+
+## 10. Anti-Tampering & Integrity
+
+```typescript
+// Android - verify Play Integrity (or SafetyNet)
+import { usePlayIntegrity } from 'react-native-play-integrity';
+
+const integrityToken = await usePlayIntegrity('AES_GCM');
+
+// Send to server
+await api.post('/verify-device', { integrityToken });
+
+// iOS - DeviceCheck / App Attest
+import { DeviceCheck, DCAppAttestService } from 'react-native-device-check';
+```
+
+## 11. Logging - Auto-redact Sensitive Data
+
+```typescript
+class SafeLogger {
+  static SENSITIVE_KEYS = /password|token|secret|api[_-]?key|ssn|credit/i;
+
+  static shouldRedact(key: string): boolean {
+    return this.SENSITIVE_KEYS.test(key);
+  }
+
+  static safeLog(level: string, msg: any, data: any) {
+    // Auto-redact
+    const safeData = Object.entries(data).reduce((acc, [key, value]) => {
+      acc[key] = this.shouldRedact(key) ? '[REDACTED]' : value;
+      return acc;
+    }, {} as any);
+
+    console[level](msg, safeData);
+  }
+}
+
+// Usage
+SafeLogger.safeLog('error', 'Login failed', {
+  email: 'user@example.com',
+  password: 'secret123',  // Auto-redacted!
+});
+// Output: error Login failed { email: 'user@example.com', password: '[REDACTED]' }
+```
+
+## 12. App Transport Security (ATS) - iOS
+
+```xml
+<!-- Info.plist -->
+<plist>
+  <dict>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+      <!-- Block all HTTP -->
+      <key>NSAllowsArbitraryLoads</key>
+      <false/>
+
+      <!-- Optional: Allow specific cert only -->
+      <key>NSPinnedDomains</key>
+      <array>
+        <dict>
+          <key>NSIncludesSubdomains</key>
+          <true/>
+          <key>NSExceptionDomains</key>
+          <string>api.myapp.com</string>
+          <!-- Pin certificate -->
+        </dict>
+      </array>
+    </dict>
+  </dict>
+</plist>
+```
+
+## Mobile Security Checklist
+
+<Check>
+- [ ] All sensitive data in Keychain/Keystore (not SharedPreferences/AsyncStorage)
+- [ ] Certificate pinning cho production APIs
+- [ ] HTTPS only (ATS enabled trên iOS, network_security_config trên Android)
+- [ ] Root/jailbreak detection cho sensitive apps
+- [ ] Biometric authentication cho sensitive actions
+- [ ] Cryptographically secure RNG (expo-crypto, SecureRandom, SecRandom)
+- [ ] Deep link validation (scheme + params)
+- [ ] Screen capture prevention cho sensitive screens
+- [ ] Blur content khi app go background
+- [ ] Auto-redact sensitive data trong logs
+- [ ] Device integrity verification (Play Integrity/App Attest)
+- [ ] Security headers nếu có web view
+- [ ] Minimum SDK version enforcement
+- [ ] Code obfuscation (ProGuard/R8 cho Android)
+- [ ] Jailbreak/root detection cho high-security apps
+</Check>

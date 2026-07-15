@@ -1,0 +1,120 @@
+---
+title: "Python cơ bản"
+description: "Cú pháp Python cần thiết cho phân tích dữ liệu"
+icon: "book-open"
+---
+
+Ôn nhanh các cú pháp Python cốt lõi bạn cần nắm vững trước khi vào NumPy và Pandas.
+
+## Biến và Kiểu dữ liệu
+
+```python
+# Số
+age = 25
+price = 99.99
+count = 1_000_000
+
+# Chuỗi
+name = "Nguyễn Văn A"
+message = f"Xin chào {name}, bạn {age} tuổi"
+
+# Boolean
+is_active = True
+
+# Danh sách (List)
+scores = [85, 92, 78, 90]
+scores.append(88)
+
+# Từ điển (Dictionary)
+user = {
+    "name": "An",
+    "age": 25,
+    "email": "an@example.com"
+}
+```
+
+## Vòng lặp và Điều kiện
+
+<CodeGroup>
+```python Điều kiện
+score = 85
+
+if score >= 90:
+    grade = "A"
+elif score >= 80:
+    grade = "B"
+else:
+    grade = "C"
+```
+
+```python Vòng lặp
+# Lặp qua danh sách
+for item in [1, 2, 3]:
+    print(item)
+
+# Lặp với index
+for i, item in enumerate(['a', 'b', 'c']):
+    print(f"{i}: {item}")
+
+# Vòng lặp while
+count = 0
+while count < 3:
+    print(count)
+    count += 1
+```
+</CodeGroup>
+
+## Hàm
+
+```python
+def calculate_average(numbers):
+    """Tính trung bình cộng của một list số."""
+    if not numbers:
+        return 0
+    return sum(numbers) / len(numbers)
+
+# Gọi hàm
+avg = calculate_average([85, 92, 78])
+print(f"Trung bình: {avg}")  # Trung bình: 85.0
+```
+
+## List Comprehension
+
+```python
+# Cách truyền thống
+squares = []
+for x in range(10):
+    squares.append(x ** 2)
+
+# List comprehension — gọn hơn
+squares = [x ** 2 for x in range(10)]
+
+# Có điều kiện
+evens = [x for x in range(20) if x % 2 == 0]
+```
+
+## Import modules
+
+```python
+import numpy as np  # Import với alias
+from pandas import DataFrame  # Import cụ thể
+import matplotlib.pyplot as plt
+```
+
+<Tip>
+Đây là những kiến thức Python tối thiểu cần thiết. Nếu bạn đã quen với Python, có thể bỏ qua module này và vào NumPy/Pandas ngay.
+</Tip>
+
+## Bài tập thực hành
+
+<Steps>
+  <Step title="Bài 1">
+    Viết hàm nhận vào một list số, trả về số lớn nhất và nhỏ nhất.
+  </Step>
+  <Step title="Bài 2">
+    Đọc file CSV đơn giản (dùng module `csv`) — in 5 dòng đầu tiên.
+  </Step>
+  <Step title="Bài 3">
+    Viết hàm đếm số lần xuất hiện của mỗi từ trong một đoạn văn.
+  </Step>
+</Steps>

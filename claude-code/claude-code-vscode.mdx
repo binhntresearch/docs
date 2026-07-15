@@ -1,0 +1,64 @@
+---
+title: "Claude Code trên VS Code"
+description: "Hướng dẫn cài đặt và sử dụng extension Claude Code trong Visual Studio Code"
+icon: "code"
+---
+
+Claude Code là công cụ AI của Anthropic tích hợp trực tiếp vào VS Code, cho phép bạn chat, chỉnh sửa code và thực hiện các tác vụ lập trình ngay trong editor mà không cần chuyển sang terminal riêng.
+
+## Yêu cầu
+
+<Check>
+- Visual Studio Code phiên bản 1.99 trở lên
+- Tài khoản Claude (gói Pro, Max hoặc API key)
+- Node.js v18 trở lên (để dùng Claude Code CLI kèm theo)
+</Check>
+
+## Cài đặt
+
+<Steps>
+  <Step title="Cài extension từ VS Code Marketplace">
+    <Tabs>
+      <Tab title="Qua giao diện VS Code">
+        1. Mở VS Code
+        2. Nhấn `Ctrl+Shift+X` (Windows/Linux) hoặc `Cmd+Shift+X` (macOS) để mở Extensions
+        3. Tìm kiếm "Claude Code"
+        4. Chọn extension của Anthropic và nhấn **Install**
+      </Tab>
+      <Tab title="Qua Command Palette">
+        1. Nhấn `Ctrl+Shift+P` / `Cmd+Shift+P` để mở Command Palette
+        2. Gõ "Extensions: Install Extensions" và nhấn Enter
+        3. Tìm "Claude Code" rồi cài đặt
+      </Tab>
+    </Tabs>
+  </Step>
+  <Step title="Cài Claude Code CLI">
+    Mở cửa sổ Bash (Windows) hoặc Terminal (macOS). Extension yêu cầu CLI được cài toàn cục:
+
+    ```bash
+    npm install -g @anthropic-ai/claude-code
+    ```
+
+    Kiểm tra cài đặt thành công:
+
+    ```bash
+    claude --version
+    ```
+  </Step>
+  <Step title="Đăng nhập tài khoản">
+    Mở terminal trong VS Code (`` Ctrl+` ``) rồi chạy lệnh đăng nhập theo hướng dẫn trên màn hình.
+
+    Sau khi xác thực thành công, session được lưu lại và bạn không cần đăng nhập lại ở những lần sau.
+  </Step>
+  <Step title="Mở Claude Code trong VS Code">
+    Sau khi cài xong, bạn sẽ thấy icon Claude xuất hiện trên thanh Activity Bar bên trái.
+
+    - Nhấn vào icon đó để mở Claude Code Panel
+    - Hoặc dùng phím tắt `Ctrl+Shift+C` hoặc `Cmd+Shift+C`
+  </Step>
+  <Step title="Kiểm tra hoạt động">
+    Bạn gõ thử: `Hello`
+
+    Nếu Claude phản hồi đúng nội dung, bạn đã cài đặt thành công.
+  </Step>
+</Steps>

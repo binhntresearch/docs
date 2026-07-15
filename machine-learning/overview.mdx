@@ -1,0 +1,94 @@
+---
+title: "Tổng quan Machine Learning"
+description: "ML là gì, các loại ML, workflow và ecosystem"
+icon: "brain"
+---
+
+Machine Learning (ML) là **subset của AI** — cho máy tính khả năng **học từ dữ liệu** mà không cần lập trình cụ thể cho từng trường hợp.
+
+## ML là gì?
+
+<Callout type="info">
+Thay vì code `if-else` cho mọi case → bạn cung cấp **dữ liệu + algorithm** → máy tính **tự tìm patterns** và đưa ra dự đoán.
+</Callout>
+
+## 3 loại Machine Learning chính
+
+<Tabs>
+  <Tab title="Supervised">
+    - **Dữ liệu có label** (input → output đã biết)
+    - Học mapping từ input → output
+    - Algorithms: Linear Regression, Decision Tree, SVM, Neural Networks
+    - **Examples:** Email spam detection, Image classification, House price prediction
+  </Tab>
+  <Tab title="Unsupervised">
+    - **Dữ liệu không label**
+    - Tìm patterns/structure trong data
+    - Algorithms: K-Means, DBSCAN, PCA, Autoencoder
+    - **Examples:** Customer segmentation, Anomaly detection, Dimensionality reduction
+  </Tab>
+  <Tab title="Reinforcement">
+    - Agent học qua trial-and-error
+    - Reward/penalty-based learning
+    - Algorithms: Q-Learning, PPO, DQN
+    - **Examples:** Game playing (AlphaGo), Robotics, Autonomous driving
+  </Tab>
+</Tabs>
+
+## ML Workflow
+
+```
+1. Define Problem     → Goal: predict, classify, cluster?
+    ↓
+2. Collect Data        → Historical, public datasets, APIs
+    ↓
+3. Explore & Clean     → Pandas, visualize, handle missing
+    ↓
+4. Feature Engineering → Encode, scale, select, create
+    ↓
+5. Split Data          → Train / Validation / Test
+    ↓
+6. Train Model         → Fit algorithm on training data
+    ↓
+7. Evaluate            → Metrics trên validation set
+    ↓
+8. Tune                → Hyperparameter search
+    ↓
+9. Test                → Final evaluation trên test set
+    ↓
+10. Deploy             → Production inference
+```
+
+## Key Concepts
+
+| Concept | Mô tả |
+|---|---|
+| **Features** | Input variables (X) — columns of dataset |
+| **Target** | What to predict (y) — label for supervised |
+| **Training** | Algorithm learns from data |
+| **Inference** | Make predictions trên new data |
+| **Overfitting** | Model quá fit training data → test kém |
+| **Underfitting** | Model quá đơn giản → không capture patterns |
+| **Generalization** | Ability to work trên unseen data |
+
+## Popular Algorithms
+
+| Task | Algorithm | Use case |
+|---|---|---|
+| Regression | Linear, Ridge, Lasso | Predict continuous values |
+| Classification | Logistic, SVM, Random Forest | Predict categories |
+| Clustering | K-Means, DBSCAN | Group similar data |
+| Dimensionality Reduction | PCA, t-SNE | Reduce features |
+| Ensemble | XGBoost, LightGBM, CatBoost | Best accuracy |
+
+## Ecosystem — Python Libraries
+
+| Library | Purpose |
+|---|---|
+| **scikit-learn** | Classical ML — classification, regression, clustering |
+| **XGBoost / LightGBM** | Gradient boosting (best for tabular) |
+| **TensorFlow / PyTorch** | Deep learning |
+| **Hugging Face** | Pre-trained models, NLP, vision |
+| **Optuna** | Hyperparameter optimization |
+| **MLflow** | Experiment tracking, model registry |
+| **ONNX** | Model format for cross-platform deployment |

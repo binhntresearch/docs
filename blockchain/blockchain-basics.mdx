@@ -1,0 +1,89 @@
+---
+title: "Kiến thức nền tảng"
+description: "Blockchain, cryptography, consensus mechanisms và kiến thức cần thiết"
+icon: "graduation-cap"
+---
+
+Trước khi viết code, bạn cần hiểu cách blockchain hoạt động ở cấp độ khái niệm.
+
+## Block trong blockchain
+
+```
+┌─────────────────────┐
+│      Block #100     │
+├─────────────────────┤
+│ Previous Hash: 0x3f │
+│ Timestamp: 12:34:56│
+│ Nonce: 23841        │
+│ Merkle Root: 0xabc  │
+├─────────────────────┤
+│ Transaction 1       │
+│ Transaction 2       │
+│ Transaction 3       │
+├─────────────────────┤
+│ Hash: 0x7de...      │
+└─────────────────────┘
+        ↓ kết nối
+┌─────────────────────┐
+│      Block #101     │
+│ Previous Hash: 0x7de│
+│ ...                 │
+└─────────────────────┘
+```
+
+## Hash Function
+
+<Callout type="info">
+Hash function biến bất kỳ input nào thành output fixed-length (256-bit cho SHA-256). Không thể đảo ngược — và chỉ cần thay đổi 1 bit trong input sẽ tạo ra hash hoàn toàn khác.
+</Callout>
+
+```python
+# Demo hash
+import hashlib
+
+data = "Hello, Blockchain!"
+hash_result = hashlib.sha256(data.encode()).hexdigest()
+print(f"Hash: {hash_result}")
+# Hash: 3c4a16b8637a81b69a32c4e0d8f5a2b...
+
+# Thay đổi 1 ký tự → hash hoàn toàn khác
+data2 = "Hello, Blockchain?"
+hash2 = hashlib.sha256(data2.encode()).hexdigest()
+print(f"Hash2: {hash2}")
+```
+
+## Consensus Mechanisms
+
+<Tabs>
+  <Tab title="Proof of Work (PoW)">
+    - Miner cạnh tranh giải câu đố toán học
+    - Ai giải được trước → đào block tiếp theo → nhận reward
+    - An toàn nhưng tốn năng lượng
+    - Bitcoin vẫn sử dụng PoW
+  </Tab>
+  <Tab title="Proof of Stake (PoS)">
+    - Validator stake ETH (khóa 32 ETH)
+    - Validator được chọn ngẫu nhiên để xác thực block
+    - Tiết kiệm 99.95% năng lượng so với PoW
+    - **Ethereum đã chuyển sang PoS từ Sept 2022 (The Merge)**
+  </Tab>
+  <Tab title="Delegated PoS (DPoS)">
+    - Token holder bầu delegate để xác thực
+    - Delegate chạy node và xác nhận giao dịch
+    - Nhanh hơn PoS truyền thống
+    - EOS, Tron sử dụng DPoS
+  </Tab>
+</Tabs>
+
+## Crypto Wallet
+
+| Ví | Loại | Phù hợp |
+|---|---|---|
+| **MetaMask** | Browser extension | DApp development |
+| **Ledger** | Hardware wallet | Lưu trữ long-term |
+| **Trust Wallet** | Mobile app | Mobile usage |
+| **Phantom** | Browser extension | Solana ecosystem |
+
+<Tip>
+MetaMask là ví phổ biến nhất cho DApp development — tích hợp trực tiếp với Hardhat và ethers.js.
+</Tip>

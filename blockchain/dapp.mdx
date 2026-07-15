@@ -1,0 +1,175 @@
+---
+title: "Xây dựng DApp"
+description: "Kết nối Frontend với Smart Contract — Next.js + ethers.js + MetaMask"
+icon: "layer-group"
+---
+
+DApp (Decentralized Application) = Frontend (React/Next.js) + Smart Contract (Solidity) + Wallet (MetaMask).
+
+## Kiến trúc DApp
+
+```
+┌───────────────────────────────────┐
+│          Frontend (Next.js)        │
+│   ├── React Components            │
+│   ├── ethers.js (read/write)      │
+│   └── Wallet Context              │
+└───────────────┬───────────────────┘
+                │ RPC (Infura/Alchemy)
+                ↓
+┌───────────────────────────────────┐
+│        Ethereum Blockchain         │
+│   ├── Smart Contract (Solidity)   │
+│   └── State (on-chain)            │
+└───────────────────────────────────┘
+```
+
+## Project Structure
+
+```
+my-dapp/
+├── app/                    ← Next.js pages
+│   ├── page.tsx            ← Landing page
+│   ├── dashboard/
+│   │   └── page.tsx        ← DApp dashboard
+│   └── layout.tsx
+│
+├── components/
+│   ├── ConnectWallet.tsx   ← Nút kết nối wallet
+│   ├── TokenBalance.tsx    ← Hiển thị số dư token
+│   └── TransferForm.jsx    ← Form chuyển token
+│
+├── contracts/              ← Smart contracts (Hardhat)
+│   └── MyToken.sol
+│
+├── lib/
+│   ├── contract.ts         ← ABI + address config
+│   ├── provider.ts         ← ethers.js provider
+│   └── wallet.ts           ← Wallet context
+│
+├── hardhat.config.js
+└── .env.local
+```
+
+## Wallet Context
+
+```typescript
+// lib/wallet.ts
+'use client';
+import { createContext, useContext, useState } from 'react';
+import { ethers } from 'ethers';
+
+interface WalletContextType {
+  account: string | null;
+  provider: ethers.BrowserProvider | null;
+  signer: ethers.Signer | null;
+  connect: () => Promise<void>;
+  disconnect: () => void;
+}
+
+const WalletContext = createContext<WalletContextType>({} as any);
+
+export function WalletProvider({ children }) {
+  const [account, setAccount] = useState<string | null>(null);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+
+  const connect = async () => {
+    if (!window.ethereum) return alert('Cài MetaMask!');
+    const prov = new ethers.BrowserProvider(window.ethereum);
+    await prov.send('eth_requestAccounts', []);
+    const sig = await prov.getSigner();
+    const addr = await sig.getAddress();
+
+    setProvider(prov);
+    setSigner(sig);
+    setAccount(addr);
+  };
+
+  const disconnect = () => {
+    setAccount(null);
+    setProvider(null);
+    setSigner(null);
+  };
+
+  return (
+    <WalletContext.Provider value={{ account, provider, signer, connect, disconnect }}>
+      {children}
+    </WalletContext.Provider>
+  );
+}
+
+export const useWallet = () => useContext(WalletContext);
+```
+
+## Component mẫu
+
+```tsx
+// components/ConnectWallet.tsx
+'use client';
+import { useWallet } from '@/lib/wallet';
+
+export function ConnectWallet() {
+  const { account, connect, disconnect } = useWallet();
+
+  if (account) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-gray-600">
+          {account.slice(0, 6)}...{account.slice(-4)}
+        </span>
+        <button onClick={disconnect} className="btn-outline">
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={connect} className="btn-primary">
+      🔗 Connect Wallet
+    </button>
+  );
+}
+```
+
+## Hook đọc contract
+
+```typescript
+// hooks/useContract.ts
+import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+import { useWallet } from '@/lib/wallet';
+import { CONTRACT_ADDRESS, ABI } from '@/lib/contract';
+
+export function useContract() {
+  const { signer, provider } = useWallet();
+  const [contract, setContract] = useState(null);
+
+  useEffect(() => {
+    if (signer) {
+      const c = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      setContract(c);
+    }
+  }, [signer]);
+
+  const read = async (method: string, ...args) => {
+    if (!provider) return null;
+    const c = new ethers.Contract(CONTRACT_ADDRESS, ABI, provider);
+    return await c[method](...args);
+  };
+
+  const write = async (method: string, ...args) => {
+    if (!contract) return null;
+    const tx = await contract[method](...args);
+    await tx.wait();
+    return tx;
+  };
+
+  return { contract, read, write };
+}
+```
+
+<Tip>
+Frontend chỉ gọi view functions qua provider (free). Chỉ dùng signer khi cần write state (tốn gas).
+</Tip>

@@ -1,0 +1,166 @@
+---
+title: "Nền tảng RWA"
+description: "Securitize, Centrifuge, Maple Finance và ecosystem RWA"
+icon: "building"
+---
+
+Khám phá các nền tảng hàng đầu đang xây dựng infrastructure cho RWA — bạn có thể tích hợp hoặc fork từ các protocol có sẵn.
+
+## Tổng quan ecosystem
+
+| Nền tảng | Focus | TVL | Chain |
+|---|---|---|---|
+| **Securitize** | Security token issuance | $500M+ | Ethereum |
+| **Centrifuge** | Private credit | $500M+ | Ethereum, Polkadot |
+| **Maple Finance** | Institutional lending | $400M+ | Ethereum, Solana |
+| **Ondo Finance** | Tokenized treasuries | $1B+ | Ethereum |
+| **Goldfinch** | Emerging market credit | $100M+ | Ethereum |
+| **RealT** | Real estate | $100M+ | Ethereum |
+| **Backed Finance** | Tokenized ETFs | $100M+ | Ethereum, Base |
+
+## Securitize
+
+Securitize là nền tảng **all-in-one** cho RWA — từ issuance đến compliance đến secondary trading.
+
+<Tabs>
+  <Tab title="Issuer Flow">
+    1. Upload legal documents (PPM, subscription agreement)
+    2. Configure compliance rules (KYC, accreditation, limits)
+    3. Deploy ERC-3643 token contract
+    4. Investor onboarding → KYC verification
+    5. Mint & distribute tokens
+    6. Enable secondary trading
+  </Tab>
+  <Tab title="SDK Integration">
+    ```javascript
+    import { SecuritizeSDK } from '@securitize/sdk';
+
+    const sdk = new SecuritizeSDK({ apiKey: process.env.SECURITIZE_KEY });
+
+    // Check investor KYC status
+    const kyc = await sdk.investor.getKYCStatus(investorAddress);
+    console.log('KYC Status:', kyc.status);
+
+    // Whitelist investor
+    await sdk.token.whitelistInvestor(tokenId, investorAddress);
+
+    // Get cap table
+    const capTable = await sdk.token.getCapTable(tokenId);
+    ```
+  </Tab>
+</Tabs>
+
+## Centrifuge
+
+Centrifuge cho phép **token hóa private credit** — các khoản vay thực tế được thế chấp bằng tài sản thực.
+
+```solidity
+// Centrifuge Pool — cho vay với collateral là real-world assets
+contract CentrifugePool {
+    struct Loan {
+        address borrower;
+        uint256 amount;
+        uint256 interestRate;
+        uint256 maturityDate;
+        address collateralAsset; // NFT representing real asset
+        bool isActive;
+    }
+
+    mapping(uint256 => Loan) public loans;
+    mapping(address => uint256) public investorBalance;
+
+    function originateLoan(
+        address borrower,
+        uint256 amount,
+        uint256 interestRate,
+        uint256 maturityDate,
+        address collateral
+    ) external onlyIssuer {
+        loans[loanId] = Loan(borrower, amount, interestRate, maturityDate, collateral, true);
+        // Borrower receives stablecoin (DAI/USDC)
+    }
+
+    function repay(uint256 loanId, uint256 amount) external {
+        require(msg.sender == loans[loanId].borrower);
+        // Repay with interest
+    }
+}
+```
+
+## Maple Finance
+
+Maple Finance chuyên cho vay **unsecured** cho institutions — reputation-based lending.
+
+```solidity
+// Maple-style lending pool
+contract InstitutionalLending {
+    struct LenderPool {
+        address delegate;          // Credit delegate
+        uint256 totalDeposits;
+        uint256 totalBorrowed;
+        uint256 yield;             // Current APY
+        mapping(address => uint256) deposits;
+    }
+
+    function deposit(uint256 amount) external {
+        pools[poolId].deposits[msg.sender] += amount;
+        pools[poolId].totalDeposits += amount;
+    }
+
+    function borrow(uint256 amount) external {
+        require(hasDelegation(msg.sender, poolId), "No delegation");
+        // No collateral needed — reputation-based
+        pools[poolId].totalBorrowed += amount;
+    }
+}
+```
+
+## Ondo Finance
+
+Tokenized Treasury funds — phổ biến nhất 2024-2025.
+
+```javascript
+// Ondo USDY — yield-bearing stablecoin backed by US Treasuries
+// 1 USDY = 1 US Treasury bill + accrued yield
+
+const usdy = await ethers.getContractAt('USDY', '0xA0b8...');
+
+// Mint bằng USDC
+const tx = await usdy.mintWithUSDC(userAddress, amount);
+await tx.wait();
+
+// Yield tự động accrue
+const balance = await usdy.balanceOf(userAddress);
+// balance tăng theo thời gian nhờ yield
+```
+
+## So sánh các nền tảng
+
+<Tip>
+- **Cần phát hành security token?** → Securitize
+- **Cho vay private credit?** → Centrifuge hoặc Maple
+- **Tokenized treasuries?** → Ondo Finance
+- **Real estate?** → RealT
+- **MVP test nhanh?** → Fork OpenZeppelin + custom compliance
+</Tip>
+
+## Tích hợp API
+
+```javascript
+// Example: Verify investor eligibility trước khi cho mua token
+async function verifyAndMint(investorAddress, amount) {
+  // 1. Check KYC via Securitize API
+  const kycStatus = await fetch(`https://api.securitize.io/kyc/${investorAddress}`);
+  if (!kycStatus.approved) throw new Error('KYC not approved');
+
+  // 2. Check accreditation
+  const accreditation = await fetch(`https://api.securitize.io/accreditation/${investorAddress}`);
+  if (!accreditation.accredited) throw new Error('Not accredited');
+
+  // 3. Mint token on-chain
+  const tx = await securityToken.mint(investorAddress, amount);
+  await tx.wait();
+
+  return tx.hash;
+}
+```

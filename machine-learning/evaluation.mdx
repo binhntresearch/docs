@@ -1,0 +1,206 @@
+---
+title: "Model Evaluation"
+description: "Metrics, cross-validation, overfitting, hyperparameter tuning"
+icon: "chart-mixed"
+---
+
+Đánh giá model đúng cách = khác biệt giữa **model tốt production** và **model vô dụng**.
+
+## Classification Metrics
+
+```python
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    classification_report, confusion_matrix, roc_auc_score
+)
+import numpy as np
+
+y_true = [0, 1, 1, 0, 1, 1, 0, 1]
+y_pred = [0, 1, 1, 0, 0, 1, 1, 1]
+
+# Accuracy
+print(f"Accuracy: {accuracy_score(y_true, y_pred):.3f}")
+
+# For imbalanced classes
+print(f"Precision: {precision_score(y_true, y_pred):.3f}")  # TP / (TP + FP)
+print(f"Recall: {recall_score(y_true, y_pred):.3f}")        # TP / (TP + FN)
+print(f"F1: {f1_score(y_true, y_pred):.3f}")              # Harmonic mean
+
+# Comprehensive
+print(classification_report(y_true, y_pred))
+
+# Confusion matrix
+cm = confusion_matrix(y_true, y_pred)
+print(cm)
+
+# ROC AUC (for binary classification)
+y_proba = np.array([0.1, 0.9, 0.8, 0.2, 0.3, 0.7, 0.4, 0.6])
+print(f"ROC AUC: {roc_auc_score(y_true, y_proba):.3f}")
+```
+
+## Regression Metrics
+
+```python
+from sklearn.metrics import (
+    mean_squared_error, mean_absolute_error, r2_score
+)
+import numpy as np
+
+y_true = np.array([100, 200, 300, 400, 500])
+y_pred = np.array([110, 195, 305, 390, 510])
+
+# MSE — penalizes large errors
+mse = mean_squared_error(y_true, y_pred)
+print(f"MSE: {mse:.2f}")
+
+# RMSE — same units as target
+rmse = np.sqrt(mse)
+print(f"RMSE: {rmse:.2f}")
+
+# MAE — robust to outliers
+mae = mean_absolute_error(y_true, y_pred)
+print(f"MAE: {mae:.2f}")
+
+# R² — variance explained
+r2 = r2_score(y_true, y_pred)
+print(f"R²: {r2:.4f}")  # 1.0 = perfect, 0 = baseline
+```
+
+## Cross-Validation
+
+```python
+from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold
+
+# 5-fold CV (default)
+scores = cross_val_score(model, X, y, cv=5, scoring='accuracy')
+print(f"CV Accuracy: {scores.mean():.4f} ± {scores.std():.4f}")
+
+# Stratified (for classification — preserves class ratio)
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+scores = cross_val_score(model, X, y, cv=skf, scoring='accuracy')
+
+# Repeated K-Fold (for small datasets)
+from sklearn.model_selection import RepeatedKFold
+rkf = RepeatedKFold(n_splits=5, n_repeats=3, random_state=42)
+scores = cross_val_score(model, X, y, cv=rkf)
+```
+
+## Bias-Variance Tradeoff
+
+| Concept | Underfitting | Overfitting |
+|---|---|---|
+| **Train error** | High | Low |
+| **Test error** | High | High |
+| **Bias** | High | Low |
+| **Variance** | Low | High |
+| **Solution** | More features, complex model | More data, regularization |
+
+## Diagnosing Overfitting
+
+```python
+import matplotlib.pyplot as plt
+
+# Plot training vs validation error
+train_errors = [0.3, 0.18, 0.12, 0.08, 0.05, 0.04, 0.03]
+val_errors = [0.3, 0.25, 0.22, 0.21, 0.23, 0.26, 0.31]
+
+plt.plot(train_errors, label='Training Error')
+plt.plot(val_errors, label='Validation Error')
+plt.xlabel('Epoch / Model Complexity')
+plt.ylabel('Error')
+plt.legend()
+plt.title('Bias-Variance Tradeoff')
+plt.show()
+```
+
+## Regularization
+
+```python
+# L1 (Lasso) + L2 (Ridge)
+from sklearn.linear_model import Ridge, Lasso
+from sklearn.ensemble import RandomForestClassifier
+
+# L2 regularization
+model = Ridge(alpha=1.0)  # Penalize large weights
+
+# Random Forest regularization
+rf = RandomForestClassifier(
+    n_estimators=100,
+    max_depth=10,             # Limit depth
+    min_samples_leaf=5,       # Min samples per leaf
+    max_features='sqrt'       # Limit features per split
+)
+```
+
+## Hyperparameter Tuning
+
+```python
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+
+# Grid Search — exhaustive
+param_grid = {
+    'n_estimators': [100, 200, 500],
+    'max_depth': [3, 5, 10, None],
+    'min_samples_split': [2, 5, 10]
+}
+
+grid = GridSearchCV(
+    estimator=RandomForestClassifier(),
+    param_grid=param_grid,
+    cv=5,
+    scoring='accuracy',
+    n_jobs=-1
+)
+grid.fit(X_train, y_train)
+print(f"Best params: {grid.best_params_}")
+print(f"Best score: {grid.best_score_:.4f}")
+```
+
+```python
+# Random Search — faster for large spaces
+from scipy.stats import randint
+
+param_distributions = {
+    'n_estimators': randint(50, 500),
+    'max_depth': randint(3, 20),
+    'min_samples_split': randint(2, 20)
+}
+
+random_search = RandomizedSearchCV(
+    RandomForestClassifier(),
+    param_distributions,
+    n_iter=50,
+    cv=5,
+    random_state=42
+)
+random_search.fit(X_train, y_train)
+```
+
+## Learning Curves
+
+```python
+from sklearn.model_selection import learning_curve
+
+train_sizes, train_scores, val_scores = learning_curve(
+    RandomForestClassifier(),
+    X, y,
+    cv=5,
+    train_sizes=np.linspace(0.1, 1.0, 10),
+    n_jobs=-1
+)
+
+train_mean = train_scores.mean(axis=1)
+val_mean = val_scores.mean(axis=1)
+
+plt.plot(train_sizes, train_mean, label='Training')
+plt.plot(train_sizes, val_mean, label='Validation')
+plt.xlabel('Training Size')
+plt.ylabel('Score')
+plt.legend()
+plt.title('Learning Curve')
+plt.show()
+```
+
+<Tip>
+Always evaluate on **held-out test set** cuối cùng, sau khi tất cả hyperparameter tuning. Test set chỉ dùng 1 lần cuối — không bao giờ dùng để tune.
+</Tip>

@@ -1,0 +1,132 @@
+---
+title: "Dự án CRM"
+description: "Xây dựng ứng dụng quản lý quan hệ khách hàng — contacts, deals, pipeline"
+icon: "handshake"
+---
+
+Dự án xây dựng ứng dụng CRM (Customer Relationship Management) — quản lý contacts, deals, pipeline bán hàng với Next.js + Firebase.
+
+## Tổng quan tính năng
+
+| Tính năng | Mô tả |
+|---|---|
+| **Contacts** | Danh sách khách hàng, thông tin chi tiết, lịch sử tương tác |
+| **Deals** | Giao dịch (deal), giá trị, trạng thái, người phụ trách |
+| **Pipeline** | Kanban board hiển thị deals theo giai đoạn |
+| **Dashboard** | Thống kê doanh thu, conversion rate, hoạt động gần đây |
+| **Search & Filter** | Tìm kiếm khách hàng, lọc theo stage, priority, assignee |
+
+## Pipeline stages
+
+```
+Lead → Qualified → Proposal → Negotiation → Closed Won / Closed Lost
+```
+
+## Cấu trúc Firestore
+
+```
+📁 Firestore
+├── 👥 contacts/
+│   ├── contact_001/
+│   │   ├── name: "Nguyễn Văn A"
+│   │   ├── email: "a@company.com"
+│   │   ├── phone: "0901234567"
+│   │   ├── company: "ABC Corp"
+│   │   ├── assigneeId: "user_001"
+│   │   └── notes: "Interested in Enterprise plan"
+│   │
+│   └── 💬 interactions/ (subcollection)
+│       ├── interaction_001/
+│       │   ├── type: "call"
+│       │   ├── content: "Discussed pricing"
+│       │   └── createdAt: Timestamp
+│
+├── 💰 deals/
+│   ├── deal_001/
+│   │   ├── title: "ABC Corp — Enterprise Plan"
+│   │   ├── value: 120000000 (VNĐ)
+│   │   ├── stage: "negotiation"
+│   │   ├── contactId: "contact_001"
+│   │   ├── assigneeId: "user_001"
+│   │   ├── expectedCloseDate: Date
+│   │   └── createdAt: Timestamp
+│
+└── 📊 reports/ (Cloud Functions tạo)
+    ├── monthly-2026-07/
+    │   ├── totalRevenue: 500000000
+    │   ├── dealsWon: 12
+    │   └── conversionRate: 0.35
+```
+
+## Xây dựng từng phần
+
+<Steps>
+  <Step title="Setup & Contacts CRUD">
+    ```
+    Tạo Next.js 15 + Firebase + shadcn/ui.
+    Tạo trang /dashboard/contacts hiển thị bảng contacts.
+    Columns: Name, Email, Company, Assignee, Last Activity.
+    Modal thêm/sửa contact, dialog xác nhận xóa.
+    Dữ liệu realtime từ Firestore collection 'contacts'.
+    ```
+  </Step>
+  <Step title="Deals CRUD">
+    ```
+    Tạo trang /dashboard/deals với bảng deals.
+    Columns: Title, Value (format VNĐ), Stage (badge màu),
+    Contact, Assignee, Expected Close Date.
+    ```
+  </Step>
+  <Step title="Kanban Pipeline">
+    ```
+    Tạo trang /dashboard/pipeline hiển thị deals dạng Kanban board.
+    5 cột: Lead, Qualified, Proposal, Negotiation, Won/Lost.
+    Kéo thả deal giữa các cột để đổi stage.
+    Dùng @hello-pangea/dnd cho drag-and-drop.
+    ```
+  </Step>
+  <Step title="Dashboard & Thống kê">
+    ```
+    Tạo /dashboard với:
+    - Total Deals value (sum deals có stage != 'lost')
+    - Deals by stage (bar chart)
+    - Deals closing this month (list)
+    - Recent activities (interactions gần nhất)
+    ```
+  </Step>
+  <Step title="Interactions & Timeline">
+    ```
+    Trang chi tiết contact có tab Timeline hiển thị lịch sử tương tác.
+    Các loại: call, email, meeting, note.
+    Cloud Function: khi deal stage thay đổi → tạo interaction tự động.
+    ```
+  </Step>
+  <Step title="Security Rules & Deploy">
+    Viết rules phân quyền theo role + team. Deploy lên Vercel.
+  </Step>
+</Steps>
+
+## Prompt mẫu — Kanban Pipeline
+
+```
+Tạo trang /dashboard/pipeline hiển thị Kanban board cho deals.
+
+Hiển thị:
+- 5 cột: Lead, Qualified, Proposal, Negotiation, Closed Won
+- Mỗi cột hiển thị số deals và tổng giá trị
+- Mỗi deal card hiển thị: title, giá trị (VNĐ), contact name,
+  ngày expected close
+- Kéo deal giữa cột để đổi stage (drag and drop)
+
+Behavior:
+- Kéo xong → cập nhật deal.stage trong Firestore
+- Thêm interaction tự động khi đổi stage
+- Realtime: khi deal thay đổi → cập nhật ngay trên board
+- Lọc theo assignee trên header
+
+Thư viện: @hello-pangea/dnd cho drag-and-drop
+```
+
+<Tip>
+Dự án CRM là cơ hội tốt để thực hành **Kanban board** — một pattern rất phổ biến trong các ứng dụng quản lý hiện đại.
+</Tip>

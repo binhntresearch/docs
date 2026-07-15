@@ -1,0 +1,146 @@
+---
+title: "Web3 Social Network"
+description: "Xây dựng mạng xã hội phi tập trung với Lens Protocol hoặc Farcaster"
+icon: "users"
+---
+
+Web3 Social Networks cho phép user **sở hữu nội dung** của họ — không bị khóa tài khoản, không bị thao túng thuật toán.
+
+## So sánh Web2 vs Web3 Social
+
+| Web2 | Web3 |
+|---|---|
+| Platform owns user data | User owns content (NFT) |
+| Algorithm controls feed | You choose your feed |
+| Account suspension | Can't be censored |
+| Monetization for platform | Monetization for creator |
+| Ads-driven | Token-incentivized |
+
+## Lens Protocol
+
+Lens là giao thức social graph phi tập trung trên Polygon — user sở hữu profile NFT và content NFT.
+
+### Profile NFT
+
+```solidity
+// User có 1 profile NFT duy nhất
+const profile = await lensHub.createProfile({
+  to: '0xUserAddress',
+  handle: 'alice.lens',
+  followModule: zeroAddress,
+  followNFTURI: ''
+});
+
+// Set metadata cho profile
+await lensHub.setProfileMetadataURI(profileId, 'ipfs://metadata...');
+```
+
+### Publish Post
+
+```solidity
+const post = await lensHub.post({
+  profileId: profileId,
+  contentURI: 'ipfs://QmPostContent...',
+  collectModule: emptyCollectModule.address,
+  collectModuleInitData: [],
+  referenceModule: zeroAddress,
+  referenceModuleInitData: []
+});
+
+// Post là NFT — user owns it
+```
+
+### Follow
+
+```solidity
+// Follow 1 profile
+await lensHub.follow([profileToFollow, []]);
+
+// Unfollow
+await lensHub.unfollow(profileToFollow);
+```
+
+## Farcaster
+
+Farcaster là social graph phi tập trung — user có **FID** (Farcaster ID).
+
+```javascript
+// Cast — message on Farcaster
+import { createClient } from '@farcaster/hub-nodejs';
+
+const client = createClient();
+
+const cast = await client.submitCast({
+  text: 'Hello Farcaster!',
+  fid: 1234,
+  network: 'mainnet'
+});
+```
+
+## Decentralized Identity Integration
+
+```javascript
+import { ComposeClient } from '@composedb/client';
+
+const compose = new ComposeClient({ ceramic: 'https://ceramic-clay.3boxlabs.com' });
+
+// Define schema cho social profile
+const profile = await compose.createDocument({
+  schema: 'Profile',
+  content: {
+    name: 'Alice',
+    avatar: 'ipfs://QmAvatar...',
+    bio: 'Web3 developer and creator',
+    links: ['https://github.com/alice']
+  }
+});
+```
+
+## Content Moderation
+
+<Tip>
+Web3 social không có admin khóa tài khoản. Giải pháp: **Feed Filters** — user tự chọn follow ai, hiển thị gì. Community có thể tạo "moderation lists" chia sẻ.
+</Tip>
+
+## Xây Twitter Clone hoàn chỉnh
+
+<Steps>
+  <Step title="Setup Lens">
+    Connect Lens Protocol, kết nối wallet, tạo profile NFT
+  </Step>
+  <Step title="Frontend">
+    Next.js + wagmi, hiển thị feed từ profiles bạn follow
+  </Step>
+  <Step title="Post functionality">
+    Form post, upload image to IPFS, mint post NFT
+  </Step>
+  <Step title="Comments & Likes">
+    Mirror comment functionality, like có thể on-chain (gas) hoặc off-chain (indexer)
+  </Step>
+</Steps>
+
+## Token Gated Content
+
+```solidity
+// Restrict access cho holders của NFT cụ thể
+function viewContent() external view returns (string memory) {
+    require(balanceOf(msg.sender, requiredNFT) > 0, "Need NFT");
+    return contentURI;
+}
+```
+
+## Discovery & Feeds
+
+Cách user tìm content trong Web3:
+
+| Thuật toán | Đặc điểm |
+|---|---|
+| **Chronological** | Mới nhất lên đầu |
+| **Follow-based** | Chỉ từ người mình follow |
+| **Interest-based** | Dựa trên likes, interactions trước |
+| **Community-curated** | Lists từ community leaders |
+| **Token-weighted** | Vote bằng token cho content chất lượng |
+
+<Tip>
+LensProtocol hoặc Farcaster — chọn 1 trong 2. Lens phổ biến hơn, Farcaster trending năm 2025.
+</Tip>

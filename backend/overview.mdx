@@ -1,0 +1,142 @@
+---
+title: "Tổng quan Backend"
+description: "Backend là gì, kiến trúc server-side, vai trò của Claude Code trong phát triển backend"
+icon: "server"
+---
+
+Backend = **phần xử lý logic phía server** — authentication, database, business logic, API endpoints. Khác với frontend (UI), backend làm việc với data, APIs, và infrastructure.
+
+## Backend là gì?
+
+<Callout type="info">
+Backend = tất cả những gì phía sau frontend giao tiếp. Frontend user clicks button → Backend xử lý → Database lưu trữ → Frontend hiển thị kết quả.
+</Callout>
+
+## Các thành phần chính
+
+<CardGroup>
+  <Card title="API Server" icon="server">
+    Nhận HTTP requests, xử lý logic, trả response
+  </Card>
+  <Card title="Database" icon="database">
+    Lưu trữ data — relational (Postgres) hoặc NoSQL (MongoDB)
+  </Card>
+  <Card title="Cache" icon="memory">
+    Redis — tăng tốc bằng cách cache frequent queries
+  </Card>
+  <Card title="Message Queue" icon="envelope">
+    RabbitMQ, Kafka — xử lý async tasks (email, notifications)
+  </Card>
+  <Card title="Storage" icon="box-archive">
+    File storage — S3, GCS, Firebase Storage
+  </Card>
+  <Card title="Search" icon="magnifying-glass">
+    Elasticsearch, Algolia — full-text search
+  </Card>
+</CardGroup>
+
+## Tech Stack phổ biến
+
+| Stack | Ngôn ngữ | Framework | Database | Use case |
+|---|---|---|---|---|
+| **JAM Stack** | Node.js/TS | Next.js API Routes, Express | PostgreSQL | MVPs, small-medium apps |
+| **NestJS Stack** | Node.js/TS | NestJS | PostgreSQL, MongoDB | Enterprise, microservices |
+| **FastAPI Stack** | Python | FastAPI | PostgreSQL, MongoDB | API-first, AI/ML |
+| **Django Stack** | Python | Django, DRF | PostgreSQL | Admin panels, content sites |
+| **Spring Boot** | Java | Spring Boot | PostgreSQL, MySQL | Large enterprise |
+| **Rails** | Ruby | Ruby on Rails | PostgreSQL | Convention over config |
+| **Go Stack** | Go | Gin, Fiber, Chi | PostgreSQL | High performance, DevOps |
+
+## Claude Code cho Backend
+
+<Check>
+**Claude Code sinh ra cho backend development:**
+- ✅ Hiểu architecture patterns (microservices, clean arch)
+- ✅ Generate database schemas, migrations, queries
+- ✅ Viết API endpoints, middleware, services
+- ✅ Implement authentication, authorization
+- ✅ Debug issues, viết tests, optimize performance
+- ✅ Setup Docker, CI/CD pipelines
+- ✅ Generate documentation từ code
+</Check>
+
+## Backend Architecture Patterns
+
+<Tabs>
+  <Tab title="Monolith">
+    Tất cả code trong 1 project. Dễ bắt đầu, khó scale.
+    ```
+    backend/
+    ├── routes/
+    ├── services/
+    ├── models/
+    └── app.ts
+    ```
+  </Tab>
+  <Tab title="Modular Monolith">
+    1 project nhưng tách thành modules rõ ràng. Tốt cho medium apps.
+    ```
+    backend/
+    ├── users/
+    ├── orders/
+    ├── payments/
+    └── shared/
+    ```
+  </Tab>
+  <Tab title="Microservices">
+    Nhiều services độc lập, giao tiếp qua APIs. Scale tốt nhưng phức tạp.
+    ```
+    User Service | Order Service | Payment Service
+       ↓                ↓                ↓
+       └────────────────┴────────────────┘
+                  API Gateway
+    ```
+  </Tab>
+  <Tab title="Serverless">
+    Functions triggered bởi events. Pay-per-use.
+    ```
+    Vercel/Cloudflare Functions
+    AWS Lambda
+    Firebase Functions
+    ```
+  </Tab>
+</Tabs>
+
+## Workflow với Claude Code
+
+```
+1. Setup dự án
+   "Tạo backend Node.js với Express + TypeScript + Prisma + PostgreSQL"
+
+2. Define schema
+   "Tạo schema cho users, products, orders với relations"
+
+3. Implement features
+   - "Tạo API CRUD cho products"
+   - "Thêm JWT authentication"
+   - "Thêm middleware validate body"
+
+4. Write tests
+   "Viết unit test cho ProductService"
+
+5. Debug
+   "API /products trả về 500 — debug và fix"
+
+6. Optimize
+   "Add caching với Redis cho getProducts"
+
+7. Deploy
+   "Setup Dockerfile + GitHub Actions"
+```
+
+## Best Practices
+
+<Tip>
+- **Project structure:** Tổ chức folders rõ ràng (routes, services, models, middleware)
+- **Error handling:** Centralized error handler, custom error classes
+- **Validation:** Validate input ngay tại boundary (DTO, Zod)
+- **Logging:** Structured logs với correlation IDs
+- **Testing:** Aim 80%+ coverage, especially cho business logic
+- **Security:** Never trust input, sanitize output, use parameterized queries
+- **Performance:** Cache aggressively, paginate everything, monitor metrics
+</Tip>

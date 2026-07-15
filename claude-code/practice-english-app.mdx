@@ -1,0 +1,224 @@
+---
+title: "Phần mềm tự học tiếng Anh"
+description: "Xây dựng ứng dụng tự học tiếng Anh với AI hỗ trợ — bài học, bài tập, theo dõi tiến độ"
+icon: "language"
+---
+
+Dự án xây dựng ứng dụng tự học tiếng Anh với AI hỗ trợ — bao gồm bài học, bài tập nghe-nói-đọc-viết, flashcards, theo dõi tiến độ.
+
+## Tổng quan tính năng
+
+| Tính năng | Mô tả |
+|---|---|
+| **Courses** | Khóa học theo level (A1→C2), theo chủ đề |
+| **Lessons** | Video bài giảng, text content, audio listening |
+| **Exercises** | Trắc nghiệm, điền blank, sắp xếp câu, nghe viết |
+| **AI Chat** | Chatbot AI hỗ trợ giải thích ngữ pháp, từ vựng |
+| **Flashcards** | Hệ thống flashcards spaced repetition |
+| **Progress** | Theo dõi tiến độ, streak, thời gian học |
+| **Achievements** | Huy hiệu, badges khi đạt mốc |
+
+## Cấu trúc Firestore
+
+```
+📁 Firestore
+├── 👥 users/{uid}/
+│   ├── name, email, avatarUrl
+│   ├── level: "A1"
+│   ├── streak: 7 (ngày học liên tiếp)
+│   ├── totalPoints: 1250
+│   └── achievements: ["first_lesson", "7_day_streak"]
+│
+├── 📚 courses/
+│   ├── {courseId}/
+│   │   ├── title, description, level
+│   │   ├── category: "grammar" | "vocabulary" | "listening" | "speaking"
+│   │   ├── thumbnailUrl
+│   │   │
+│   │   └── 📖 lessons/ (subcollection)
+│   │       ├── {lessonId}/
+│   │       │   ├── title, type, content
+│   │       │   ├── audioUrl, videoUrl
+│   │       │   ├── vocabulary: [{word, meaning, example}]
+│   │       │   └── order
+│   │
+├── 📝 progress/
+│   ├── {userId courseId}/
+│   │   ├── completedLessons: ["lesson1", "lesson2"]
+│   │   ├── currentLesson: "lesson3"
+│   │   ├── score: 85 (%)
+│   │   └── lastAccessed: Timestamp
+│
+├── 🔤 flashcards/
+│   ├── {userId}/
+│   │   └── cards/ (subcollection)
+│   │       ├── {cardId}/
+│   │       ├── word, meaning, example
+│   │       ├── easeFactor: 2.5
+│   │       ├── nextReview: Date
+│   │       └── interval: 1 (ngày)
+│
+├── 📊 stats/
+│   └── {userId}/
+│       ├── weeklyGoal: 5 (bài/tuần)
+│       ├── dailyStreak: 7
+│       ├── totalStudyTime: 4520 (phút)
+│       └── wordsLearned: 342
+│
+└── 💬 chat_history/
+    └── {userId}/
+        └── sessions/
+            └── {sessionId}/
+                ├── messages: [{role, content, timestamp}]
+                └── topic: "grammar"
+```
+
+## Quy trình xây dựng
+
+<Steps>
+  <Step title="Phase 1 — Setup & Courses">
+    Setup Next.js + Firebase. Tạo CRUD Courses, Lessons. Upload audio/video lên Cloud Storage.
+  </Step>
+  <Step title="Phase 2 — Learning Experience">
+    Trang học bài: hiển thị nội dung bài học, vocabulary list, audio player. Progress tracking realtime.
+  </Step>
+  <Step title="Phase 3 — Exercises">
+    Các dạng bài tập: trắc nghiệm, điền blank, sắp xếp câu, nghe viết. Cloud Function chấm điểm tự động.
+  </Step>
+  <Step title="Phase 4 — Flashcards (Spaced Repetition)">
+    Hệ thống flashcards với thuật toán SM-2 — hiển thị từ cần ôn theo lịch phù hợp.
+  </Step>
+  <Step title="Phase 5 — AI Chat">
+    Chatbot AI hỗ trợ giải thích ngữ pháp, dịch câu, gợi ý từ vựng. Giới hạn 20 tin/ngày.
+  </Step>
+  <Step title="Phase 6 — Progress & Gamification">
+    Streak, points, badges, leaderboard. Cloud Function check achievements mỗi ngày.
+  </Step>
+  <Step title="Phase 7 — Security & Deploy">
+    Security Rules, deploy Vercel, test toàn bộ flow.
+  </Step>
+</Steps>
+
+## Flashcards — Spaced Repetition (Thuật toán SM-2)
+
+```typescript
+// services/flashcards.ts
+export function calculateNextReview(card: Flashcard, quality: number) {
+  // quality: 0-5 (0 = hoàn toàn quên, 5 = nhớ rất tốt)
+
+  let { easeFactor, interval } = card
+
+  if (quality < 3) {
+    // Nhớ sai → reset interval
+    interval = 1
+  } else {
+    // Nhớ đúng → tăng interval
+    if (interval === 1) interval = 6
+    else interval = Math.round(interval * easeFactor)
+  }
+
+  // Cập nhật ease factor
+  easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+  if (easeFactor < 1.3) easeFactor = 1.3
+
+  const nextReview = new Date()
+  nextReview.setDate(nextReview.getDate() + interval)
+
+  return { easeFactor, interval, nextReview }
+}
+```
+
+## AI Chat — Cloud Function
+
+```typescript
+// functions/src/api/aiChat.ts
+import { onRequest } from 'firebase-functions/v2/https'
+
+export const aiChat = onRequest(async (req, res) => {
+  const { userId, messages, courseId } = req.body
+
+  // Kiểm tra giới hạn 20 tin/ngày
+  const dailyCount = await getDailyMessageCount(userId)
+  if (dailyCount >= 20) {
+    return res.status(429).json({
+      error: 'Bạn đã hết 20 tin nhắn hôm nay. Hãy quay lại ngày mai!'
+    })
+  }
+
+  // Lấy context từ khóa học
+  const courseSummary = await getCourseSummary(courseId)
+
+  // Gọi AI API với system prompt giới hạn phạm vi
+  const response = await callAI({
+    system: `Bạn là trợ lý dạy tiếng Anh. Trả lời dựa trên nội dung khóa học: ${courseSummary}. Trả lời ngắn gọn, dễ hiểu bằng tiếng Việt.`,
+    messages
+  })
+
+  // Lưu lịch sử chat
+  await saveChatHistory(userId, messages, response)
+
+  return res.json({ reply: response })
+})
+```
+
+## Flashcard Component mẫu
+
+```tsx
+// components/Flashcard.tsx
+'use client'
+import { useState } from 'react'
+
+export function Flashcard({ card, onRate }) {
+  const [flipped, setFlipped] = useState(false)
+
+  return (
+    <div
+      className="w-80 h-48 cursor-pointer perspective-1000"
+      onClick={() => setFlipped(!flipped)}
+    >
+      <div className={`card-inner ${flipped ? 'flipped' : ''}`}>
+        <div className="card-front flex items-center justify-center text-2xl font-bold">
+          {card.word}
+        </div>
+        <div className="card-back flex flex-col items-center justify-center">
+          <p className="text-lg">{card.meaning}</p>
+          <p className="text-sm text-gray-500 italic mt-2">{card.example}</p>
+        </div>
+      </div>
+
+      {flipped && (
+        <div className="flex justify-center gap-2 mt-4">
+          <Button onClick={() => onRate(0)} variant="destructive">Quên 😢</Button>
+          <Button onClick={() => onRate(3)} variant="outline">Khó 😅</Button>
+          <Button onClick={() => onRate(5)} variant="default">Dễ 😎</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+## Prompt mẫu cho Claude Code
+
+```
+Tạo trang /student/courses/[courseId] hiển thị bài học hiện tại.
+
+Nội dung trang:
+- Header: tên khóa học, progress bar (% hoàn thành)
+- Sidebar: danh sách lessons (đã hoàn thành ✓, hiện tại ▶, chưa học ○)
+- Main content:
+  + Video player (nếu lesson type = video)
+  + Text content với vocabulary list
+  + Audio player cho listening exercises
+  + Quiz section cuối bài
+
+Sau khi hoàn thành bài:
+- Cập nhật progress trong Firestore
+- Kiểm tra streak: nếu chưa học hôm nay → tăng streak
+- Kiểm tra achievements mới
+- Tự động mở bài tiếp theo
+```
+
+<Tip>
+Đây là dự án tốt nhất để thực hành **AI integration** và **gamification** — hai tính năng rất hot trong thị trường ed-tech hiện nay.
+</Tip>
