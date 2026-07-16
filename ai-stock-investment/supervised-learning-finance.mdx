@@ -1,0 +1,718 @@
+---
+title: "Buổi 4 — Supervised Learning trong Tài chính & Chứng khoán"
+description: "Các model Regression, Classification, Gradient Boosting, Deep Learning được áp dụng trong credit scoring, pricing, portfolio và trading — chi tiết hơn phần Tổng quan Fintech Models"
+icon: "chart-line"
+---
+
+**Supervised Learning** trong finance sử dụng **labeled data** (giá đã biết, kết quả default đã xảy ra) để train model dự đoán kết quả. Đây là nhóm AI **phổ biến nhất** trong fintech hiện tại.
+
+## Tổng quan Supervised Learning trong Finance
+
+Supervised learning là phương pháp học có "thầy" — model học từ cặp **(X, y)** trong đó **y** là đáp án đã biết. Trong tài chính, **y** có thể là:
+- Giá đóng cửa ngày mai (regression)
+- Cổ phiếu tăng hay giảm (classification)
+- Khách hàng có default không (classification)
+
+<Callout type="info">
+**Đặc thù dữ liệu tài chính:**
+- **Time-series**: dữ liệu có thứ tự thời gian, không được shuffle
+- **Non-stationary**: phân phối thay đổi theo thời gian (regime shifts)
+- **Low signal-to-noise**: signal rất yếu so với noise
+- **No future leakage**: phải dùng time-based split, không random split
+</Callout>
+
+### Supervised Learning theo Chiến lược Đầu tư
+
+| Chiến lược | Bài toán Supervised | Mục tiêu |
+|---|---|---|
+| **Momentum** | Regression (future return) | Dự đoán cổ phiếu có momentum tốt |
+| **Mean Reversion** | Classification (overbought/oversold) | Bắt điểm quay về mean |
+| **Trend Following** | Classification (up/down/no-position) | Xác nhận trend tiếp diễn |
+| **Value Investing** | Regression (intrinsic value) | Ước tính P/E, DCF fair value |
+| **Swing Trading** | Multi-class (buy/sell/hold) | Tín hiệu ngắn hạn chính xác |
+| **Volatility** | Regression (realized vol, IV) | Dự đoán biến động sắp tới |
+
+<Tabs>
+  <Tab title="Regression (Dự đoán số)">
+    - **Stock Price Prediction:** Dự đoán giá đóng cửa ngày mai
+    - **Return Forecasting:** Dự đoán return 1 ngày, 5 ngày, 1 tháng
+    - **Fair Value Estimation:** Định giá hợp lý cổ phiếu
+    - **Interest Rate Forecasting:** Dự báo lãi suất
+    - **Credit Exposure (EAD):** Dự đoán exposure tại time default
+  </Tab>
+  <Tab title="Classification (Phân loại)">
+    - **Credit Scoring (Default/No Default):** Xác suất vỡ nợ
+    - **Trend Prediction (Up/Down):** Xu hướng tăng/giảm
+    - **Fraud Detection:** Giao dịch gian lận
+    - **Buy/Hold/Sell Signal:** Tín hiệu giao dịch
+    - **Regime Detection:** Bull/Bear market phases
+  </Tab>
+  <Tab title="Time Series (Sequence)">
+    - **ARIMA / SARIMA:** Seasonal trend decomposition
+    - **Prophet:** Forecasting với holidays & events
+    - **LSTM:** Capture long-term dependencies
+    - **Temporal Fusion Transformer:** Multi-horizon forecasting
+    - **N-BEATS:** Neural basis expansion — interpretable TS
+  </Tab>
+</Tabs>
+
+### Data Pipeline cho Supervised Learning trong Finance
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. Data Collection                                      │
+│     yfinance, Bloomberg API, broker API, web scraping    │
+├─────────────────────────────────────────────────────────┤
+│  2. Feature Engineering                                 │
+│     Technical indicators (RSI, MACD, Bollinger)           │
+│     Fundamental data (P/E, ROE, Revenue Growth)          │
+│     Alternative data (sentiment, macro, satellite)       │
+├─────────────────────────────────────────────────────────┤
+│  3. Label Construction                                   │
+│     Future return (1d, 5d, 20d)                         │
+│     Direction (Up/Down)                                  │
+│     Risk-adjusted return (Sharpe-like)                   │
+├─────────────────────────────────────────────────────────┤
+│  4. Train/Test Split (TIME-BASED — never random!)       │
+│     Train: t-2 years, Val: t-1 year, Test: last year    │
+├─────────────────────────────────────────────────────────┤
+│  5. Model Training & Validation                         │
+│     Cross-validation: Walk-forward (expanding window)   │
+├─────────────────────────────────────────────────────────┤
+│  6. Backtesting                                         │
+│     Realistic: transaction costs, slippage, look-ahead   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Chỉ báo phổ biến nhất cho Supervised Learning
+
+| Chỉ báo | Type | Momentum | Mean Reversion | Trend | Value |
+|---|---|---|---|---|---|
+| **Returns (lags)** | Continuous | ✅ | ✅ | ✅ | ❌ |
+| **RSI** | Oscillator | ✅ | ✅ | ❌ | ❌ |
+| **MACD** | Trend | ✅ | ❌ | ✅ | ❌ |
+| **Bollinger Z-score** | Vol/Reversion | ❌ | ✅ | ❌ | ❌ |
+| **SMA Crossover** | Trend | ❌ | ❌ | ✅ | ❌ |
+| **P/E Ratio** | Fundamental | ❌ | ❌ | ❌ | ✅ |
+| **ROE / ROA** | Fundamental | ✅ | ❌ | ❌ | ✅ |
+| **Volume Ratio** | Volume | ✅ | ✅ | ✅ | ❌ |
+| **ATR** | Volatility | ✅ | ✅ | ✅ | ❌ |
+| **Candlestick Patterns** | Pattern | ✅ | ✅ | ✅ | ❌ |
+
+## 1. Credit Scoring — Logistic Regression & Scorecard
+
+<Callout type="info">
+**Credit Scoring** là bài toán supervised learning **kinh điển nhất** trong finance: dự đoán xác suất khách hàng **default** (không trả được nợ).
+</Callout>
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    classification_report, roc_auc_score, 
+    confusion_matrix, roc_curve
+)
+import matplotlib.pyplot as plt
+
+# ============================================================
+# Credit Scoring với Logistic Regression
+# ============================================================
+
+# Load data
+df = pd.read_csv("credit_scoring.csv")
+
+# Features
+feature_cols = [
+    'age', 'income', 'employment_length',
+    'debt_to_income', 'credit_utilization',
+    'num_open_accounts', 'num_delinquencies_2yr',
+    'total_credit_lines', 'months_since_last_delinquency'
+]
+
+X = df[feature_cols]
+y = df['default']  # 1 = default, 0 = good
+
+# Train-test split (stratified!)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Logistic Regression
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+# Predict
+y_prob = model.predict_proba(X_test)[:, 1]
+y_pred = (y_prob >= 0.3).astype(int)  # threshold = 0.3
+
+# Evaluation
+print("AUC:", roc_auc_score(y_test, y_prob))
+print(classification_report(y_test, y_pred))
+
+# ============================================================
+# Convert to Scorecard (industry standard)
+# ============================================================
+
+def logit_to_score(logit, odds=50, pdo=20, offset=600, factor=20/np.log(2)):
+    """
+    Convert logit to score (0-850 scale)
+    odds: odds at which score = offset
+    pdo: points to double the odds
+    """
+    return offset - factor * np.log(odds) + factor * logit
+
+# Build scorecard
+intercept = model.intercept_[0]
+coefficients = model.coef_[0]
+
+scorecard = pd.DataFrame({
+    'Feature': feature_cols,
+    'Coefficient': coefficients,
+    'Weight': np.abs(coefficients) / np.abs(coefficients).sum() * 100
+}).sort_values('Weight', ascending=False)
+
+print(scorecard)
+```
+
+## 2. Stock Return Prediction — Gradient Boosting
+
+<Callout type="info">
+**Gradient Boosting (XGBoost, LightGBM)** là model **best-in-class** cho tabular financial data — thường beat cả deep learning trên structured features.
+</Callout>
+
+```python
+import pandas as pd
+import numpy as np
+import xgboost as xgb
+import lightgbm as lgb
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import yfinance as yf
+
+# ============================================================
+# Feature Engineering cho Stock Return Prediction
+# ============================================================
+
+# Download data
+df = yf.download("AAPL", start="2015-01-01", end="2025-01-01")
+
+# Technical indicators
+df['returns'] = df['Close'].pct_change()
+df['log_returns'] = np.log(df['Close'] / df['Close'].shift(1))
+df['volatility_20'] = df['returns'].rolling(20).std()
+df['sma_20'] = df['Close'].rolling(20).mean()
+df['sma_50'] = df['Close'].rolling(50).mean()
+df['rsi_14'] = compute_rsi(df['Close'], 14)
+df['macd'] = compute_macd(df['Close'])
+df['volume_sma_20'] = df['Volume'].rolling(20).mean()
+
+# Target: next-day return
+df['target'] = df['returns'].shift(-1)
+
+# Drop NaN
+df = df.dropna()
+
+# ============================================================
+# Time Series Split (NO future leakage!)
+# ============================================================
+
+features = [
+    'returns', 'log_returns', 'volatility_20', 
+    'sma_20', 'sma_50', 'rsi_14', 'macd', 'volume_sma_20'
+]
+
+X = df[features]
+y = df['target']
+
+# Use last 20% as test
+split_idx = int(len(X) * 0.8)
+X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+
+# ============================================================
+# XGBoost Model
+# ============================================================
+
+xgb_model = xgb.XGBRegressor(
+    n_estimators=500,
+    max_depth=6,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    objective='reg:squarederror',
+    early_stopping_rounds=50,
+    eval_metric='rmse'
+)
+
+xgb_model.fit(
+    X_train, y_train,
+    eval_set=[(X_test, y_test)],
+    verbose=50
+)
+
+# Predict
+y_pred_xgb = xgb_model.predict(X_test)
+
+print(f"RMSE: {np.sqrt(mean_squared_error(y_test, y_pred_xgb)):.6f}")
+print(f"MAE:  {mean_absolute_error(y_test, y_pred_xgb):.6f}")
+print(f"R²:   {r2_score(y_test, y_pred_xgb):.4f}")
+
+# ============================================================
+# Feature Importance
+# ============================================================
+
+importance = pd.Series(
+    xgb_model.feature_importances_, index=features
+).sort_values(ascending=False)
+
+print(importance)
+```
+
+## 3. Classification — Trend Prediction (Up/Down)
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import classification_report, accuracy_score
+from sklearn.preprocessing import StandardScaler
+
+# ============================================================
+# Directional Classification (UP vs DOWN)
+# ============================================================
+
+# Feature engineering (same as above + lag features)
+df['return_lag1'] = df['returns'].shift(1)
+df['return_lag2'] = df['returns'].shift(2)
+df['return_lag5'] = df['returns'].shift(5)
+df['volatility_5'] = df['returns'].rolling(5).std()
+df['momentum_10'] = df['Close'] / df['Close'].shift(10) - 1
+
+# Target: direction next day
+df['direction'] = (df['returns'].shift(-1) > 0).astype(int)
+df = df.dropna()
+
+features = [
+    'returns', 'volatility_20', 'sma_20', 'sma_50',
+    'rsi_14', 'return_lag1', 'return_lag2', 'return_lag5',
+    'volatility_5', 'momentum_10', 'volume_sma_20'
+]
+
+X = df[features]
+y = df['direction']
+
+# Time-based split
+split_idx = int(len(X) * 0.8)
+X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+
+# Scale features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Random Forest
+rf = RandomForestClassifier(n_estimators=500, max_depth=10, random_state=42)
+rf.fit(X_train_scaled, y_train)
+y_pred_rf = rf.predict(X_test_scaled)
+print("Random Forest Accuracy:", accuracy_score(y_test, y_pred_rf))
+print(classification_report(y_test, y_pred_rf))
+
+# Gradient Boosting
+gb = GradientBoostingClassifier(n_estimators=300, learning_rate=0.05)
+gb.fit(X_train_scaled, y_train)
+y_pred_gb = gb.predict(X_test_scaled)
+print("Gradient Boosting Accuracy:", accuracy_score(y_test, y_pred_gb))
+```
+
+## 4. Deep Learning — LSTM cho Price Forecasting
+
+```python
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+
+# ============================================================
+# LSTM Model cho Price Forecasting
+# ============================================================
+
+class StockLSTM(nn.Module):
+    def __init__(self, input_size=5, hidden_size=128, num_layers=2, dropout=0.2):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+            batch_first=True
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(64, 1)
+        )
+    
+    def forward(self, x):
+        lstm_out, _ = self.lstm(x)
+        out = self.fc(lstm_out[:, -1, :])
+        return out
+
+# ============================================================
+# Data Preparation
+# ============================================================
+
+def create_sequences(data, seq_length=60):
+    """Create sequences for LSTM: input = 60 days, target = next day close"""
+    X, y = [], []
+    for i in range(seq_length, len(data)):
+        X.append(data[i - seq_length:i])
+        y.append(data[i, 0])  # predict Close
+    return np.array(X), np.array(y)
+
+# Download & normalize
+df = yf.download("AAPL", start="2015-01-01", end="2025-01-01")
+features = ['Close', 'Volume', 'High', 'Low', 'Open']
+data = df[features].values
+
+scaler = MinMaxScaler()
+data_scaled = scaler.fit_transform(data)
+
+# Create sequences
+SEQ_LENGTH = 60
+X, y = create_sequences(data_scaled, SEQ_LENGTH)
+
+# Time-based split
+split = int(len(X) * 0.8)
+X_train, X_test = X[:split], X[split:]
+y_train, y_test = y[:split], y[split:]
+
+# DataLoader
+train_dataset = TensorDataset(
+    torch.FloatTensor(X_train), torch.FloatTensor(y_train)
+)
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+
+# ============================================================
+# Training
+# ============================================================
+
+model = StockLSTM(input_size=5, hidden_size=128, num_layers=2)
+criterion = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+
+for epoch in range(50):
+    model.train()
+    for batch_X, batch_y in train_loader:
+        pred = model(batch_X)
+        loss = criterion(pred.squeeze(), batch_y)
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    
+    if (epoch + 1) % 10 == 0:
+        print(f"Epoch {epoch+1}/50, Loss: {loss.item():.6f}")
+
+# ============================================================
+# Prediction & Inverse Transform
+# ============================================================
+
+model.eval()
+with torch.no_grad():
+    X_test_tensor = torch.FloatTensor(X_test)
+    predictions = model(X_test_tensor).numpy()
+
+# Inverse transform
+dummy = np.zeros((len(predictions), 5))
+dummy[:, 0] = predictions.squeeze()
+predicted_prices = scaler.inverse_transform(dummy)[:, 0]
+
+dummy[:, 0] = y_test
+actual_prices = scaler.inverse_transform(dummy)[:, 0]
+
+# RMSE
+rmse = np.sqrt(np.mean((predicted_prices - actual_prices)**2))
+print(f"RMSE: ${rmse:.2f}")
+```
+
+## 5. Imbalanced Classification — Fraud Detection
+
+<Callout type="warning">
+**Fraud detection** là bài toán **imbalanced** cực đoan: ~0.1% transactions là fraudulent. Standard accuracy = 99.9% = useless!
+</Callout>
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+from sklearn.preprocessing import StandardScaler
+
+# ============================================================
+# Fraud Detection với Class Imbalance Handling
+# ============================================================
+
+# Load fraud data
+df = pd.read_csv("transactions.csv")
+print(f"Fraud ratio: {df['is_fraud'].mean():.4%}")
+
+features = [
+    'amount', 'time_since_last_transaction',
+    'transaction_frequency_24h', 'distance_from_home',
+    'merchant_risk_score', 'card_age_days'
+]
+
+X = df[features]
+y = df['is_fraud']
+
+# Split
+split_idx = int(len(X) * 0.8)
+X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+
+# Pipeline: SMOTE + Model
+pipeline = ImbPipeline([
+    ('scaler', StandardScaler()),
+    ('smote', SMOTE(random_state=42)),
+    ('model', RandomForestClassifier(
+        n_estimators=500,
+        max_depth=12,
+        class_weight='balanced',  # additional class weighting
+        random_state=42
+    ))
+])
+
+pipeline.fit(X_train, y_train)
+
+# Evaluate
+y_prob = pipeline.predict_proba(X_test)[:, 1]
+y_pred = (y_prob >= 0.5).astype(int)
+
+print("AUC-ROC:", roc_auc_score(y_test, y_prob))
+print("PR-AUC:", average_precision_score(y_test, y_prob))
+print(classification_report(y_test, y_pred))
+```
+
+## Phân tích chi tiết từng Algorithm
+
+### 1. Logistic Regression
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | Hàm sigmoid σ(w·x + b) chuyển đổi linear combination thành xác suất [0, 1]. Học trọng số w bằng Maximum Likelihood Estimation (MLE) với regularization (L1/L2) |
+| **Bài toán** | **Classification nhị phân** — Default/No Default, Up/Down, Fraud/Legit. Trong finance: credit scoring, churn prediction, regime detection |
+| **Ưu điểm** | ✅ Interpretability cực cao (mỗi feature có 1 coefficient rõ ràng). ✅ Fast inference & training. ✅ Không cần scale dữ liệu (nhưng nên làm). ✅ Stable — ít overfitting với regularization. ✅ Industry standard trong credit scoring (FICO) |
+| **Nhược điểm** | ❌ Chỉ model được **linear relationships** — không capture non-linear. ❌ Đòi hỏi feature engineering thủ công. ❌ Sensitivity với **multicollinearity** (features tương quan cao). ❌ Không xử lý được sequential/temporal data |
+| **Khi nào dùng** | 🟢 Dùng khi cần **interpretability cao** (regulatory requirement). 🟢 Dùng làm **baseline** đầu tiên cho mọi bài toán classification. 🟢 Dùng trong **credit scoring** (Basel III yêu cầu mô hình white-box). 🟢 Dataset nhỏ (<10K samples) |
+
+```python
+from sklearn.linear_model import LogisticRegression
+
+model = LogisticRegression(penalty='l2', C=1.0, max_iter=1000)
+model.fit(X_train, y_train)
+
+# Interpret: coefficient = impact trên log-odds
+for feat, coef in zip(feature_names, model.coef_[0]):
+    print(f"{feat}: {coef:+.4f} → odds ratio = {np.exp(coef):.2f}x")
+```
+
+---
+
+### 2. Random Forest
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Ensemble của nhiều Decision Trees** — mỗi tree học trên random subset của data (bagging) + random subset của features. Prediction = majority vote (classification) hoặc average (regression) |
+| **Bài toán** | **Classification & Regression** trên tabular data. Trong finance: trend prediction, fraud detection, feature importance analysis, portfolio signal generation |
+| **Ưu điểm** | ✅ **Robust** — ít overfitting nhờ bagging. ✅ Handles **missing values** và **outliers** tốt. ✅ Built-in **feature importance** (Gini/Permutation). ✅ Không cần feature scaling. ✅ Parallel training — nhanh trên multi-core |
+| **Nhược điểm** | ❌ **Black-box** — khó interpret chi tiết từng decision path. ❌ **Slow inference** khi số trees lớn. ❌ Memory-intensive (lưu cả forest). ❌ **Overfitting** trên noisy data nếu trees quá sâu. ❌ Không capture **temporal patterns** — chỉ dùng static features |
+| **Khi nào dùng** | 🟢 Dùng khi cần **robust baseline** nhanh. 🟢 Dùng để **rank features** (feature importance) trước khi dùng model phức tạp hơn. 🟢 Dataset trung bình (10K-1M samples). 🟢 Có nhiều **outliers** hoặc **missing values** |
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+
+rf = RandomForestClassifier(
+    n_estimators=500, max_depth=10, 
+    class_weight='balanced', random_state=42
+)
+rf.fit(X_train, y_train)
+
+# Feature importance
+importance = pd.Series(
+    rf.feature_importances_, index=feature_names
+).sort_values(ascending=False)
+print(importance.head(10))
+```
+
+---
+
+### 3. XGBoost (Extreme Gradient Boosting)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Gradient Boosting** — xây dựng trees tuần tự, mỗi tree mới **học residual** (sai số) của trees trước. XGBoost tối ưu: regularization (L1/L2 trên weights), column subsampling, early stopping |
+| **Bài toán** | **Tất cả bài toán tabular** — regression, classification, ranking. Trong finance: stock return prediction, credit scoring, P/E estimation, signal generation. **King of tabular ML** |
+| **Ưu điểm** | ✅ **Best-in-class accuracy** cho tabular data. ✅ Handles **missing values** tự nhiên. ✅ **Built-in regularization** chống overfitting. ✅ Feature importance + SHAP integration. ✅ Fast training với parallel + GPU. ✅ Early stopping thông minh |
+| **Nhược điểm** | ❌ **Black-box** — khó giải thích cho business stakeholders. ❌ **Sensitive với hyperparameters** — cần tuning cẩn thận. ❌ **Overfitting** nếu không early stopping. ❌ Training time tăng linear với số trees. ❌ Không capture **temporal dependencies** |
+| **Khi nào dùng** | 🟢 **Mặc định** cho mọi bài toán tabular trong finance. 🟢 Khi đã có feature engineering tốt. 🟢 Dataset lớn (10K-10M samples). 🟢 Cần **accuracy cao nhất** trên structured data. 🟢 Kết hợp với SHAP cho explainability |
+
+```python
+import xgboost as xgb
+
+xgb_model = xgb.XGBRegressor(
+    n_estimators=500, max_depth=6, learning_rate=0.05,
+    subsample=0.8, colsample_bytree=0.8,
+    reg_alpha=0.1, reg_lambda=1.0,  # L1/L2 regularization
+    early_stopping_rounds=50
+)
+xgb_model.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+
+# SHAP cho interpretability
+import shap
+explainer = shap.TreeExplainer(xgb_model)
+shap_values = explainer.shap_values(X_test)
+shap.summary_plot(shap_values, X_test)
+```
+
+---
+
+### 4. LightGBM
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Gradient Boosting** với cải tiến tốc độ: **Gradient-based One-Side Sampling (GOSS)** giữ samples có gradient lớn, **Exclusive Feature Bundling (EFB)** gom sparse features. Tree grows **leaf-wise** (best-first) thay vì level-wise |
+| **Bài toán** | **Large-scale tabular data** — tương tự XGBoost nhưng nhanh hơn 2-10x trên dataset lớn. Trong finance: high-frequency feature processing, large universe stock screening |
+| **Ưu điểm** | ✅ **Training nhanh nhất** trong boosted trees (2-10x faster than XGBoost). ✅ **Memory-efficient** — phù hợp dataset lớn. ✅ Handles **categorical features** trực tiếp. ✅ GPU training support. ✅ Leaf-wise growth → accuracy tốt hơn |
+| **Nhược điểm** | ❌ **Overfitting dễ hơn** trên dataset nhỏ (leaf-wise grow rất sâu). ❌ **Cần tuning cẩn thận** hơn XGBoost. ❌ **Less mature** — một số edge cases chưa fix. ❌ Không tốt cho **small datasets** (<5K) |
+| **Khi nào dùng** | 🟢 Dataset **lớn** (>100K samples, nhiều features). 🟢 Cần **tốc độ training** nhanh. 🟢 Nhiều **categorical features**. 🟢 Khi XGBoost quá chậm. 🟢 Production environment cần low latency |
+
+```python
+import lightgbm as lgb
+
+lgb_model = lgb.LGBMRegressor(
+    n_estimators=1000, max_depth=-1, num_leaves=31,
+    learning_rate=0.05, subsample=0.8,
+    colsample_bytree=0.8, reg_alpha=0.1,
+    min_child_samples=20
+)
+lgb_model.fit(
+    X_train, y_train,
+    eval_set=[(X_test, y_test)],
+    callbacks=[lgb.early_stopping(50)]
+)
+```
+
+---
+
+### 5. LSTM (Long Short-Term Memory)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Recurrent Neural Network** với 3 gates (forget, input, output) — học **temporal dependencies** dài hạn bằng cách control **information flow** qua memory cell. Gates decide: forgotten gì, stored gì, output gì |
+| **Bài toán** | **Time series forecasting** — giá đóng cửa, return, volatility. Trong finance: price prediction, multi-step forecasting, sequence classification (pattern recognition) |
+| **Ưu điểm** | ✅ **Captures long-term temporal dependencies**. ✅ Handles **variable-length sequences**. ✅ **Non-linear** — học được pattern phức tạp. ✅ Multi-variate input (OHLCV + indicators). ✅ Stateful — nhớ context từ steps trước |
+| **Nhược điểm** | ❌ **Data-hungry** — cần hàng trăm nghìn data points. ❌ **Slow training** (sequential, không parallel được). ❌ **Vanishing gradient** dù có gates (với sequences >500 steps). ❌ **Overfitting** rất dễ trên finance data (noisy). ❌ **Hard to interpret** — black-box hoàn toàn |
+| **Khi nào dùng** | 🟢 Dữ liệu **sequential** có **temporal dependency** rõ ràng. 🟢 Dataset **lớn** (>50K sequences). 🟢 Multi-variate time series (OHLCV + indicators). 🟢 Không cần interpretability. 🟢 Kết hợp với **attention mechanism** để improve |
+
+```python
+import torch
+import torch.nn as nn
+
+class StockLSTM(nn.Module):
+    def __init__(self, input_size=5, hidden_size=128, num_layers=2):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, 
+                           dropout=0.2, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
+    
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        return self.fc(out[:, -1, :])
+
+# Input: (batch, seq_length=60, features=5)
+model = StockLSTM(input_size=5, hidden_size=128)
+```
+
+---
+
+### 6. Transformer / Temporal Fusion Transformer
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Self-attention mechanism** — mỗi timestep "nhìn" tất cả timesteps khác, tính **attention weights** để aggregate thông tin. Multi-head attention = nhiều views khác nhau. Không cần recurrent → parallelizable hoàn toàn |
+| **Bài toán** | **Multi-horizon forecasting** — dự đoán nhiều time steps tới cùng lúc. Trong finance: 1d/5d/20d return, volatility surface, cross-asset correlation |
+| **Ưu điểm** | ✅ **Parallelizable** — training nhanh hơn LSTM. ✅ **Multi-head attention** capture nhiều patterns cùng lúc. ✅ Handles **long sequences** tốt hơn LSTM. ✅ TFT thêm: static + temporal features, variable selection. ✅ Interpretable attention weights |
+| **Nhược điểm** | ❌ **Very data-hungry** — cần >1M data points. ❌ **O(n²) complexity** với sequence length. ❌ **Overfitting** cực dễ trên finance (data ít, noise nhiều). ❌ **Complex architecture** — khó debug. ❌ Training resources đắt (GPU) |
+| **Khi nào dùng** | 🟢 Dataset **rất lớn** (>100K sequences). 🟢 Multi-variate với **nhiều features** (static + temporal). 🟢 Cần **multi-horizon** forecasting. 🟢 Có GPU resources. 🟢 Đã thử XGBoost/LSTM nhưng chưa đủ accuracy |
+
+```python
+# PyTorch Forecasting TFT (simplified)
+from pytorch_forecasting import TemporalFusionTransformer
+
+tft = TemporalFusionTransformer.from_dataset(
+    training_dataset,
+    hidden_size=32,
+    attention_head_size=4,
+    dropout=0.1,
+    hidden_continuous_size=16,
+    output_size=7,  # 7 quantiles
+    loss=QuantileLoss(),
+    learning_rate=1e-3,
+)
+```
+
+---
+
+## Supervised Learning — Model Comparison cho Finance
+
+| Model | Accuracy | Speed | Interpretability | Data Needed | Best For |
+|---|---|---|---|---|---|
+| **Logistic Regression** | Medium | ⚡ Fastest | ✅ Excellent | Low | Credit scoring, baseline |
+| **Random Forest** | Good | Fast | Medium | Medium | Feature importance, robust baseline |
+| **XGBoost** | ✅ Best (tabular) | Fast | Low (use SHAP) | Medium | All tabular finance data |
+| **LightGBM** | ✅ Best (tabular) | ✅ Fastest | Low (use SHAP) | Medium | Large-scale, production |
+| **LSTM** | Good (temporal) | Slow | ❌ None | High | Price/return forecasting |
+| **Transformer** | Best (temporal) | Medium | Attention weights | Very High | Multi-horizon, multi-variate |
+| **CatBoost** | Good (tabular) | Fast | Medium | Medium | Categorical features heavy |
+
+## Tips riêng cho Finance
+
+<Warning>
+**Financial data có đặc thù riêng**, khác hoàn toàn với ML thông thường:
+
+- **No future leakage:** Phải dùng time-based split, không được random split
+- **Non-stationarity:** Dữ liệu finance thay đổi statistical properties theo thời gian
+- **Low signal-to-noise ratio:** Finance là domain **noisy nhất** — accuracy 51% đã rất tốt
+- **Survivorship bias:** Chỉ lấy companies đang tồn tại = sai dữ liệu
+- **Regime changes:** Bull market → Bear market = model bị drift
+- **Look-ahead bias:** Dùng thông tin chưa tồn tại khi đó = backtest sai
+</Warning>
+
+<Tip>
+**Benchmarks thực tế:**
+- Random accuracy = 50%, nhưng **55-60% directional accuracy** trong finance đã là **xuất sắc**
+- AUC-ROC > 0.70 trong credit scoring là **decent**
+- Đừng over-optimize backtest — kết quả trên paper thường **giảm 30-50%** khi deploy live
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Unsupervised Learning" icon="chart-area" href="/ai-stock-investment/unsupervised-learning-finance">
+    Clustering, anomaly detection cho finance
+  </Card>
+  <Card title="Reinforcement Learning" icon="gamepad" href="/ai-stock-investment/reinforcement-learning-finance">
+    Trading agent, portfolio RL
+  </Card>
+  <Card title="Fintech Models" icon="calculator" href="/ai-stock-investment/fintech-models">
+    Các model tài chính truyền thống
+  </Card>
+</CardGroup>

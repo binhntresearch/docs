@@ -633,33 +633,63 @@
         "tab": "AI Stock Investment",
         "groups": [
           {
-            "group": "Onboarding & Nền tảng",
+            "group": "Buổi 1 — Nền tảng Thị trường",
             "icon": "book-open",
             "pages": [
               "ai-stock-investment/index",
+              "ai-stock-investment/qua-tang",
+              "ai-stock-investment/market-fundamentals",
               "ai-stock-investment/overview",
-              "ai-stock-investment/market-fundamentals"
+              "ai-stock-investment/fintech-overview"
             ]
           },
           {
-            "group": "Phân tích Chứng khoán",
+            "group": "Buổi 2 — Phân tích Chứng khoán",
             "icon": "chart-line",
             "pages": [
-              "ai-stock-investment/fundamental-analysis",
-              "ai-stock-investment/technical-analysis"
+              "ai-stock-investment/technical-analysis",
+              "ai-stock-investment/fundamental-analysis"
             ]
           },
           {
-            "group": "AI & Dữ liệu Thị trường",
-            "icon": "brain",
+            "group": "Buổi 3 — Thu thập & Xử lý Dữ liệu",
+            "icon": "database",
             "pages": [
               "ai-stock-investment/data-collection",
-              "ai-stock-investment/sentiment-analysis",
+              "ai-stock-investment/sentiment-analysis"
+            ]
+          },
+          {
+            "group": "Buổi 4 — Supervised Learning",
+            "icon": "brain",
+            "pages": [
+              "ai-stock-investment/fintech-models",
+              "ai-stock-investment/supervised-learning-finance"
+            ]
+          },
+          {
+            "group": "Buổi 5 — Unsupervised Learning",
+            "icon": "microchip",
+            "pages": [
+              "ai-stock-investment/unsupervised-learning-finance"
+            ]
+          },
+          {
+            "group": "Buổi 6 — Reinforcement Learning",
+            "icon": "robot",
+            "pages": [
+              "ai-stock-investment/reinforcement-learning-finance"
+            ]
+          },
+          {
+            "group": "Buổi 7 — Time Series & Deep Learning",
+            "icon": "wave-square",
+            "pages": [
               "ai-stock-investment/timeseries-forecasting"
             ]
           },
           {
-            "group": "Thực chiến",
+            "group": "Buổi 8 — Portfolio & Thực chiến",
             "icon": "flask-conical",
             "pages": [
               "ai-stock-investment/portfolio-optimization"

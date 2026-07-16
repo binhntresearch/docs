@@ -1,0 +1,790 @@
+---
+title: "Buổi 5 — Unsupervised Learning trong Tài chính & Chứng khoán"
+description: "Clustering, Dimensionality Reduction, Anomaly Detection cho regime identification, stock clustering, fraud detection, risk discovery — chi tiết hơn phần Tổng quan Fintech Models"
+icon: "chart-area"
+---
+
+**Unsupervised Learning** trong finance là các kỹ thuật **không cần labeled data** — phát hiện **cấu trúc ẩn**, **pattern lạ**, và **nhóm tương đồng** trong dữ liệu tài chính. Đây là công cụ cực mạnh cho **khám phá dữ liệu, phát hiện gian lận, regime identification** và **portfolio construction**.
+
+## Tổng quan Unsupervised Learning trong Finance
+
+Unsupervised learning là phương pháp học **không có "thầy"** — model chỉ nhận **X** (features) và phải tự tìm cấu trúc, pattern, hoặc bất thường trong dữ liệu. Trong tài chính, đây là nhóm cực kỳ giá trị vì:
+
+<Callout type="info">
+**Tại sao Unsupervised Learning quan trọng trong Finance:**
+- **Không cần label đắt tiền:** Label cho fraud, regime, anomaly rất tốn kém để tạo
+- **Khám phá cấu trúc ẩn:** Tìm latent factors, clusters tự nhiên
+- **Phát hiện anomaly real-time:** Flag giao dịch bất thường không cần training data
+- **Hỗ trợ supervised learning:** Clustering tạo features mới cho model supervised
+- **Risk discovery:** Tìm hidden risk concentration mà con người bỏ sót
+</Callout>
+
+### Các bài toán Unsupervised chính trong Chứng khoán
+
+| Bài toán | Mô tả | Thuật toán phổ biến |
+|---|---|---|
+| **Stock Clustering** | Nhóm cổ phiếu tương đồng về returns, vol, drawdown | K-Means, Hierarchical, DBSCAN |
+| **Regime Detection** | Phát hiện Bull/Bear/Sideways từ returns | HMM, K-Means trên rolling vol |
+| **Factor Discovery** | Tìm latent factors từ returns ma trận | PCA, Factor Analysis, Autoencoder |
+| **Anomaly Detection** | Phát hiện giao dịch/giá bất thường | Isolation Forest, Autoencoder, LOF |
+| **Pair Selection** | Tìm cặp cointegrated cho pair trading | DBSCAN + Cointegration test |
+| **Fraud Detection** | Phát hiện gian lận thẻ tín dụng | Isolation Forest, One-class SVM |
+| **VaR Estimation** | Tail risk không cần normal assumption | KDE, Mixture Models |
+
+### Unsupervised Learning theo Chiến lược Đầu tư
+
+| Chiến lược | Ứng dụng Unsupervised | Thuật toán |
+|---|---|---|
+| **Momentum** | Phân nhóm cổ phiếu theo momentum strength | K-Means trên returns |
+| **Mean Reversion** | Phát hiện regimes để xác định mean-reversion cơ hội | HMM, Change-point detection |
+| **Trend Following** | PCA trên returns → market factors | PCA, Factor Analysis |
+| **Value Investing** | Clustering stocks theo sector/fundamentals | K-Means, Hierarchical |
+| **Swing Trading** | Anomaly detection cho swing points | DBSCAN trên price/volume |
+| **Volatility** | Regime detection cho volatility clusters | HMM trên realized vol |
+
+<Tabs>
+  <Tab title="Clustering (Phân nhóm)">
+    - **Stock Clustering:** Nhóm cổ phiếu tương đồng về returns, volatility
+    - **Customer Segmentation:** Phân nhóm khách hàng ngân hàng/insurer
+    - **Regime Detection:** Bull / Bear / Sideways market periods
+    - **Asset Class Clustering:** Phân nhóm crypto, ETFs, commodities
+    - **Trading Strategy Clustering:** Gom nhóm strategies tương tự
+  </Tab>
+  <Tab title="Dimensionality Reduction">
+    - **Factor Discovery:** Tìm latent factors từ returns của hàng trăm stocks
+    - **PCA trên Covariance Matrix:** Eigen-portfolios (tương quan số 1)
+    - **Autoencoder:** Compress high-dim features cho risk modeling
+    - **t-SNE / UMAP:** Visualize clustering high-dimensional financial data
+    - **Factor Models giả lập:** Black-Litterman cải tiến
+  </Tab>
+  <Tab title="Anomaly Detection">
+    - **Fraud Detection:** Giao dịch gian lận, money laundering
+    - **Market Manipulation:** Pump & dump, spoofing
+    - **Operational Risk:** Lỗi hệ thống, data quality issues
+    - **Insider Trading Detection:** Pattern bất thường trước earnings
+    - **Flash Crash Detection:** Anomaly trong microsecond data
+  </Tab>
+  <Tab title="Density Estimation">
+    - **VaR Estimation:** Tail risk không cần normality assumption
+    - **Return Distribution Modeling:** Capture fat tails
+    - **Copula Models:** Multivariate dependency structures
+    - **Mixture Models:** Hidden market states
+  </Tab>
+</Tabs>
+
+## 1. Stock Clustering — Phân nhóm cổ phiếu
+
+<Callout type="info">
+Mục tiêu: Gom nhóm **cổ phiếu có hành vi tương tự** dựa trên **returns correlation**, **volatility**, và **drawdowns** — phục vụ **portfolio diversification** và **pair trading**.
+</Callout>
+
+```python
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ============================================================
+# Stock Clustering Pipeline
+# ============================================================
+
+# Universe: Tech giants + Banks + Energy
+stocks = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
+          "JPM", "BAC", "GS", "WFC",
+          "XOM", "CVX", "BP",
+          "JNJ", "PFE", "MRK"]
+
+# Download returns
+df = pd.DataFrame()
+for ticker in stocks:
+    data = yf.download(ticker, start="2020-01-01", end="2025-01-01")
+    df[ticker] = data["Close"].pct_change()
+
+df = df.dropna()
+
+# ============================================================
+# Feature Engineering cho Mỗi Stock
+# ============================================================
+
+stock_features = pd.DataFrame()
+
+for ticker in stocks:
+    returns = df[ticker]
+    features = {
+        'mean_return': returns.mean(),
+        'volatility': returns.std(),
+        'skewness': returns.skew(),
+        'kurtosis': returns.kurtosis(),
+        'sharpe': returns.mean() / returns.std() * np.sqrt(252),
+        'max_drawdown': (1 - (1 + returns).cumprod() / 
+                         (1 + returns).cumprod().cummax()).max(),
+        'var_95': returns.quantile(0.05),
+        'cvar_95': returns[returns <= returns.quantile(0.05)].mean(),
+    }
+    
+    stock_features = pd.concat([stock_features, pd.Series(features, name=ticker)], axis=0)
+
+# Standardize
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(stock_features)
+
+# ============================================================
+# K-Means Clustering
+# ============================================================
+
+# Elbow method
+inertias = []
+K_range = range(2, 10)
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    kmeans.fit(X_scaled)
+    inertias.append(kmeans.inertia_)
+
+# Optimal k = 4 (by silhouette)
+optimal_k = 4
+kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
+clusters = kmeans.fit_predict(X_scaled)
+
+# ============================================================
+# Visualize & Interpret
+# ============================================================
+
+stock_features['cluster'] = clusters
+
+# Visualize with PCA
+from sklearn.decomposition import PCA
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(X_scaled)
+
+plt.figure(figsize=(12, 8))
+scatter = plt.scatter(
+    X_pca[:, 0], X_pca[:, 1], 
+    c=clusters, cmap='viridis', s=100, alpha=0.7
+)
+for i, ticker in enumerate(stocks):
+    plt.annotate(ticker, (X_pca[i, 0], X_pca[i, 1]), fontsize=9)
+plt.colorbar(scatter, label="Cluster")
+plt.title(f"Stock Clustering (K-Means, k={optimal_k})")
+plt.xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.1%})")
+plt.ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.1%})")
+plt.grid(True, alpha=0.3)
+plt.show()
+
+# Cluster summary
+for cluster_id in range(optimal_k):
+    cluster_stocks = stock_features[stock_features['cluster'] == cluster_id].index
+    print(f"\nCluster {cluster_id}: {cluster_stocks.tolist()}")
+```
+
+## 2. Regime Detection — Hidden Markov Model
+
+<Callout type="info">
+**Hidden Markov Model (HMM)** phát hiện **hidden market regimes** (Bull/Bear/Sideways) từ returns — dùng để **điều chỉnh chiến lược trading** theo từng giai đoạn.
+</Callout>
+
+```python
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from hmmlearn.hmm import GaussianHMM
+import matplotlib.pyplot as plt
+
+# ============================================================
+# Regime Detection với HMM
+# ============================================================
+
+# Download S&P 500
+df = yf.download("^GSPC", start="2010-01-01", end="2025-01-01")
+returns = df['Close'].pct_change().dropna().values.reshape(-1, 1)
+
+# Compute features
+features = np.column_stack([
+    returns,
+    pd.Series(returns.flatten()).rolling(20).std().fillna(0).values  # volatility
+])
+
+# ============================================================
+# Fit HMM với 3 regimes
+# ============================================================
+
+n_regimes = 3  # Low-Vol Bull, High-Vol Bear, Sideways
+
+model = GaussianHMM(
+    n_components=n_regimes,
+    covariance_type="full",
+    n_iter=200,
+    random_state=42
+)
+
+model.fit(features)
+
+# Predict hidden states
+hidden_states = model.predict(features)
+
+# ============================================================
+# Interpret Regimes
+# ============================================================
+
+state_stats = pd.DataFrame()
+for i in range(n_regimes):
+    mask = hidden_states == i
+    state_stats = pd.concat([state_stats, pd.DataFrame([{
+        'state': i,
+        'mean_return': returns[mask].mean(),
+        'volatility': returns[mask].std(),
+        'frequency': mask.sum() / len(hidden_states),
+    }])], ignore_index=True)
+
+state_stats = state_stats.sort_values('volatility')
+state_stats['regime_name'] = [
+    'Bull (Low Vol)', 'Sideways', 'Bear (High Vol)'
+]
+
+print(state_stats)
+
+# Visualize
+df_regimes = df.iloc[1:].copy()
+df_regimes['regime'] = hidden_states
+
+fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+
+# Price with regime background
+axes[0].plot(df_regimes.index, df_regimes['Close'], color='black')
+for state in range(n_regimes):
+    mask = df_regimes['regime'] == state
+    axes[0].fill_between(
+        df_regimes.index, df_regimes['Close'].min(), df_regimes['Close'].max(),
+        where=mask, alpha=0.3, label=state_stats.loc[state, 'regime_name']
+    )
+axes[0].legend()
+axes[0].set_title("S&P 500 với HMM Regime Detection")
+
+# Returns over time colored by regime
+for state in range(n_regimes):
+    mask = hidden_states == state
+    axes[1].scatter(
+        df_regimes.index[mask], 
+        returns[mask].flatten(),
+        s=1, alpha=0.6,
+        label=state_stats.loc[state, 'regime_name']
+    )
+axes[1].legend()
+
+# Regime probability
+axes[2].plot(df_regimes.index, df_regimes['regime'], drawstyle='steps-post')
+axes[2].set_title("Hidden State Sequence")
+
+plt.tight_layout()
+plt.show()
+```
+
+## 3. Anomaly Detection — Fraud & Market Manipulation
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report
+
+# ============================================================
+# Fraud Detection với Isolation Forest
+# ============================================================
+
+# Load transaction data
+df = pd.read_csv("transactions.csv")
+
+features = [
+    'amount', 'time_of_day', 'distance_from_home',
+    'merchant_risk', 'transaction_frequency_24h',
+    'card_age_days', 'num_declines_24h'
+]
+
+X = df[features]
+y = df['is_fraud']  # for evaluation only (semi-supervised)
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# ============================================================
+# Isolation Forest (unsupervised)
+# ============================================================
+
+iforest = IsolationForest(
+    n_estimators=200,
+    contamination=0.001,  # expected fraud ratio
+    random_state=42
+)
+
+# -1 = anomaly, 1 = normal
+predictions = iforest.fit_predict(X_scaled)
+y_pred = (predictions == -1).astype(int)
+
+print("Isolation Forest Results:")
+print(classification_report(y, y_pred, target_names=['Normal', 'Fraud']))
+
+# ============================================================
+# Local Outlier Factor
+# ============================================================
+
+lof = LocalOutlierFactor(
+    n_neighbors=20,
+    contamination=0.001,
+    metric='euclidean'
+)
+y_pred_lof = (lof.fit_predict(X_scaled) == -1).astype(int)
+print("\nLOF Results:")
+print(classification_report(y, y_pred_lof, target_names=['Normal', 'Fraud']))
+
+# ============================================================
+# Autoencoder cho Anomaly Detection
+# ============================================================
+
+import torch
+import torch.nn as nn
+
+class AnomalyAutoencoder(nn.Module):
+    def __init__(self, input_dim, encoding_dim=4):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, encoding_dim),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(encoding_dim, 16),
+            nn.ReLU(),
+            nn.Linear(16, 32),
+            nn.ReLU(),
+            nn.Linear(32, input_dim),
+        )
+    
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
+
+# Train chỉ trên normal transactions
+X_normal = X_scaled[y == 0]
+X_tensor = torch.FloatTensor(X_normal)
+
+autoencoder = AnomalyAutoencoder(input_dim=X_scaled.shape[1])
+optimizer = torch.optim.Adam(autoencoder.parameters(), lr=0.001)
+criterion = nn.MSELoss()
+
+for epoch in range(50):
+    optimizer.zero_grad()
+    reconstructed = autoencoder(X_tensor)
+    loss = criterion(reconstructed, X_tensor)
+    loss.backward()
+    optimizer.step()
+
+# Compute reconstruction error cho ALL transactions
+with torch.no_grad():
+    X_all = torch.FloatTensor(X_scaled)
+    reconstructed = autoencoder(X_all)
+    mse = ((reconstructed - X_all) ** 2).mean(dim=1).numpy()
+
+# Threshold = percentile 99
+threshold = np.percentile(mse[mse < np.percentile(mse, 99)], 95)
+y_pred_ae = (mse > threshold).astype(int)
+
+print("\nAutoencoder Results:")
+print(classification_report(y, y_pred_ae, target_names=['Normal', 'Fraud']))
+```
+
+## 4. Dimensionality Reduction — Factor Models
+
+<Callout type="info">
+**PCA trên returns covariance matrix** cho ra **eigen-portfolios** — giải thích phần lớn variance với chỉ vài components.
+</Callout>
+
+```python
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from sklearn.decomposition import PCA, FactorAnalysis
+import matplotlib.pyplot as plt
+
+# ============================================================
+# PCA Eigen-Portfolios
+# ============================================================
+
+# Universe: S&P 100 stocks
+stocks = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", ...]  # full list
+
+returns = pd.DataFrame()
+for ticker in stocks:
+    data = yf.download(ticker, start="2020-01-01", end="2025-01-01")
+    returns[ticker] = data["Close"].pct_change()
+
+returns = returns.dropna()
+
+# ============================================================
+# PCA trên Correlation Matrix
+# ============================================================
+
+corr_matrix = returns.corr()
+
+pca = PCA()
+pca.fit(corr_matrix)
+
+# Explained variance
+explained_var = pca.explained_variance_ratio_
+cumulative_var = np.cumsum(explained_var)
+
+print("Top 5 principal components:")
+for i in range(5):
+    print(f"PC{i+1}: {explained_var[i]:.2%} (cumulative: {cumulative_var[i]:.2%})")
+
+# ============================================================
+# Eigen-Portfolios
+# ============================================================
+
+# Cov matrix
+cov_matrix = returns.cov() * 252  # annualized
+
+eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+
+# Top 3 eigen-portfolios
+n_portfolios = 3
+top_eigenvectors = eigenvectors[:, -n_portfolios:]
+
+print("\nTop 3 Eigen-Portfolios:")
+eigen_portfolios = pd.DataFrame(
+    top_eigenvectors,
+    columns=[f"PC{i+1}" for i in range(n_portfolios)],
+    index=stocks
+)
+
+# Normalize (sum of abs weights = 1)
+for col in eigen_portfolios.columns:
+    eigen_portfolios[col] = eigen_portfolios[col] / np.abs(
+        eigen_portfolios[col]
+    ).sum()
+
+print(eigen_portfolios.abs().sort_values('PC1', ascending=False).head(10))
+```
+
+## 5. Density-Based Clustering cho Customer Segmentation
+
+```python
+import pandas as pd
+import numpy as np
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+
+# ============================================================
+# Bank Customer Segmentation
+# ============================================================
+
+df = pd.read_csv("bank_customers.csv")
+
+features = ['age', 'annual_income', 'spending_score',
+            'num_products', 'tenure_years', 'avg_balance']
+
+X = df[features]
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# DBSCAN tìm outliers tự nhiên
+dbscan = DBSCAN(eps=0.5, min_samples=10)
+clusters = dbscan.fit_predict(X_scaled)
+
+# Analyze clusters
+df['cluster'] = clusters
+
+for cluster_id in sorted(df['cluster'].unique()):
+    cluster_data = df[df['cluster'] == cluster_id]
+    
+    label = "Outlier" if cluster_id == -1 else f"Cluster {cluster_id}"
+    
+    print(f"\n{label} ({len(cluster_data)} customers):")
+    print(cluster_data[features].mean())
+```
+
+## Phân tích chi tiết từng Algorithm
+
+### 1. K-Means Clustering
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | Phân chia dữ liệu thành **k clusters** bằng cách: (1) Random k centroids, (2) Gán mỗi điểm vào centroid gần nhất, (3) Tính lại centroids, (4) Lặp lại đến khi hội tụ. Objective: minimize **Within-Cluster Sum of Squares (WCSS)** |
+| **Bài toán** | **Stock clustering** (nhóm cổ phiếu tương đồng), **Customer segmentation** (phân khúc khách hàng ngân hàng), **Regime identification** trên rolling features, **Portfolio grouping** |
+| **Ưu điểm** | ✅ **Đơn giản, nhanh** — O(n·k·d) per iteration. ✅ Dễ interpret kết quả (centroid = đặc trưng nhóm). ✅ Scalable với millions of data points. ✅ Kết quả ổn định (nếu seeding tốt). ✅ Được hỗ trợ rộng rãi trong mọi ML library |
+| **Nhược điểm** | ❌ Phải **chọn k trước** (sử dụng Elbow/Silhouette method). ❌ Giả định clusters **hình cầu** (spherical) — fail với elliptical clusters. ❌ **Sensitive với outliers** — centroids bị kéo lệch. ❌ Kết quả phụ thuộc **initialization** (không deterministic). ❌ Không tìm được **non-convex clusters** |
+| **Khi nào dùng** | 🟢 Dữ liệu **đồng nhất** về kích thước clusters. 🟢 Cần **speed** và **scalability**. 🟢 Muốn **giải thích kết quả** dễ dàng cho stakeholders. 🟢 Dataset lớn với cấu trúc đơn giản. 🟢 Bước đầu khám phá dữ liệu |
+
+```python
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(stock_features)
+
+# Elbow method
+inertias = []
+K_range = range(2, 10)
+for k in K_range:
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    km.fit(X_scaled)
+    inertias.append(km.inertia_)
+
+# Fit with optimal k
+kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+clusters = kmeans.fit_predict(X_scaled)
+```
+
+---
+
+### 2. DBSCAN (Density-Based Spatial Clustering)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | Tìm **dense regions** (vùng dày đặc điểm) và coi chúng là clusters. Dùng 2 tham số: **ε (eps)** — bán kính lân cận, **min_samples** — tối thiểu điểm trong ε-neighborhood. Điểm không thuộc cluster nào = **outlier** (label = -1) |
+| **Bài toán** | **Anomaly detection** (phát hiện giao dịch bất thường), **Pair selection** (tìm stock pairs cho pair trading), **Noise filtering** (loại bỏ outliers trước khi K-Means), **Geographic clustering** |
+| **Ưu điểm** | ✅ **Tự tìm số clusters** — không cần chỉ định k. ✅ **Phát hiện outliers tự nhiên** (label = -1). ✅ Shapes **không đều** (non-convex clusters). ✅ Không assumed distribution cụ thể. ✅ Phù hợp finance vì có nhiều outliers |
+| **Nhược điểm** | ❌ **Sensitive với ε và min_samples** — thay đổi eps → kết quả thay đổi nhiều. ❌ **Khó tune** trên high-dimensional data. ❌ **Density variation** — fail khi clusters có density khác nhau. ❌ **Slow** trên dữ liệu lớn — O(n·log n) với KD-tree. ❌ Curse of dimensionality |
+| **Khi nào dùng** | 🟢 Cần **tìm outliers** (fraud, anomalies). 🟢 Clusters có **hình dạng bất thường**. 🟢 Số clusters **không xác định trước**. 🟢 Dữ liệu có **nhiều noise**. 🟢 Pair trading: tìm cointegrated pairs |
+
+```python
+from sklearn.cluster import DBSCAN
+
+# eps = distance threshold, min_samples = minimum cluster size
+dbscan = DBSCAN(eps=0.5, min_samples=10, metric='euclidean')
+clusters = dbscan.fit_predict(X_scaled)
+
+# -1 = outlier (noise points)
+n_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
+n_outliers = list(clusters).count(-1)
+print(f"Found {n_clusters} clusters, {n_outliers} outliers")
+```
+
+---
+
+### 3. Hidden Markov Model (HMM)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | Mô hình **probabilistic** với **hidden states** (không quan sát được) tạo ra **observable outputs**. Học 3 bộ tham số: (1) **Transition matrix** P(state_t+1 \| state_t), (2) **Emission probabilities** P(observation \| state), (3) **Initial state distribution**. Dùng **Baum-Welch** (EM algorithm) để fit |
+| **Bài toán** | **Regime detection** (Bull/Bear/Sideways markets), **Market state prediction**, **Volatility regime** (low/medium/high vol), **Turning point detection** |
+| **Ưu điểm** | ✅ **Captures transitions** giữa các states (regime shifts). ✅ **Probabilistic** — cho ra confidence cho mỗi regime. ✅ **Time-aware** — understands temporal dynamics. ✅ Well-suited cho finance vì markets có regime structure. ✅ Interpretable transition probabilities |
+| **Nhược điểm** | ❌ Phải **chọn số states trước** (2, 3, hoặc 4). ❌ Assume **Gaussian emissions** (GaussianHMM) — không always true. ❌ **Local optima** — Baum-Welch không guarantee global optimum. ❌ **Sensitivity với initialization**. ❌ **Non-stationary** regimes có thể thay đổi characteristics |
+| **Khi nào dùng** | 🟢 Markets có **regime structure** rõ ràng. 🟢 Cần **tự động detect** bull/bear/sideways. 🟢 Kết hợp với **tactical asset allocation**. 🟢 Dữ liệu có **temporal structure**. 🟢 Cần **probability distribution** cho mỗi regime |
+
+```python
+from hmmlearn.hmm import GaussianHMM
+
+# Features: returns + rolling volatility
+features = np.column_stack([
+    returns,
+    pd.Series(returns).rolling(20).std().fillna(0).values
+])
+
+# 3 regimes: Low-Vol Bull, Sideways, High-Vol Bear
+model = GaussianHMM(n_components=3, covariance_type="full", n_iter=200)
+model.fit(features)
+
+hidden_states = model.predict(features)
+
+# Transition probabilities
+print("Transition matrix:")
+print(model.transmat_)
+```
+
+---
+
+### 4. Isolation Forest
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Isolate anomalies** bằng cách randomly split dữ liệu. Anomalies cần **ít splits hơn** (isolation path ngắn hơn) vì chúng khác biệt với majority. Score = xác suất một điểm bị isolate nhanh (shorter path → higher anomaly score) |
+| **Bài toán** | **Fraud detection** (giao dịch gian lận), **Market manipulation** (spoofing, pump & dump), **Operational risk** (hệ thống lỗi), **Data quality** (dữ liệu giá bất thường) |
+| **Ưu điểm** | ✅ **Nhanh nhất** trong anomaly detection — O(n·log ψ) complexity. ✅ **Scalable** — handles millions of transactions. ✅ **Không cần label** (unsupervised). ✅ Handles **high-dimensional** data tốt. ✅ Minimal parameter tuning (chỉ contamination) |
+| **Nhược điểm** | ❌ **Binary detection** — chỉ anomaly/normal, không multi-class. ❌ **Contamination parameter** cần ước tính trước. ❌ **Không capture relationships** giữa features. ❌ **Random splits** có thể miss subtle anomalies. ❌ Less accurate trên **clustered anomalies** |
+| **Khi nào dùng** | 🟢 Dataset **lớn** (>100K samples) cần speed. 🟢 **Real-time** fraud detection. 🟢 **Không có label** cho fraud/anomaly. 🟢 High-dimensional data. 🟢 Bước đầu sàng lọc anomalies trước khi dùng supervised model |
+
+```python
+from sklearn.ensemble import IsolationForest
+
+iforest = IsolationForest(
+    n_estimators=200,
+    contamination=0.001,  # expected fraud ratio
+    random_state=42
+)
+
+predictions = iforest.fit_predict(X_scaled)  # -1 = anomaly
+anomalies = (predictions == -1).sum()
+print(f"Detected {anomalies} anomalies ({anomalies/len(X)*100:.2f}%)")
+```
+
+---
+
+### 5. Local Outlier Factor (LOF)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | So sánh **mật độ local** của một điểm với **mật độ trung bình** của k neighbors. Nếu điểm đó có mật độ **thấp hơn đáng kể** so với neighbors → outlier. LOF score ≈ 1: normal, >>1: outlier |
+| **Bài toán** | **Fraud detection** (anomaly giao dịch), **Credit card fraud**, **Network intrusion**, **Market microstructure anomalies** |
+| **Ưu điểm** | ✅ **Local** — phát hiện anomalies trong vùng có density khác nhau (better than global methods). ✅ **No distribution assumption**. ✅ Handles **varying density clusters**. ✅ Cho ra **anomaly score** liên tục, không chỉ binary |
+| **Nhược điểm** | ❌ **Slow** trên dữ liệu lớn — O(n²) nếu không approximate. ❌ **Sensitive với k_neighbors** — sai k → sai kết quả. ❌ **Not scalable** — O(n·log n) worst case. ❌ **Curse of dimensionality** — distance lose meaning trên high-dim. ❌ **Không deterministic** trên edge cases |
+| **Khi nào dùng** | 🟢 Clusters có **density khác nhau** (DBSCAN fail). 🟢 Cần **anomaly score** liên tục (ranking). 🟢 Dataset nhỏ-trung bình (<100K). 🟢 Fraud detection cần **local context**. 🟢 Kết hợp với Isolation Forest (ensemble anomaly detection) |
+
+```python
+from sklearn.neighbors import LocalOutlierFactor
+
+lof = LocalOutlierFactor(
+    n_neighbors=20,
+    contamination=0.001,
+    metric='euclidean'
+)
+y_pred = lof.fit_predict(X_scaled)  # -1 = outlier
+
+# Anomaly scores (higher = more anomalous)
+scores = lof.negative_outlier_factor_
+```
+
+---
+
+### 6. PCA (Principal Component Analysis)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Chiếu dữ liệu** xuống subspace thấp hơn sao cho **variance được giữ lại tối đa**. Tìm eigenvectors (principal components) của covariance matrix. PC1 = hướng variance lớn nhất, PC2 = hướng lớn thứ 2 (vuông góc với PC1) |
+| **Bài toán** | **Dimensionality reduction** cho risk modeling, **Factor discovery** (tìm latent factors trong returns), **Eigen-portfolios** (cách phân bổ tối ưu), **Visualization** (chiếu 2D/3D), **Noise reduction** |
+| **Ưu điểm** | ✅ **Interpretable** — mỗi component = linear combination của original features. ✅ **Mathematically elegant** — eigendecomposition. ✅ **Fast** — O(d²·n + d³). ✅ **Removes multicollinearity**. ✅ Foundation cho **factor models** trong finance |
+| **Nhược điểm** | ❌ **Linear only** — không capture non-linear relationships. ❌ Assumes **maximum variance = most important** (không always true). ❌ **Sensitive với scaling** — phải standardize trước. ❌ **Components khó interpret** khi có nhiều features. ❌ **Information loss** khi giảm chiều |
+| **Khi nào dùng** | 🟢 **Giảm chiều** trước khi clustering (tránh curse of dimensionality). 🟢 **Factor analysis** trong portfolio theory. 🟢 **Eigen-portfolios** cho risk decomposition. 🟢 **Visualization** high-dimensional data. 🟢 **Noise reduction** cho downstream models |
+
+```python
+from sklearn.decomposition import PCA
+import numpy as np
+
+# PCA trên correlation matrix
+pca = PCA()
+pca.fit(returns.corr())
+
+# Explained variance
+cumvar = np.cumsum(pca.explained_variance_ratio_)
+print(f"PC1 explains {pca.explained_variance_ratio_[0]:.1%}")
+print(f"Top 5 PCs explain {cumvar[4]:.1%}")
+
+# Eigen-portfolios
+eigenvalues, eigenvectors = np.linalg.eigh(returns.cov() * 252)
+top_ports = eigenvectors[:, -3:]  # Top 3
+```
+
+---
+
+### 7. Autoencoder (Anomaly Detection)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Neural network** học **compression** (encoder: input → latent) rồi **reconstruction** (latent → output). Train trên normal data → learning pattern "bình thường". Anomaly = **reconstruction error cao** (model không reconstruct được anomalous patterns) |
+| **Bài toán** | **Complex anomaly detection** (fraud, market manipulation), **Feature learning** (unsupervised representation), **Dimensionality reduction** (non-linear PCA), **Data denoising** |
+| **Ưu điểm** | ✅ **Non-linear** — capture complex patterns mà PCA bỏ sót. ✅ **Flexible architecture** — có thể tùy biến encoder/decoder. ✅ Learns **hierarchical features**. ✅ Handles **mixed data types**. ✅ Combined với supervised: dùng latent features làm input |
+| **Nhược điểm** | ❌ **Hard to interpret** — latent space là black-box. ❌ **Data-hungry** — cần đủ data để train. ❌ **Architecture design** cần expertise. ❌ **Threshold selection** — percentile nào cho anomaly? ❌ **Training instability** — có thể không hội tụ |
+| **Khi nào dùng** | 🟢 **Non-linear anomaly detection** mà PCA/Isolation Forest miss. 🟢 Dataset lớn (100K+ samples). 🟢 Features có **complex interactions**. 🟢 Cần **representation learning**. 🟢 Kết hợp với supervised learning |
+
+```python
+import torch
+import torch.nn as nn
+
+class AnomalyAutoencoder(nn.Module):
+    def __init__(self, input_dim, encoding_dim=4):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 32), nn.ReLU(),
+            nn.Linear(32, 16), nn.ReLU(),
+            nn.Linear(16, encoding_dim),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(encoding_dim, 16), nn.ReLU(),
+            nn.Linear(16, 32), nn.ReLU(),
+            nn.Linear(32, input_dim),
+        )
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
+
+# Train on normal data only
+autoencoder = AnomalyAutoencoder(input_dim=X.shape[1])
+criterion = nn.MSELoss()
+
+# Anomaly = high reconstruction error
+with torch.no_grad():
+    reconstructed = autoencoder(X_tensor)
+    mse = ((reconstructed - X_tensor) ** 2).mean(dim=1).numpy()
+    threshold = np.percentile(mse, 95)  # top 5% = anomalies
+```
+
+---
+
+## So sánh tổng hợp các Unsupervised Methods
+
+| Method | Cốt lõi | Best For Finance | Scalability | Interpretability | Khi nào dùng |
+|---|---|---|---|---|---|
+| **K-Means** | Centroid-based partition | Stock clustering | ✅ Fast (O(n·k·d)) | ✅ High | Clusters đồng nhất, cần speed |
+| **DBSCAN** | Density-based grouping | Anomaly/Pair detection | Medium | High | Outliers, shapes bất thường |
+| **HMM** | Probabilistic state transitions | Regime detection | Medium | ✅ High | Market regimes, state prediction |
+| **Isolation Forest** | Random isolation paths | Fraud detection | ✅ Fastest | Medium | Real-time anomaly, large data |
+| **LOF** | Local density comparison | Contextual anomalies | ❌ Slow (O(n²)) | Medium | Density-varying clusters |
+| **PCA** | Linear variance maximization | Factor models | ✅ Fast | ✅ High | Dim reduction, eigen-portfolios |
+| **Autoencoder** | Non-linear compression | Complex anomaly | Medium | ❌ Low | Non-linear patterns, representation |
+| **t-SNE/UMAP** | Manifold embedding | Visualization | ❌ Slow | Medium | Exploratory data analysis |
+
+## Tips cho Finance
+
+<Warning>
+**Unsupervised learning trong finance** cần chú ý:
+
+- **Market regime shifts:** Models trained on 2020-2021 (bull) sẽ fail trong 2022 bear market
+- **Concept drift:** Customer behavior thay đổi qua thời gian — re-cluster định kỳ
+- **No ground truth:** Khó evaluate — phải dùng **domain knowledge**
+- **Curse of dimensionality:** Financial features quá nhiều — cần feature selection
+- **Survivorship bias:** Stock data chỉ có stocks còn tồn tại
+</Warning>
+
+<Tip>
+**Workflow thực tế:**
+1. **Start với PCA** để hiểu cấu trúc tổng quan
+2. **Cluster analysis** với K-Means / Hierarchical
+3. **Visualize** bằng t-SNE / UMAP để kiểm tra clusters
+4. **Re-train định kỳ** (quarterly hoặc khi regime change)
+5. **Combine với supervised models** — dùng clusters làm features cho classification/regression
+</Tip>
+
+## Use Cases phổ biến
+
+<CardGroup>
+  <Card title="Pair Trading" icon="link">
+    Stock clustering → tìm cointegrated pairs
+  </Card>
+  <Card title="Risk Management" icon="shield-halved">
+    Regime detection → điều chỉnh position sizing
+  </Card>
+  <Card title="Fraud Prevention" icon="lock">
+    Anomaly detection → flag suspicious transactions
+  </Card>
+  <Card title="Customer Insights" icon="users">
+    Segmentation → personalize products
+  </Card>
+</CardGroup>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Reinforcement Learning" icon="gamepad" href="/ai-stock-investment/reinforcement-learning-finance">
+    RL agents cho trading & portfolio
+  </Card>
+  <Card title="Supervised Learning" icon="chart-line" href="/ai-stock-investment/supervised-learning-finance">
+    Regression & classification cho finance
+  </Card>
+  <Card title="Sentiment Analysis" icon="newspaper" href="/ai-stock-investment/sentiment-analysis">
+    NLP trong tài chính
+  </Card>
+</CardGroup>

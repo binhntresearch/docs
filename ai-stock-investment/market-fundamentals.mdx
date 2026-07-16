@@ -1,279 +1,677 @@
 ---
-title: "Nền tảng thị trường Chứng khoán"
-description: "Kiến thức cốt lõi về thị trường, các loại tài sản, chỉ số và thuật ngữ"
+title: "Buổi 1 — Nền tảng thị trường Chứng khoán"
+description: "Kiến thức cốt lõi về cấu trúc thị trường, các loại tài sản, chỉ số, microstructure, order book, market regimes và lý thuyết tài chính — nền tảng bắt buộc trước khi áp dụng AI"
 icon: "chart-candlestick"
 ---
 
-Trước khi apply AI vào thị trường chứng khoán, bạn cần nắm **kiến thức nền tảng** về cách thị trường vận hành.
+Trước khi apply AI vào thị trường chứng khoán, bạn cần nắm **kiến thức nền tảng** về cách thị trường vận hành. Phần này không chỉ là lý thuyết — mỗi khái niệm đều ảnh hưởng trực tiếp đến cách bạn **build features, design rewards, và manage risk** cho AI models.
+
+<Callout type="info">
+**Câu hỏi cốt lõi:** Mỗi khi đọc một khái niệm, hãy tự hỏi: "Concept này sẽ ảnh hưởng thế nào đến model AI của mình?"
+- Ví dụ: Hiểu **market microstructure** giúp bạn build order book features cho LSTM
+- Hiểu **regime changes** giúp bạn design ensemble models tự chuyển strategy
+- Hiểu **liquidity** giúp bạn set realistic slippage trong backtesting
+</Callout>
 
 ## Thị trường Chứng khoán là gì?
 
+Thị trường chứng khoán là nơi **giao dịch các công cụ tài chính** — nơi người mua và người seller gặp nhau để xác định **giá** cho tài sản.
+
+### Cơ chế hoạt động
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    QUY TRÌNH GIAO DỊCH                         │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  Nhà đầu tư ──→ Đặt lệnh (Order) ──→ Sàn giao dịch            │
+│                                          │                     │
+│                            Match lệnh (Matching Engine)        │
+│                                          │                     │
+│                    ┌─────────────────────┴──────────┐         │
+│                    │                                │         │
+│              Mua thành công                    Bán thành công  │
+│              (Long position)                  (Short/Sell)     │
+│                    │                                │         │
+│              Settlement (T+2)              Settlement (T+2)    │
+│              → Nhận cổ phiếu               → Nhận tiền        │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### 2 loại thị trường chính
+
+| Loại | Cơ chế | Ví dụ | AI implications |
+|---|---|---|---|
+| **Order-driven** | Matching trực tiếp lệnh mua/bán từ nhà đầu tư | NYSE, NASDAQ, HOSE | Có order book data → AI phân tích depth |
+| **Quote-driven (Dealer)** | Market maker đặt giá bid/ask, giao dịch với dealer | Forex, OTC bonds | Không có order book集中 → cần estimate |
+| **Hybrid** | Kết hợp cả hai | London Stock Exchange | Phức tạp nhất cho AI modeling |
+
+## Cấu trúc thị trường & Market Microstructure
+
 <Callout type="info">
-**Thị trường chứng khoán** là nơi diễn ra việc mua bán **cổ phiếu (stocks), trái phiếu (bonds), ETF, và các công cụ tài chính khác**. Đây là kênh huy động vốn cho doanh nghiệp và kênh đầu tư cho nhà đầu tư.
+**Market Microstructure** là "nội thất" của thị trường — cách lệnh được gửi, match, và execute. Hiểu microstructure giúp bạn:
+- **Build better features** cho AI (order flow imbalance, bid-ask spread dynamics)
+- **Avoid pitfalls** trong backtesting (ignoring market impact, slippage)
+- **Design realistic reward functions** cho RL trading agents
+</Callout>
+
+### Order Book
+
+**Order Book** là danh sách tất cả lệnh mua (bid) và bán (ask) đang chờ được match. Đây là **nguồn dữ liệu giàu nhất** cho AI models.
+
+```
+           ORDER BOOK — AAPL (Ví dụ)
+┌─────────────────────────────────────────┐
+│         SELL (ASK) — Đang chờ bán       │
+├───────┬──────────┬──────────────────────┤
+│ Price │ Size     │ Depth                │
+├───────┼──────────┼──────────────────────┤
+│ 186.10│   500    │ ████                 │
+│ 186.05│  1,200   │ ██████████           │  ← Best Ask
+│ 186.00│  3,500   │ █████████████████████████  ← Resistance
+├───────┼──────────┼──────────────────────┤
+│ 185.99│  2,800   │ ███████████████████  │  ← Best Bid
+│ 185.95│  1,800   │ ██████████████       │  ← Support
+│ 185.90│   900    │ ███████              │
+├───────┴──────────┴──────────────────────┤
+│         MUA (BID) — Đang chờ mua       │
+└─────────────────────────────────────────┘
+                    ↕
+              Spread = 186.05 - 185.99
+                    = $0.06 (0.032%)
+```
+
+### Order Types chi tiết
+
+| Loại lệnh | Mô tả | Khi dùng | AI relevance |
+|---|---|---|---|
+| **Market Order** | Mua/bán ngay giá thị trường tốt nhất | Cần execute ngay | Slippage = f(volume, spread) |
+| **Limit Order** | Mua/bán ở giá cụ thể hoặc tốt hơn | Kiểm soát giá | Tạo liquidity trong order book |
+| **Stop-Loss** | Tự động market sell khi giá chạm mức | Quản lý rủi ro | RL agent cần learn cắt lỗ |
+| **Take-Profit** | Tự động sell khi lãi đạt target | Chốt lời | Reward function reference |
+| **Stop-Limit** | Stop trigger → limit order | Kết hợp control | Complex execution logic |
+| **Trailing Stop** | Stop-loss di chuyển theo giá | Protect profit | Dynamic risk management |
+| **Iceberg Order** | Ẩn phần lớn size, show từng phần | Institutionẩn size | Market impact modeling |
+| **TWAP** | Time-Weighted Average Price | Execute lớn, chia nhỏ | Optimal execution algorithm |
+| **VWAP** | Volume-Weighted Average Price | Benchmark execution | RL order execution target |
+
+### Market Phases trong 1 phiên giao dịch
+
+```
+    6:00   9:30         10:30        12:00       15:00  16:00
+     │      │             │            │           │      │
+     │ Pre- │   Morning   │   Midday   │  Afternoon│ Close│
+     │Market│   Session   │   Lull     │  Rally    │      │
+     │      │             │            │           │      │
+     │ Low  │ HIGH VOLUME │ Low volume │ MODERATE  │ HIGH │
+     │ vol  │ + volatility│ + range    │           │ vol  │
+     │      │             │            │           │      │
+     ▼      ▼             ▼            ▼           ▼      ▼
+   Discovery  Price        Consolidation  Trend      Closing
+   Phase     Discovery                   Continuation  Auction
+```
+
+<Callout type="warning">
+**Đối với AI models:**
+- **Không train model trên dữ liệu pre-market** — volume thấp, price không đại diện
+- **Midday lull** thường có pattern riêng — cần feature riêng cho thời điểm này
+- **Closing auction** chiếm ~5-10% daily volume — quan trọng cho execution algorithms
 </Callout>
 
 ## Các loại tài sản tài chính
 
 <Tabs>
   <Tab title="Cổ phiếu (Stocks)">
-    - **Common stock:** Quyền sở hữu một phần công ty, nhận cổ tức (dividend)
-    - **Preferred stock:** Ưu tiên cổ tức nhưng ít quyền biểu quyết
-    - **Blue-chip:** Cổ phiếu công ty lớn, ổn định (Apple, Microsoft, Vinfast)
-    - **Penny stocks:** Giá rẻ (<$5), rủi ro cao
-    - **Growth vs Value:** Tăng trưởng vs Giá trị
+    **Cổ phiếu** là chứng chỉ sở hữu một phần doanh nghiệp. Khi bạn mua cổ phiếu, bạn trở thành **chủ sở hữu** (shareholder) của công ty.
+
+    | Loại | Đặc điểm | Risk | Return potential | AI use case |
+    |---|---|---|---|---|
+    | **Common Stock** | Quyền biểu quyết + cổ tức | Medium | High | Trend prediction |
+    | **Preferred Stock** | Ưu tiên cổ tức, ít quyền | Low-Medium | Medium | Yield optimization |
+    | **Blue-chip** | Công ty lớn, ổn định | Low | Medium | Mean reversion |
+    | **Mid-cap** | Vừa, tăng trưởng | Medium | High | Growth prediction |
+    | **Small-cap** | Nhỏ, volatile | High | Very High | Anomaly detection |
+    | **Penny Stock** | < $5, highly speculative | Very High | Very High | Avoid for AI |
+
+    **Market Capitalization:**
+    ```
+    Large-cap  : > $10B   (Apple, Microsoft, VNM)
+    Mid-cap    : $2-10B   (FPT, MWG)
+    Small-cap  : $300M-2B (PVD, VGC)
+    Micro-cap  : < $300M  (risky, low liquidity)
+    ```
   </Tab>
   <Tab title="Trái phiếu (Bonds)">
-    - **Government bonds:** Chính phủ phát hành, an toàn
-    - **Corporate bonds:** Doanh nghiệp phát hành, rủi ro hơn
-    - **Yield:** Lãi suất trái phiếu
-    - **Duration:** Độ nhạy với lãi suất
-    - Thường dùng để **diversification** trong portfolio
+    **Trái phiếu** là khoản vay của nhà đầu tư cho tổ chức phát hành. Bạn cho vay tiền → nhận lãi định kỳ + gốc khi đáo hạn.
+
+    | Loại | Issuer | Risk | Yield | AI use case |
+    |---|---|---|---|---|
+    | **Government Bond** | Chính phủ | Very Low | Low (3-5%) | Risk-free rate input |
+    | **Municipal Bond** | Chính quyền địa phương | Low | Low-Medium | Tax optimization |
+    | **Corporate Bond (IG)** | Doanh nghiệp rated cao | Medium | Medium (5-7%) | Credit scoring |
+    | **High-Yield Bond** | Doanh nghiệp rated thấp | High | High (7-12%) | Default prediction |
+    | **Convertible Bond** | Có thể convert → stock | Medium-High | Low-Medium | Hybrid modeling |
+
+    **Bond Pricing (simplified):**
+    ```
+    Price = Σ(Coupon / (1+r)^t) + Face_Value / (1+r)^T
+
+    r = yield to maturity (YTM)
+    Khi YTM ↑ → Price ↓ (inverse relationship)
+    ```
   </Tab>
-  <Tab title="ETF & Mutual Funds">
-    - **ETF (Exchange-Traded Fund):** Quỹ giao dịch trên sàn, chi phí thấp
-    - **Mutual Fund:** Quỹ mở, quản lý chuyên nghiệp
-    - **Index Fund:** Theo dõi chỉ số (VN-Index, S&P 500)
-    - **Sector ETF:** Tập trung vào ngành (tech, banking)
+  <Tab title="ETF & Index Funds">
+    **ETF (Exchange-Traded Fund)** là quỹ giao dịch trên sàn — kết hợp tính thanh khoản của stock + diversification của quỹ.
+
+    | Loại ETF | Mô tả | Ví dụ | Expense ratio |
+    |---|---|---|---|
+    | **Index ETF** | Theo dõi chỉ số | SPY (S&P500), VNM (VN30) | 0.03-0.10% |
+    | **Sector ETF** | Tập trung ngành | XLF (finance), XLK (tech) | 0.10-0.50% |
+    | **Bond ETF** | Rổ trái phiếu | AGG, BND | 0.03-0.20% |
+    | **Commodity ETF** | Hàng hóa | GLD (vàng), USO (dầu) | 0.40-1.00% |
+    | **Inverse ETF** | Đánh cược thị trường giảm | SH, SPXS | 0.75-1.00% |
+    | **Leveraged ETF** | Đòn bẩy 2x, 3x | TQQQ (3x NASDAQ) | 0.75-1.00% |
+
+    <Warning>
+    **Leveraged ETF** có **volatility decay** — không phù hợp hold dài hạn. Ví dụ: TQQQ có thể giảm 20% trong khi NASDAQ chỉ giảm 7% do compounding effect. AI models cần tính decay này khi backtest.
+    </Warning>
   </Tab>
   <Tab title="Derivatives">
-    - **Options:** Quyền (không nghĩa vụ) mua/bán ở giá strike
-    - **Futures:** Cam kết mua/bán trong tương lai
-    - **CFD:** Hợp đồng chênh lệch
-    - **Swaps:** Hoán đổi dòng tiền
-    - **Rủi ro cao**, thường dùng cho hedging & speculation
+    **Derivatives** là công cụ tài chính có giá trị "bắt nguồn" (derive) từ tài sản cơ sở (underlying asset).
+
+    | Loại | Cơ chế | Risk | AI use case |
+    |---|---|---|---|
+    | **Options (Call)** | Quyền MUA ở strike price | Premium max loss | Option pricing (Black-Scholes) |
+    | **Options (Put)** | Quyền BÁN ở strike price | Premium max loss | Portfolio hedging |
+    | **Futures** | Cam kết mua/bán ở future date | Margin call risk | Commodity forecasting |
+    | **Swaps** | Hoán đổi dòng tiền | Counterparty risk | Interest rate modeling |
+    | **Warrants** | 类似 options nhưng do công ty phát hành | Dilution risk | — |
+
+    **Options Greeks (quan trọng cho AI):**
+    | Greek | Đo lường | Ý nghĩa |
+    |---|---|---|
+    | **Delta** | Sensitivity với underlying price | Hedge ratio |
+    | **Gamma** | Rate of change của Delta | Convexity |
+    | **Theta** | Time decay | Options lose value mỗi ngày |
+    | **Vega** | Sensitivity với volatility | Vol trading signal |
+    | **Rho** | Sensitivity với interest rate | Macro indicator |
   </Tab>
   <Tab title="Crypto & Alternative">
-    - **Cryptocurrency:** Bitcoin, Ethereum (24/7 trading)
-    - **REITs:** Đầu tư bất động sản
-    - **Commodities:** Vàng, dầu, nông sản
-    - **Volatility cao**, correlation thấp với stocks
+    | Loại | Đặc điểm | Trading hours | AI relevance |
+    |---|---|---|---|
+    | **Bitcoin (BTC)** | Largest crypto, store of value | 24/7 | On-chain analysis, sentiment |
+    | **Ethereum (ETH)** | Smart contracts platform | 24/7 | Gas fees, DeFi metrics |
+    | **REITs** | Bất động sản tokens | Market hours | Dividend yield prediction |
+    | **Commodities** | Vàng, dầu, bạc, nông sản | Extended hours | Macro correlation |
+    | **Forex** | Ngoại tệ pairs | 24/5 | Carry trade, momentum |
+    | **Carbon Credits** | Quyền phát thải carbon | Market hours | ESG scoring |
+
+    <Callout type="info">
+    **Crypto có đặc thù riêng:**
+    - **24/7 trading** — data stream liên tục, cần streaming ML pipeline
+    - **On-chain data** — unique features (whale movements, exchange flows, gas fees)
+    - **Regulatory risk** cao — sudden policy changes affect prices
+    - **Cross-exchange arbitrage** — price differs between exchanges
+    </Callout>
   </Tab>
 </Tabs>
 
-## Các chỉ số quan trọng
+## Các chỉ số thị trường quan trọng
 
-| Chỉ số | Thị trường | Mô tả |
-|---|---|---|
-| **S&P 500** | US | 500 công ty lớn nhất US |
-| **NASDAQ** | US | Tech-heavy, 100+ companies |
-| **Dow Jones** | US | 30 blue-chip stocks |
-| **VN-Index** | Việt Nam | HOSE, top companies |
-| **VN30** | Việt Nam | Top 30 blue-chips VN |
-| **Hang Seng** | Hồng Kông | Top HK stocks |
-| **Nikkei 225** | Nhật Bản | Top 225 Nhật |
-| **FTSE 100** | UK | Top 100 UK |
-| **DAX 40** | Đức | Top 40 Đức |
-| **Bitcoin** | Crypto | Largest cryptocurrency |
+### Chỉ số chứng khoán toàn cầu
 
-## Cách đọc bảng giá
+| Chỉ số | Thị trường | Số CT | Đặc điểm | Benchmark cho AI |
+|---|---|---|---|---|
+| **S&P 500** | US | 500 | Gold standard benchmark | Default market benchmark |
+| **NASDAQ Composite** | US | 3,000+ | Tech-heavy | Tech sector prediction |
+| **NASDAQ-100** | US | 100 | Top tech companies | QQQ ETF tracking |
+| **Dow Jones (DJIA)** | US | 30 | Blue-chip, price-weighted | Historical comparison |
+| **Russell 2000** | US | 2,000 | Small-cap index | Small-cap factor |
+| **VN-Index** | Việt Nam | ~400 | HOSE main index | VN market model |
+| **VN30** | Việt Nam | 30 | Top blue-chips | Liquid subset |
+| **VN-Midcap** | Việt Nam | 30 | Mid-cap companies | Growth factor |
+| **Hang Seng** | Hồng Kông | 82 | China exposure | Asia market model |
+| **Nikkei 225** | Nhật Bản | 225 | Top Japan | Japan market model |
+| **FTSE 100** | UK | 100 | Top UK | Europe market model |
+| **DAX 40** | Đức | 40 | Top Germany | Europe market model |
+| **KOSPI** | Hàn Quốc | ~800 | Korea综合 | Asia market model |
+| **CSI 300** | Trung Quốc | 300 | Top Shanghai+Shenzhen | China market model |
+
+### Chỉ số kỹ thuật quan trọng nhất
+
+| Chỉ số | Category | Tầm quan trọng | AI feature rank |
+|---|---|---|---|
+| **VIX** (Volatility Index) | Volatility | ⭐⭐⭐⭐⭐ | Fear gauge → regime detection |
+| **PUT/CALL Ratio** | Sentiment | ⭐⭐⭐⭐ | Options sentiment indicator |
+| **Advance/Decline Line** | Breadth | ⭐⭐⭐ | Market breadth indicator |
+| **TRIN (Arms Index)** | Breadth | ⭐⭐⭐ | Volume-weighted breadth |
+| **10Y Treasury Yield** | Macro | ⭐⭐⭐⭐⭐ | Risk-free rate → CAPM input |
+| **US Dollar Index (DXY)** | Macro | ⭐⭐⭐⭐ | Currency impact on stocks |
+| **Gold Price** | Safe Haven | ⭐⭐⭐ | Risk-off signal |
+| **Crude Oil (WTI)** | Commodity | ⭐⭐⭐ | Inflation/energy sector |
+| **Yield Curve (10Y-2Y)** | Macro | ⭐⭐⭐⭐⭐ | Recession predictor |
+| **FRED Data** | Macro | ⭐⭐⭐⭐⭐ | GDP, unemployment, CPI |
+
+## OHLCV Data — Nền tảng cho mọi AI Model
+
+**OHLCV** (Open, High, Low, Close, Volume) là dữ liệu thô cơ bản nhất — mọi AI model đều bắt đầu từ đây.
+
+### Price Formation
 
 ```
-SYMBOL    LAST     CHANGE   %CHG    VOLUME      BID     ASK
-AAPL      185.92   +2.45    +1.34%  52.3M       185.91  185.93
-TSLA      248.50   -5.20    -2.05%  118.4M      248.48  248.52
+                    HIGH ──→ 187.80
+                     │
+              │      │
+              │      │      ← Candle body
+              │      │
+              ▼      │
+    OPEN ──→ 186.50 ─┤
+                     │
+              │      │
+              │      │
+              ▼      │
+    CLOSE ──→ 187.45 │
+                     │
+              │      │
+              ▼      │
+              LOW ───→ 186.10
+
+    GREEN candle: Close > Open (bullish)
+    RED candle:   Close < Open (bearish)
+    Body size:    |Close - Open| = strength
+    Wick length:  |High - max(O,C)| = rejection
 ```
 
-<Steps>
-  <Step title="LAST (Last Price)">
-    Giá giao dịch gần nhất
-  </Step>
-  <Step title="CHANGE & %CHG">
-    Thay đổi so với phiên trước
-  </Step>
-  <Step title="VOLUME">
-    Khối lượng giao dịch (cao = nhiều trader quan tâm)
-  </Step>
-  <Step title="BID">
-    Giá mua cao nhất
-  </Step>
-  <Step title="ASK">
-    Giá bán thấp nhất
-  </Step>
-  <Step title="Spread">
-    Ask - Bid (càng nhỏ càng liquid)
-  </Step>
-</Steps>
+### Derived Features từ OHLCV
 
-## OHLCV Data
+Đây là **features quan trọng nhất** cho AI models — mỗi feature đều có ý nghĩa trading cụ thể:
 
-Mỗi phiên giao dịch cung cấp:
-
-| Field | Mô tả | Ý nghĩa |
+| Feature | Công thức | AI用途 |
 |---|---|---|
-| **Open** | Giá mở cửa | Xu hướng đầu phiên |
-| **High** | Giá cao nhất | Mức resistance trong ngày |
-| **Low** | Giá thấp nhất | Mức support trong ngày |
-| **Close** | Giá đóng cửa | Quan trọng nhất cho analysis |
-| **Volume** | Khối lượng giao dịch | Xác nhận xu hướng |
+| **Returns** | P_t / P_{t-1} - 1 | Target variable cơ bản |
+| **Log Returns** | ln(P_t / P_{t-1}) | Stationarity, statistical properties |
+| **Realized Volatility** | std(returns, window) × √252 | Risk measure, regime detection |
+| **Avg True Range (ATR)** | TR rolling mean | Volatility cho position sizing |
+| **OBV** (On-Balance Volume) | Cumsum(sign(ret) × volume) | Volume confirmation |
+| **VWAP** | Σ(Price × Vol) / Σ(Vol) | Intraday fair value |
+| **Momentum** | P_t / P_{t-n} - 1 | Trend strength |
+| **RSI** | 100 - 100/(1+RS) | Overbought/Oversold |
+| **Bollinger %B** | (Price - Lower) / (Upper - Lower) | Mean reversion signal |
+| **Candle Body Ratio** | |C-O| / (H-L) | Conviction measure |
+| **Upper Wick Ratio** | (H - max(O,C)) / (H-L) | Selling pressure |
+| **Volume Profile** | Volume at each price level | Support/Resistance |
 
 ```python
-# OHLCV representation
 import pandas as pd
+import numpy as np
 
-data = pd.DataFrame({
-    'Date': ['2026-01-15', '2026-01-16'],
-    'Open':  [185.00, 186.50],
-    'High':  [186.20, 187.80],
-    'Low':   [184.80, 186.10],
-    'Close': [185.92, 187.45],
-    'Volume':[52_300_000, 48_700_000]
-})
+def compute_market_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Tính toán features từ OHLCV data cho AI models.
+    Input: DataFrame với columns [Open, High, Low, Close, Volume]
+    """
+    df = df.copy()
+
+    # ===== Price-based Features =====
+    df['returns'] = df['Close'].pct_change()
+    df['log_returns'] = np.log(df['Close'] / df['Close'].shift(1))
+    df['intraday_return'] = (df['Close'] - df['Open']) / df['Open']
+    df['high_low_range'] = (df['High'] - df['Low']) / df['Close']
+
+    # ===== Volatility Features =====
+    df['realized_vol_20'] = df['returns'].rolling(20).std() * np.sqrt(252)
+    df['realized_vol_5'] = df['returns'].rolling(5).std() * np.sqrt(252)
+    df['atr_14'] = atr(df, period=14)
+
+    # ===== Volume Features =====
+    df['volume_sma_20'] = df['Volume'].rolling(20).mean()
+    df['volume_ratio'] = df['Volume'] / df['volume_sma_20']
+    df['obv'] = (np.sign(df['returns']) * df['Volume']).fillna(0).cumsum()
+    df['vwap'] = (df['Close'] * df['Volume']).cumsum() / df['Volume'].cumsum()
+
+    # ===== Candle Features =====
+    body = abs(df['Close'] - df['Open'])
+    total_range = df['High'] - df['Low']
+    df['candle_body_ratio'] = body / total_range.replace(0, np.nan)
+    df['upper_wick'] = (df['High'] - df[['Close', 'Open']].max(axis=1)) / total_range.replace(0, np.nan)
+    df['lower_wick'] = (df[['Close', 'Open']].min(axis=1) - df['Low']) / total_range.replace(0, np.nan)
+
+    # ===== Momentum Features =====
+    df['momentum_5'] = df['Close'] / df['Close'].shift(5) - 1
+    df['momentum_20'] = df['Close'] / df['Close'].shift(20) - 1
+    df['momentum_60'] = df['Close'] / df['Close'].shift(60) - 1
+
+    # ===== Trend Features =====
+    df['sma_20'] = df['Close'].rolling(20).mean()
+    df['sma_50'] = df['Close'].rolling(50).mean()
+    df['sma_200'] = df['Close'].rolling(200).mean()
+    df['price_vs_sma20'] = df['Close'] / df['sma_20'] - 1
+    df['price_vs_sma50'] = df['Close'] / df['sma_50'] - 1
+
+    # ===== RSI =====
+    delta = df['Close'].diff()
+    gain = delta.where(delta > 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rs = gain / loss
+    df['rsi_14'] = 100 - (100 / (1 + rs))
+
+    return df
+
+
+def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Average True Range"""
+    high_low = df['High'] - df['Low']
+    high_close = abs(df['High'] - df['Close'].shift())
+    low_close = abs(df['Low'] - df['Close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    return tr.rolling(period).mean()
 ```
 
-## Timeframes
+## Timeframes & Trading Styles
 
-| Timeframe | Use case |
-|---|---|
-| **Tick (1s)** | Scalping, HFT |
-| **1 min - 15 min** | Day trading |
-| **1 hour - 4 hour** | Swing trading ngắn hạn |
-| **Daily** | Swing trading, position trading |
-| **Weekly/Monthly** | Long-term investing |
+| Trading Style | Timeframe | Giữ lệnh | Capital | AI Algorithm phù hợp | Key Metric |
+|---|---|---|---|---|---|
+| **Scalping** | 1-5 min | Seconds-minutes | Small | DQN (fast decisions) | Win rate |
+| **Day Trading** | 1-15 min | Hours | Medium | PPO, A2C | Daily PnL |
+| **Swing Trading** | 1H - Daily | Days-weeks | Medium | XGBoost, LightGBM | Sharpe ratio |
+| **Position Trading** | Daily-Weekly | Weeks-months | Large | LSTM, Transformer | Annual return |
+| **Long-term Investing** | Monthly | Years | Very Large | Fundamental ML | CAGR, Max DD |
 
-## Các sàn giao dịch lớn
+<Callout type="info">
+**Chọn timeframe phù hợp với AI approach:**
+- **High-frequency (intraday)**: Cần tick data, latency < 1ms, DRL algorithms
+- **Medium frequency (daily)**: Dùng daily OHLCV, classical ML + deep learning
+- **Low frequency (weekly/monthly)**: Fundamental data + sentiment + macro features
+</Callout>
 
-<CardGroup>
-  <Card title="NYSE & NASDAQ" icon="building-columns">
-    2 sàn lớn nhất US (Apple, Microsoft, Google)
-  </Card>
-  <Card title="HOSE (Việt Nam)" icon="mountain-sun">
-    Sàn TP.HCM (VN-Index)
-  </Card>
-  <Card title="HNX (Việt Nam)" icon="building">
-    Sàn Hà Nội (upcom, derivatives)
-  </Card>
-  <Card title="LSE (London)" icon="crown">
-    London Stock Exchange
-  </Card>
-  <Card title="TSE (Tokyo)" icon="torii-gate">
-    Tokyo Stock Exchange
-  </Card>
-  <Card title="Crypto exchanges" icon="bitcoin-sign">
-    Binance, Coinbase, Kraken (24/7)
-  </Card>
-</CardGroup>
+## Liquidity — Yếu tố quan trọng nhất cho AI Trading
 
-## Thuật ngữ quan trọng
+**Liquidity** (thanh khoản) là khả năng mua/bán tài sản **mà không ảnh hưởng đến giá**. Đây là yếu tố **quyết định** AI model có thể deploy được hay không.
 
-### Thuật ngữ cơ bản
+### Đo lường Liquidity
 
-| Term | Mô tả |
-|---|---|
-| **Bull Market** | Thị trường tăng giá |
-| **Bear Market** | Thị trường giảm giá (-20%+) |
-| **Volatility** | Mức độ biến động giá |
-| **Liquidity** | Khả năng mua/bán nhanh |
-| **Market Cap** | Vốn hóa = Price × Shares |
-| **Dividend** | Cổ tức trả cho cổ đông |
+| Metric | Công thức | Ý nghĩa cho AI |
+|---|---|---|
+| **Bid-Ask Spread** | Ask - Bid | Chi phí gián tiếp mỗi giao dịch |
+| **Spread %** | (Ask - Bid) / Mid × 100 | Benchmark so sánh stocks |
+| **Daily Volume** | Tổng volume trong ngày | Capacity của strategy |
+| **Dollar Volume** | Volume × Price | True liquidity measure |
+| **Market Depth** | Total $ trong order book 5 levels | Slippage estimate |
+| **Turnover Rate** | Volume / Shares Outstanding | Liquidity relative to size |
+| **Amihud Illiquidity** | |Return| / Dollar Volume | Illiquidity premium |
 
-### Thuật ngữ kỹ thuật
+### Liquidity và Backtesting
 
-| Term | Mô tả |
-|---|---|
-| **Support** | Mức giá mà giá khó giảm xuống |
-| **Resistance** | Mức giá mà giá khó vượt qua |
-| **Breakout** | Giá vượt qua resistance |
-| **Breakdown** | Giá phá qua support |
-| **Trend** | Xu hướng (uptrend, downtrend, sideways) |
-| **Reversal** | Đảo chiều xu hướng |
+<Warning>
+**Lỗi #1 trong AI trading backtest:** Bỏ qua liquidity constraints.
 
-## Order Types
+- Stock **illiquid** (volume < $1M/ngày): Strategy纸上利润 cao nhưng **không execute được**
+- **Market impact:** Lệnh lớn → đẩy giá → profit giả lập ≠ thực tế
+- **Slippage model:** Estimate chi phí thực tế = f(size, volume, spread)
+</Warning>
 
 ```python
-# Các loại lệnh phổ biến
-order_types = {
-    "Market": "Mua/bán ngay giá thị trường",
-    "Limit": "Mua/bán ở giá cụ thể hoặc tốt hơn",
-    "Stop-Loss": "Tự động bán khi giá xuống mức nhất định",
-    "Take-Profit": "Tự động bán khi giá lên mức nhất định",
-    "Stop-Limit": "Kết hợp stop + limit",
-    "Trailing Stop": "Stop-loss di chuyển theo giá"
-}
+def estimate_slippage(order_size: float, daily_volume: float,
+                      spread_pct: float) -> float:
+    """
+    Ước tính slippage dựa trên Market Impact Model.
+    Simplified Almgren-Chriss model.
+    """
+    # Participation rate
+    participation = order_size / daily_volume
+
+    # Square-root market impact
+    market_impact = 0.5 * np.sqrt(participation)
+
+    # Total cost = half spread + market impact
+    half_spread_cost = spread_pct / 2
+    total_slippage = half_spread_cost + market_impact
+
+    return total_slippage  # As % of trade value
+
+# Ví dụ:
+# Apple: daily_volume = $10B, spread = 0.01%
+# Order: $1M → participation = 0.01% → slippage ≈ 0.015%
+# Small-cap: daily_volume = $500K, spread = 0.5%
+# Order: $100K → participation = 20% → slippage ≈ 5.5%!
 ```
 
-## Market Hours
+## Market Regimes — Thay đổi mọi thứ
 
-| Market | Hours (Local) | Hours (VN) |
-|---|---|---|
-| NYSE/NASDAQ | 9:30 - 16:00 EST | 21:30 - 04:00 (next day) |
-| HOSE | 9:00 - 15:00 ICT | 9:00 - 15:00 |
-| HNX | 9:00 - 15:00 ICT | 9:00 - 15:00 |
-| London LSE | 8:00 - 16:30 GMT | 15:00 - 23:30 |
-| Tokyo TSE | 9:00 - 15:00 JST | 7:00 - 13:00 |
-| Crypto | 24/7 | 24/7 |
+**Market Regime** là "trạng thái" của thị trường — bullish, bearish, sideways, high-vol, low-vol. Mỗi regime có **behavioral characteristics** khác nhau hoàn toàn.
 
-## Market Participants
+### Các Regime chính
 
-<Steps>
-  <Step title="Retail Investors">
-    Nhà đầu tư cá nhân (chiếm ~25% volume US)
-  </Step>
-  <Step title="Institutional Investors">
-    Quỹ, pension funds, hedge funds (chiếm phần lớn volume)
-  </Step>
-  <Step title="Market Makers">
-    Cung cấp thanh khoản, kiếm lợi từ spread
-  </Step>
-  <Step title="High-Frequency Trading (HFT)">
-    Giao dịch tốc độ milisecond
-  </Step>
-  <Step title="Algorithmic Trading">
-    Bot giao dịch tự động theo thuật toán
-  </Step>
-</Steps>
+| Regime | Đặc điểm | Strategy hiệu quả | AI Approach |
+|---|---|---|---|
+| **Bull (Low Vol)** | Giá tăng steadily, VIX thấp | Buy & Hold, Momentum | Trend following RL |
+| **Bull (High Vol)** | Giá tăng nhưng volatile | Selective buying | Stock selection ML |
+| **Bear (High Vol)** | Giá giảm mạnh, VIX cao | Short, Hedging, Cash | Regime detection → reduce exposure |
+| **Sideways (Low Vol)** | Giá range-bound | Mean reversion | Range trading RL |
+| **Crisis** | Crash, liquidity dry up | Cash, Gold, Put options | Anomaly detection → exit |
+| **Recovery** | Bounce từ đáy,不确定 | Value investing, Small-cap | Bottom detection ML |
+
+### Regime Detection với Data
+
+```python
+import pandas as pd
+import numpy as np
+from hmmlearn.hmm import GaussianHMM
+
+def detect_market_regime(returns: pd.Series, n_regimes: int = 3) -> pd.Series:
+    """
+    Phát hiện market regime bằng Hidden Markov Model.
+    """
+    # Features: returns + rolling volatility
+    features = np.column_stack([
+        returns.values,
+        returns.rolling(20).std().fillna(0).values
+    ])
+
+    model = GaussianHMM(
+        n_components=n_regimes,
+        covariance_type="full",
+        n_iter=200,
+        random_state=42
+    )
+    model.fit(features)
+
+    hidden_states = model.predict(features)
+
+    # Map to interpretable labels based on volatility
+    regime_stats = pd.DataFrame({
+        'vol': pd.Series(returns).rolling(20).std().fillna(0).values,
+        'state': hidden_states
+    }).groupby('state')['vol'].mean().sort_values()
+
+    regime_map = {}
+    labels = ['Low-Vol Bull', 'Sideways', 'High-Vol Bear'][:n_regimes]
+    for idx, state in enumerate(regime_stats.index):
+        regime_map[state] = labels[idx]
+
+    return pd.Series([regime_map[s] for s in hidden_states], index=returns.index)
+
+# Usage
+# regime = detect_market_regime(daily_returns, n_regimes=3)
+# strategy_switch = regime.map({
+#     'Low-Vol Bull': 'momentum',
+#     'Sideways': 'mean_reversion',
+#     'High-Vol Bear': 'reduce_exposure'
+# })
+```
+
+<Callout type="info">
+**Tại sao Regime quan trọng cho AI:**
+- Model train trên bull market → **fail** khi chuyển sang bear market
+- **Regime-adaptive strategies** tự chuyển algorithm theo market state
+- **Ensemble models** có thể weight different algorithms theo regime
+- RL agents cần **regime-aware reward functions** để avoid catastrophic losses
+</Callout>
+
+## Market Participants & Their Impact
+
+| Participant |佔比 volume | Trading Style | AI implications |
+|---|---|---|---|
+| **Retail Investors** | ~25% US, ~60% VN | Sentiment-driven, momentum | Sentiment analysis features |
+| **Mutual Funds** | ~15% | Fundamental, long-term | Fundamental ML features |
+| **Hedge Funds** | ~15% | Multi-strategy, quantitative | Factor models, alpha signals |
+| **Pension Funds** | ~10% | Long-term, rebalancing | Rebalancing calendar effects |
+| **Market Makers** | ~15% | Provide liquidity, earn spread | Spread dynamics modeling |
+| **HFT Firms** | ~10% | Microsecond latency | Need equivalent speed or avoid competing |
+| **Algorithmic (non-HFT)** | ~10% | Multi-timeframe, systematic | Compete with similar approaches |
+
+<Callout type="warning">
+**AI và Market Microstructure:**
+- **HFT algorithms** chạy trên microsecond → compete với bạn ở nano level
+- **Smart order routing** của institutions → better execution than retail
+- **Don't try to beat HFT** — focus on **medium-term alpha** (days to weeks)
+- **Retail sentiment** (social media) là edge duy nhất của individual AI traders
+</Callout>
 
 ## Các lý thuyết tài chính nền tảng
 
 ### 1. Efficient Market Hypothesis (EMH)
 
 <Callout type="info">
-**EMH** cho rằng giá cổ phiếu đã phản ánh **tất cả thông tin** có sẵn → không thể "beat the market" consistently.
+**EMH** cho rằng giá đã **phản ánh tất cả thông tin** → không thể beat market consistently. Tuy nhiên, EMH **không hoàn toàn đúng** trong thực tế — đó là nơi AI tạo ra edge.
 
-- **Weak form:** Giá phản ánh thông tin quá khứ
-- **Semi-strong:** Giá phản ánh thông tin công khai
-- **Strong:** Giá phản ánh cả thông tin nội bộ
+- **Weak form:** Giá phản ánh thông tin quá khứ → Technical analysis không hiệu quả
+- **Semi-strong:** Giá phản ánh thông tin công khai → Fundamental analysis không hiệu quả
+- **Strong:** Giá phản ánh cả insider info → Không gì hiệu quả
 </Callout>
+
+**AI vs EMH:**
+```
+EMH nói: Không thể beat market bằng thông tin quá khứ
+AI nói:  Tôi có thể tìm pattern phức tạp hơn人类 brain
+         → nonlinear patterns, alternative data, real-time processing
+
+Thực tế: AI có thể tạo alpha nhưng alpha会 decay khi nhiều người dùng
+```
 
 ### 2. Modern Portfolio Theory (Markowitz)
 
-- **Diversification** giảm risk
-- Tối ưu **risk-return tradeoff**
-- **Efficient frontier** — danh mục tối ưu
+| Khái niệm | Ý nghĩa | AI Application |
+|---|---|---|
+| **Diversification** | Kết hợp assets → giảm risk | Portfolio optimization RL |
+| **Efficient Frontier** | Tập hợp portfolios tối ưu | Multi-objective optimization |
+| **Risk-Return Tradeoff** | Higher return → higher risk | Reward function design |
+| **Covariance Matrix** | Đo correlation giữa assets | Feature for portfolio models |
+
+```python
+# Markowitz optimization (simplified)
+import numpy as np
+from scipy.optimize import minimize
+
+def portfolio_stats(weights, returns, cov_matrix):
+    port_return = np.sum(returns.mean() * weights) * 252
+    port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
+    sharpe = port_return / port_vol
+    return port_return, port_vol, sharpe
+
+def maximize_sharpe(returns, cov_matrix):
+    n = returns.shape[1]
+    result = minimize(
+        lambda w: -portfolio_stats(w, returns, cov_matrix)[2],
+        x0=np.ones(n) / n,
+        constraints={'type': 'eq', 'fun': lambda w: np.sum(w) - 1},
+        bounds=[(0, 1)] * n
+    )
+    return result.x  # optimal weights
+```
 
 ### 3. Capital Asset Pricing Model (CAPM)
 
 ```
-Expected Return = Risk-Free Rate + Beta × (Market Return - Risk-Free Rate)
+E(R_i) = R_f + β_i × [E(R_m) - R_f]
+
+R_f = Risk-free rate (10Y Treasury yield)
+β_i = Cov(R_i, R_m) / Var(R_m)  →  Systematic risk
+E(R_m) - R_f = Market Risk Premium (~5-7%)
 ```
 
-- **Beta:** Đo lường biến động so với thị trường
+| Beta | Meaning | Risk Level | Example |
+|---|---|---|---|
+| β = 0 | Không correlation với market | Risk-free | T-Bills |
+| β = 0.5 | Ít volatile hơn market | Low | Utilities |
+| β = 1.0 | Đồng movement với market | Medium | S&P 500 ETF |
+| β = 1.5 | Volatile hơn 50% | High | Tech stocks |
+| β = 2.0+ | Leveraged exposure | Very High | TQQQ (3x leverage) |
+
+### 4. Fama-French Multi-Factor Model
+
+**Fama-French** mở rộng CAPM với thêm factors — đây là nền tảng cho **factor investing** và **alpha research**.
+
+```
+R_i - R_f = α + β_1(R_m - R_f) + β_2(SMB) + β_3(HML) + β_4(RMW) + β_5(CMA) + ε
+
+SMB (Small Minus Big)     : Size factor — small cap outperforms
+HML (High Minus Low)      : Value factor — cheap stocks outperform
+RMW (Robust Minus Weak)   : Profitability — profitable firms outperform
+CMA (Conservative Minus Aggressive) : Investment — conservative firms outperform
+```
+
+| Factor | Premium | Decay risk | AI Feature |
+|---|---|---|---|
+| **Market (β)** | 5-7% | Permanent | Benchmark |
+| **Size (SMB)** | 2-3% | Shrinking | Small-cap screening |
+| **Value (HML)** | 3-5% | Cyclical | Value score ML |
+| **Momentum** | 6-8% | High decay | Momentum features |
+| **Quality (RMW)** | 2-4% | Low decay | Fundamental scoring |
+| **Low Vol** | 2-3% | Cyclical | Volatility features |
+
+### 5. Random Walk & Adaptive Market Hypothesis
+
+| Theory | Core idea | AI implication |
+|---|---|---|
+| **Random Walk** | Giá di chuyển random, không predict được | Baseline: Buy & Hold |
+| **Adaptive Market (AMH)** | Markets evolve, efficiency thay đổi theo thời gian | **Regime-adaptive AI** — cần tự thích ứng |
+
+<Callout type="info">
+**Adaptive Market Hypothesis (Andrew Lo, 2004)** là lý thuyết **quan trọng nhất cho AI trading:**
+- Markets không always efficient — có **anomalies** tồn tại trong thời gian ngắn
+- Anomalies **appear → exploited → disappear** (việc nhiều người dùng AI → alpha decay)
+- **AI model cần sürekli adapt** — retrain, update features, switch strategies
+- **Không có model vĩnh viễn** — chỉ có **adaptive systems**
+</Callout>
 
 ## Tại sao nền tảng quan trọng cho AI?
 
 <Warning>
-AI chỉ là **công cụ**. Nếu bạn không hiểu thị trường:
-- **Features** bạn chọn có thể vô nghĩa
-- **Signals** model đưa ra có thể là noise
-- **Risk management** sẽ sai lầm
-- Bạn sẽ **tin tưởng sai** vào model
+Nếu bạn không hiểu thị trường, AI model của bạn sẽ:
+- **Dùng features vô nghĩa** — correlation không phải causation
+- **Overfit noise** — accuracy 99% trên backtest, 48% trên live market
+- **Bỏ qua market impact** — strategy纸上 đẹp nhưng không execute được
+- **Không biết regime changes** — model bull market fail hoàn toàn khi bear到来
+- **Thiếu risk management** — AI không tự biết cắt lỗ
 </Warning>
 
 <Tip>
-Đừng bỏ qua phần này! Trader giỏi **không phải người code giỏi nhất**, mà là người hiểu thị trường + có risk management chặt chẽ. AI chỉ là amplification.
+**Framework tổng hợp:**
+
+1. **Understand the market** (phần này) → Context cho mọi quyết định AI
+2. **Collect data** (Data Collection) → Raw materials
+3. **Engineer features** (Technical/Fundamental) → Representations
+4. **Build models** (ML/Deep Learning) → Predictions
+5. **Backtest realistically** (Paper Trading) → Validate
+6. **Deploy with risk management** → Production
+
+**Bước 1 không skip được** — nếu nền tảng sai, mọi bước sau đều sai.
 </Tip>
 
 ## Bước tiếp theo
 
-Bây giờ bạn đã hiểu thị trường, hãy chuyển sang:
-
 <CardGroup>
-  <Card title="Thu thập dữ liệu" icon="database" href="/ai-stock-investment/data-collection">
-    APIs và data sources cho AI models
+  <Card title="Phân tích Kỹ thuật" icon="chart-line" href="/ai-stock-investment/technical-analysis">
+    50+ indicators, chart patterns, và cách dùng làm features cho AI
   </Card>
-  <Card title="Phân tích kỹ thuật" icon="chart-line" href="/ai-stock-investment/technical-analysis">
-    Indicators và chart patterns
+  <Card title="Phân tích Cơ bản" icon="magnifying-glass-dollar" href="/ai-stock-investment/fundamental-analysis">
+    Financial ratios, valuation models, và fundamental ML
   </Card>
-  <Card title="Phân tích cơ bản" icon="magnifying-glass-dollar" href="/ai-stock-investment/fundamental-analysis">
-    Financial ratios và valuation
+  <Card title="Thu thập Dữ liệu" icon="database" href="/ai-stock-investment/data-collection">
+    APIs, data sources, và data pipelines cho AI models
+  </Card>
+  <Card title="Fintech Overview" icon="rocket" href="/ai-stock-investment/fintech-overview">
+    GenAI, DeFi, Embedded Finance — fintech landscape 2025-2026
   </Card>
 </CardGroup>

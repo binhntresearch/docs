@@ -1,0 +1,696 @@
+---
+title: "Buổi 4 — Các Model Tài chính trong Fintech"
+description: "Hệ thống các model tài chính hiện đại: Risk Model, Credit Score, Pricing, Volatility, Quantitative Models, chiến lược đầu tư và chỉ báo kỹ thuật/cơ bản cho fintech"
+icon: "calculator"
+---
+
+**Financial Models** trong fintech là tập hợp các mô hình toán học — từ **định giá tài sản, đo lường rủi ro, chấm điểm tín dụng** đến **dự đoán volatility** và **mô phỏng thị trường**. Đây là nền tảng cho mọi sản phẩm fintech.
+
+## Tại sao Financial Models quan trọng?
+
+<Callout type="info">
+Mọi quyết định tài chính (cho vay, đầu tư, bảo hiểm, giao dịch) đều cần một **mô hình toán học** định lượng:
+- **Rủi ro bao nhiêu?**
+- **Lợi nhuận kỳ vọng?**
+- **Giá hợp lý?**
+- **Khả năng default?**
+
+AI/ML giúp nâng cấp các model này từ **deterministic** → **probabilistic, adaptive, real-time**.
+</Callout>
+
+## Nhóm chiến lược đầu tư
+
+Tên chiến lược nên mô tả rõ **phương pháp** và **thị trường mục tiêu**. Dưới đây là các nhóm chiến lược phổ biến nhất:
+
+<Tabs>
+  <Tab title="Momentum">
+    **Momentum** — Chiến lược đi theo xu hướng, giả định rằng cổ phiếu đang tăng sẽ tiếp tục tăng trong ngắn hạn.
+
+    | Thuộc tính | Mô tả |
+    |---|---|
+    | **Logic** | Xu hướng tự duy trì (mean reversion của volatility-adjusted momentum) |
+    | **Timeframe** | Trung hạn (1-6 tháng) |
+    | **Indicators** | RSI, MACD, Price Rank, 12-month momentum |
+    | **Universe** | US Large-Cap, Emerging Markets |
+    | **Risk** | Reversal khi regime change |
+
+    ```python
+    import pandas as pd
+    import numpy as np
+
+    def momentum_signal(df, lookback=252):
+        """
+        Tính momentum signal:
+        return_t = P_t / P_{t-lookback} - 1
+        """
+        df = df.copy()
+        df['momentum'] = df['Close'] / df['Close'].shift(lookback) - 1
+        df['vol_adj_momentum'] = df['momentum'] / df['Close'].pct_change().rolling(lookback).std()
+        return df['vol_adj_momentum'].dropna()
+    ```
+  </Tab>
+  <Tab title="Mean Reversion">
+    **Mean Reversion** — Giá cổ phiếu có xu hướng quay về giá trị trung bình lịch sử.
+
+    | Thuộc tính | Mô tả |
+    |---|---|
+    | **Logic** | Overbought → bán, Oversold → mua |
+    | **Timeframe** | Ngắn hạn (days to weeks) |
+    | **Indicators** | Bollinger Bands, Z-Score, RSI Extreme |
+    | **Market** | Range-bound markets, Futures calendar spreads |
+    | **Risk** | Trend continuation (choppy mean-reversion fail) |
+
+    ```python
+    def mean_reversion_signal(df, window=20, std_dev=2):
+        """
+        Mean reversion: giá vượt Bollinger Bands → fade
+        """
+        df = df.copy()
+        df['sma'] = df['Close'].rolling(window).mean()
+        df['std'] = df['Close'].rolling(window).std()
+        df['upper'] = df['sma'] + std_dev * df['std']
+        df['lower'] = df['sma'] - std_dev * df['std']
+
+        # Z-score
+        df['zscore'] = (df['Close'] - df['sma']) / df['std']
+
+        # Signal: -1 sell (above band), +1 buy (below band)
+        df['signal'] = np.where(df['Close'] > df['upper'], -1,
+                       np.where(df['Close'] < df['lower'], 1, 0))
+        return df['signal']
+    ```
+  </Tab>
+  <Tab title="Trend Following">
+    **Trend Following** — Bắt trend dài hạn, không cố đoán đỉnh/đáy.
+
+    | Thuộc tính | Mô tả |
+    |---|---|
+    | **Logic** | Cut losses quickly, let winners run |
+    | **Timeframe** | Dài hạn (months to years) |
+    | **Indicators** | SMA Crossover, Donchian Channel, ATR-based stops |
+    | **Universe** | Commodities, Financial Futures, Global Equities |
+    | **Risk** | Whipsaws trong sideways market |
+
+    ```python
+    def trend_following_signal(df, short_ma=50, long_ma=200):
+        """
+        SMA Crossover: short MA > long MA → BUY
+        """
+        df = df.copy()
+        df['sma_short'] = df['Close'].rolling(short_ma).mean()
+        df['sma_long'] = df['Close'].rolling(long_ma).mean()
+        df['signal'] = np.where(
+            df['sma_short'] > df['sma_long'], 1, -1
+        )
+        return df['signal']
+    ```
+  </Tab>
+  <Tab title="Value Investing">
+    **Value Investing** — Mua cổ phiếu có giá thấp hơn giá trị nội tại (intrinsic value).
+
+    | Thuộc tính | Mô tả |
+    |---|---|
+    | **Logic** | Price reverts to intrinsic value |
+    | **Timeframe** | Dài hạn (years) |
+    | **Indicators** | P/E, P/B, EV/EBITDA, DCF, Graham Number |
+    | **Universe** | US Large-Cap, Blue-chip |
+    | **Risk** | Value trap (cheap for good reason) |
+
+    ```python
+    def value_score(df_fundamentals):
+        """
+        Tính value score từ nhiều metrics
+        """
+        score = pd.DataFrame(index=df_fundamentals.index)
+
+        # Z-score mỗi metric (reversed cho P/E: thấp = tốt)
+        score['pe_score']   = -zscore(df_fundamentals['pe_ratio'])
+        score['pb_score']   = -zscore(df_fundamentals['pb_ratio'])
+        score['ev_score']   = -zscore(df_fundamentals['ev_ebitda'])
+        score['dy_score']   = zscore(df_fundamentals['dividend_yield'])
+
+        # Composite score
+        score['value_score'] = score.mean(axis=1)
+        return score['value_score']
+    ```
+  </Tab>
+  <Tab title="Swing Trading">
+    **Swing Trading** — Nắm bắt các swing (biến động) trong 1-7 ngày.
+
+    | Thuộc tính | Mô tả |
+    |---|---|
+    | **Logic** | Exploit short-term price swings around trend |
+    | **Timeframe** | Ngắn-trung hạn (1 ngày – 2 tuần) |
+    | **Indicators** | VWAP, RSI 14, Volume Profile, Fibonacci retracement |
+    | **Market** | Stocks, ETFs, Futures intraday |
+    | **Risk** | Overnight gap, news events |
+
+    ```python
+    def swing_trade_signal(df, rsi_buy=30, rsi_sell=70):
+        """
+        Swing trade: mua oversold trong uptrend, bán overbought trong downtrend
+        """
+        df = df.copy()
+        df['trend'] = df['Close'] > df['Close'].rolling(50).mean()
+        df['rsi'] = compute_rsi(df['Close'], 14)
+
+        conditions = [
+            (df['trend'] & (df['rsi'] < rsi_buy)),   # BUY
+            (~df['trend'] & (df['rsi'] > rsi_sell)), # SELL
+        ]
+        choices = [1, -1]
+        df['signal'] = np.select(conditions, choices, default=0)
+        return df['signal']
+    ```
+  </Tab>
+  <Tab title="Volatility">
+    **Volatility** — Chiến lược kiếm lời từ biến động giá, bất kể hướng.
+
+    | Thuộc tính | Mô tả |
+    |---|---|
+    | **Logic** | Vol cao → sell premium; Vol thấp → buy protection |
+    | **Timeframe** | Any (intraday → swing) |
+    | **Indicators** | VIX, ATR, Bollinger Width, IV Rank |
+    | **Instruments** | Options, VIX derivatives, Variance swaps |
+    | **Risk** | Volatility spike (vol sellers bị margin call) |
+
+    ```python
+    def volatility_regime(df, vol_window=20):
+        """
+        Regime detection: Low/High volatility
+        """
+        df = df.copy()
+        df['returns'] = df['Close'].pct_change()
+        df['realized_vol'] = df['returns'].rolling(vol_window).std() * np.sqrt(252)
+
+        vol_pct = df['realized_vol'].rank(pct=True)
+
+        conditions = [
+            vol_pct < 0.2,   # Low vol
+            vol_pct > 0.8,   # High vol
+        ]
+        choices = ['LOW', 'HIGH']
+        df['vol_regime'] = np.select(conditions, choices, default='MEDIUM')
+        return df['vol_regime']
+    ```
+  </Tab>
+</Tabs>
+
+## Chỉ báo Kỹ thuật và Chỉ báo Cơ bản
+
+<Callout type="info">
+Việc kết hợp **chỉ báo kỹ thuật** (phân tích giá/volume) và **chỉ báo cơ bản** (tài chính doanh nghiệp) tạo ra edge mạnh nhất trong đầu tư thực chiến.
+</Callout>
+
+<Tabs>
+  <Tab title="Chỉ báo Kỹ thuật">
+    **Chỉ báo kỹ thuật** dùng **dữ liệu giá và khối lượng** lịch sử để dự đoán hướng giá.
+
+    ### Trend Indicators
+
+    | Chỉ báo | Công thức | Ứng dụng |
+    |---|---|---|
+    | **SMA** (Simple Moving Average) | MA(P, n) | Xác định xu hướng, crossovers |
+    | **EMA** (Exponential MA) | α × P + (1-α) × EMA_prev | Nhạy hơn SMA, phản ánh nhanh |
+    | **MACD** | EMA(12) - EMA(26) | Signal line crossover |
+    | **Parabolic SAR** | Stop-and-Reverse points | Xác định điểm dừng/lật |
+
+    ### Momentum Indicators
+
+    | Chỉ báo | Công thức | Ứng dụng |
+    |---|---|---|
+    | **RSI** (Relative Strength Index) | 100 - 100/(1+RS) | Overbought (>70) / Oversold (<30) |
+    | **Stochastic %K/%D** | (C - L_n)/(H_n - L_n) | Momentum oscillator |
+    | **CCI** (Commodity Channel Index) | (TP - SMA_TP)/(0.015 × MD) | Cycle identification |
+    | **Momentum** | P_t - P_{t-n} | Rate of change |
+
+    ### Volatility Indicators
+
+    | Chỉ báo | Công thức | Ứng dụng |
+    |---|---|---|
+    | **Bollinger Bands** | SMA ± k × σ | Mean reversion, breakout |
+    | **ATR** (Average True Range) | Avg(True Range, n) | Position sizing, stops |
+    | **Keltner Channel** | EMA ± 2 × ATR | Trend confirmation |
+    | **VWAP** | Σ(Price × Volume)/ΣVolume | Intraday fair value |
+
+    ### Volume Indicators
+
+    | Chỉ báo | Công thức | Ứng dụng |
+    |---|---|---|
+    | **OBV** (On-Balance Volume) | Σ(sign × volume) | Confirm trend strength |
+    | **VWMA** | Σ(P × V)/ΣV | Volume-weighted MA |
+    | **ADL** (Accumulation/Distribution) | Cumulative money flow | Smart money tracking |
+    | **MFI** (Money Flow Index) | 100 - 100/(1 + MFR) | Volume-based RSI |
+
+    ```python
+    import pandas as pd
+    import numpy as np
+
+    def compute_all_technicals(df):
+        """
+        Tính toàn bộ chỉ báo kỹ thuật phổ biến
+        """
+        df = df.copy()
+
+        # --- Trend ---
+        df['sma_20'] = df['Close'].rolling(20).mean()
+        df['sma_50'] = df['Close'].rolling(50).mean()
+        df['sma_200'] = df['Close'].rolling(200).mean()
+        df['ema_12'] = df['Close'].ewm(span=12).mean()
+        df['ema_26'] = df['Close'].ewm(span=26).mean()
+
+        # MACD
+        df['macd'] = df['ema_12'] - df['ema_26']
+        df['macd_signal'] = df['macd'].ewm(span=9).mean()
+        df['macd_hist'] = df['macd'] - df['macd_signal']
+
+        # --- Momentum ---
+        delta = df['Close'].diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss
+        df['rsi_14'] = 100 - (100 / (1 + rs))
+
+        # Stochastic
+        low_14 = df['Low'].rolling(14).min()
+        high_14 = df['High'].rolling(14).max()
+        df['stoch_k'] = 100 * (df['Close'] - low_14) / (high_14 - low_14)
+        df['stoch_d'] = df['stoch_k'].rolling(3).mean()
+
+        # --- Volatility ---
+        df['std_20'] = df['Close'].rolling(20).std()
+        df['upper_band'] = df['sma_20'] + 2 * df['std_20']
+        df['lower_band'] = df['sma_20'] - 2 * df['std_20']
+
+        # ATR
+        tr = pd.concat([
+            df['High'] - df['Low'],
+            abs(df['High'] - df['Close'].shift()),
+            abs(df['Low'] - df['Close'].shift())
+        ], axis=1).max(axis=1)
+        df['atr_14'] = tr.rolling(14).mean()
+
+        # --- Volume ---
+        df['obv'] = (np.sign(df['Close'].diff()) * df['Volume']).fillna(0).cumsum()
+        df['vwap'] = (df['Close'] * df['Volume']).cumsum() / df['Volume'].cumsum()
+
+        # --- Composite Signal ---
+        df['tech_score'] = (
+            (df['Close'] > df['sma_20']).astype(int) +
+            (df['Close'] > df['sma_50']).astype(int) +
+            (df['rsi_14'] < 70).astype(int) +
+            (df['macd_hist'] > 0).astype(int)
+        )  # Score 0-4
+
+        return df.dropna()
+    ```
+  </Tab>
+  <Tab title="Chỉ báo Cơ bản">
+    **Chỉ báo cơ bản** dùng **báo cáo tài chính** doanh nghiệp để định giá giá trị thực.
+
+    ### Valuation Ratios
+
+    | Chỉ báo | Công thức | Ngưỡng phổ biến |
+    |---|---|---|
+    | **P/E** (Price-to-Earnings) | Price / EPS | <15 cheap, >25 expensive |
+    | **P/B** (Price-to-Book) | Price / Book Value per Share | <1 undervalue |
+    | **P/S** (Price-to-Sales) | Price / Revenue per Share | <2 software, <10 retail |
+    | **EV/EBITDA** | Enterprise Value / EBITDA | <10 average |
+    | **DCF** | Σ CF_t/(1+r)^t | Intrinsic value |
+
+    ### Profitability Ratios
+
+    | Chỉ báo | Công thức | Ý nghĩa |
+    |---|---|---|
+    | **ROE** | Net Income / Equity | >15% tốt |
+    | **ROA** | Net Income / Total Assets | >5% tốt |
+    | **ROIC** | NOPAT / Invested Capital | >WACC tạo giá trị |
+    | **Gross Margin** | Gross Profit / Revenue | So sánh ngành |
+    | **Net Margin** | Net Income / Revenue | Hiệu quả toàn chain |
+
+    ### Liquidity & Leverage
+
+    | Chỉ báo | Công thức | Ngưỡng |
+    |---|---|---|
+    | **Current Ratio** | Current Assets / Current Liabilities | >1.5 an toàn |
+    | **Quick Ratio** | (CA - Inventory) / CL | >1 healthy |
+    | **Debt/Equity** | Total Debt / Total Equity | <2 conservative |
+    | **Interest Coverage** | EBIT / Interest Expense | >3 comfortable |
+
+    ### Growth Metrics
+
+    | Chỉ báo | Công thức | Ý nghĩa |
+    |---|---|---|
+    | **EPS Growth YoY** | (EPS_t - EPS_{t-1}) / EPS_{t-1} | Tăng trưởng thu nhập |
+    | **Revenue Growth** | (Rev_t - Rev_{t-1}) / Rev_{t-1} | Tăng trưởng doanh thu |
+    | **PEG Ratio** | P/E / EPS Growth Rate | <1 cheap relative to growth |
+    | **Earnings Yield** | EPS / Price | Inverse of P/E |
+
+    ```python
+    import pandas as pd
+    import numpy as np
+
+    def compute_fundamentals(ticker: str, financial_data: dict):
+        """
+        Tính toàn bộ chỉ báo cơ bản từ financial statements
+        """
+        bs   = financial_data['balance_sheet']   # Bảng cân đối kế toán
+        is_  = financial_data['income_stmt']     # Báo cáo thu nhập
+        cf   = financial_data['cashflow']        # Dòng tiền
+
+        metrics = {}
+
+        # --- Valuation ---
+        price = financial_data['current_price']
+        shares = bs.loc['shares_outstanding'].values[-1]
+        market_cap = price * shares
+
+        eps = is_.loc['net_income'].values[-1] / shares
+        metrics['pe_ratio'] = price / eps
+
+        bvps = bs.loc['total_equity'].values[-1] / shares
+        metrics['pb_ratio'] = price / bvps
+
+        revenue_per_share = is_.loc['revenue'].values[-1] / shares
+        metrics['ps_ratio'] = price / revenue_per_share
+
+        # EV/EBITDA
+        total_debt = bs.loc['total_debt'].values[-1]
+        cash = bs.loc['cash'].values[-1]
+        ev = market_cap + total_debt - cash
+        ebitda = is_.loc['ebitda'].values[-1]
+        metrics['ev_ebitda'] = ev / ebitda
+
+        # --- Profitability ---
+        net_income = is_.loc['net_income'].values[-1]
+        equity = bs.loc['total_equity'].values[-1]
+        total_assets = bs.loc['total_assets'].values[-1]
+
+        metrics['roe'] = net_income / equity
+        metrics['roa'] = net_income / total_assets
+        metrics['net_margin'] = net_income / is_.loc['revenue'].values[-1]
+
+        # --- Growth ---
+        prev_eps = is_.loc['net_income'].values[-2] / shares
+        metrics['eps_growth_yoy'] = (eps - prev_eps) / prev_eps
+
+        prev_revenue = is_.loc['revenue'].values[-2]
+        revenue = is_.loc['revenue'].values[-1]
+        metrics['revenue_growth'] = (revenue - prev_revenue) / prev_revenue
+
+        # --- Leverage ---
+        current_assets = bs.loc['current_assets'].values[-1]
+        current_liab = bs.loc['current_liabilities'].values[-1]
+        metrics['current_ratio'] = current_assets / current_liab
+
+        total_debt_val = bs.loc['total_debt'].values[-1]
+        metrics['debt_equity'] = total_debt_val / equity
+
+        # --- Composite Score ---
+        metrics['fund_score'] = composite_fund_score(metrics)
+
+        return pd.Series(metrics)
+
+    def composite_fund_score(m):
+        """
+        Tính điểm cơ bản tổng hợp (z-score based)
+        """
+        score = 0
+
+        # P/E: thấp = tốt (reverse)
+        if m.get('pe_ratio', 999) < 15: score += 1
+        elif m.get('pe_ratio', 999) < 25: score += 0.5
+
+        # ROE > 15%
+        if m.get('roe', 0) > 0.15: score += 1
+        elif m.get('roe', 0) > 0.10: score += 0.5
+
+        # ROA > 5%
+        if m.get('roa', 0) > 0.05: score += 1
+        elif m.get('roa', 0) > 0.03: score += 0.5
+
+        # Debt/Equity < 2
+        if m.get('debt_equity', 999) < 2: score += 1
+        elif m.get('debt_equity', 999) < 3: score += 0.5
+
+        # EPS Growth > 0
+        if m.get('eps_growth_yoy', -1) > 0.10: score += 1
+        elif m.get('eps_growth_yoy', -1) > 0: score += 0.5
+
+        return score / 5  # Normalize 0-1
+    ```
+  </Tab>
+</Tabs>
+
+## Phân loại Financial Models
+
+<Tabs>
+  <Tab title="Asset Pricing Models">
+    - **CAPM:** Định giá dựa trên beta & market premium
+    - **Fama-French 3/5-Factor:** Định giá đa yếu tố (size, value, momentum...)
+    - **Black-Scholes:** Định giá options (call/put)
+    - **Monte Carlo Simulation:** Mô phỏng giá hàng nghìn kịch bản
+    - **Binomial Tree:** Cây nhị phân giá option theo thời gian
+    - **Binomial-CRR:** Cox-Ross-Rubinstein discrete model
+    - **Heston Model:** Stochastic volatility cho options
+  </Tab>
+  <Tab title="Risk Models">
+    - **Value at Risk (VaR):** Mức thua lỗ tối đa ở confidence level
+    - **Expected Shortfall (CVaR):** Loss expected vượt quá VaR
+    - **Stress Testing:** Test dưới kịch bản cực đoan
+    - **GARCH:** Volatility clustering (vol cao → vol tiếp tục cao)
+    - **CoVaR:** Systemic risk — rủi ro hệ thống
+    - **CreditRisk+:** Loss distribution cho credit portfolio
+  </Tab>
+  <Tab title="Credit Models">
+    - **FICO Score:** Classic US credit score (300-850)
+    - **PD (Probability of Default):** Xác suất vỡ nợ
+    - **LGD (Loss Given Default):** Tỷ lệ mất khi default
+    - **EAD (Exposure at Default):** Exposure tại thời điểm default
+    - **Merton Model:** PD dựa trên equity = option
+    - **Logistic Regression Scorecard:** Truyền thống nhưng hiệu quả
+    - **AI Credit Score:** Dùng alternative data + ML
+  </Tab>
+  <Tab title="Portfolio Models">
+    - **Markowitz (MPT):** Tối ưu risk-return với covariance matrix
+    - **Black-Litterman:** Kết hợp market views với CAPM
+    - **Risk Parity:** Phân bổ theo risk contribution
+    - **Kelly Criterion:** Tối đa hóa log utility cho position sizing
+    - **Hierarchical Risk Parity (HRP):** Clustering + risk balance
+    - **Mean-Variance Optimization (MVO):** Nền tảng Markowitz
+  </Tab>
+  <Tab title="Volatility Models">
+    - **ARCH:** Autoregressive Conditional Heteroskedasticity
+    - **GARCH(1,1):** Mở rộng có long-memory
+    - **EGARCH:** Exponential GARCH — bắt được leverage effect
+    - **GJR-GARCH:** Bất đối xứng tăng/giảm
+    - **Stochastic Volatility (Heston):** Vol là stochastic process
+    - **Realized Volatility:** Dùng intraday data tính vol thực
+  </Tab>
+  <Tab title="Trading & Market Models">
+    - **Random Walk:** Giá là random, không predict được
+    - **Geometric Brownian Motion:** GBM cho giá cổ phiếu
+    - **Jump-Diffusion (Merton):** GBM + rare jumps
+    - **Mean Reversion (Ornstein-Uhlenbeck):** Giá quay về mean
+    - **ARIMA:** AutoRegressive Integrated Moving Average
+    - **VECM:** Vector Error Correction cho cointegration
+  </Tab>
+</Tabs>
+
+## So sánh Traditional vs AI Models
+
+| Aspect | Traditional Models | AI-Augmented Models |
+|---|---|---|
+| **Dữ liệu** | Structured financial data | + Unstructured (news, social, images) |
+| **Assumptions** | Strong (normality, linearity) | Relaxed (non-linear, complex) |
+| **Interpretability** | High (white-box) | Variable (LIME/SHAP for XAI) |
+| **Real-time updates** | Slow (re-fit) | Fast (online learning) |
+| **Non-linearities** | Limited | Captured automatically |
+| **Speed** | Milliseconds | Milliseconds |
+
+## Merton Model — Định giá Equity như Option
+
+<Callout type="info">
+**Merton Model** (1974) coi vốn chủ sở hữu (equity) như **call option** trên tài sản của công ty, với strike price = nợ.
+</Callout>
+
+```python
+import numpy as np
+from scipy.stats import norm
+
+def merton_pd(asset_value, debt, asset_volatility, risk_free_rate, time):
+    """
+    Tính Probability of Default theo Merton Model
+    """
+    # Distance to Default
+    d2 = (np.log(asset_value / debt) +
+          (risk_free_rate - 0.5 * asset_volatility**2) * time) / \
+         (asset_volatility * np.sqrt(time))
+
+    # Probability of Default
+    pd = norm.cdf(-d2)
+
+    return pd
+
+# Example: Company có tài sản = 1000, nợ = 800
+asset_value = 1000
+debt = 800
+vol = 0.30  # 30% volatility
+r = 0.05    # 5% risk-free rate
+T = 1       # 1 năm
+
+pd = merton_pd(asset_value, debt, vol, r, T)
+print(f"PD = {pd:.2%}")
+# Output: PD = ~13.4%
+```
+
+## GARCH Model — Volatility động
+
+```python
+import arch
+import yfinance as yf
+
+# Lấy dữ liệu VN-Index
+data = yf.download("^VNI", start="2023-01-01")["Close"]
+returns = data.pct_change().dropna() * 100
+
+# Fit GARCH(1,1)
+model = arch.arch_model(returns, vol="Garch", p=1, q=1)
+result = model.fit(disp="off")
+
+# Forecast volatility
+forecast = result.forecast(horizon=5)
+print(forecast.variance[-1:])
+```
+
+## Credit Score Model (Logistic Regression)
+
+```python
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
+
+# Load credit data
+df = pd.read_csv("credit_data.csv")
+features = ["age", "income", "debt_ratio", "num_delinquencies"]
+
+X = df[features]
+y = df["default"]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Logistic Regression Scorecard
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Predict PD
+pd_pred = model.predict_proba(X_test)[:, 1]
+
+# Evaluate
+auc = roc_auc_score(y_test, pd_pred)
+print(f"AUC: {auc:.4f}")
+
+# Output: coefficients as scorecard
+for f, c in zip(features, model.coef_[0]):
+    print(f"{f}: {c:.4f}")
+```
+
+## Black-Scholes-Merton (BSM) cho Options
+
+```python
+from scipy.stats import norm
+import numpy as np
+
+def black_scholes(S, K, T, r, sigma, option_type="call"):
+    """
+    S: Spot price
+    K: Strike price
+    T: Time to expiry (years)
+    r: Risk-free rate
+    sigma: Volatility
+    """
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+
+    if option_type == "call":
+        price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+    return price
+
+# Example: Stock = 100, Strike = 105, T = 0.25y, r = 5%, vol = 30%
+bs_price = black_scholes(100, 105, 0.25, 0.05, 0.30, "call")
+print(f"Call Option Price: ${bs_price:.2f}")
+```
+
+## Modern Risk Models trong Fintech
+
+<Callout type="info">
+Các fintech hiện đại kết hợp **regulatory models** (Basel III) với **AI/ML models** để tạo ra **next-gen risk systems**.
+</Callout>
+
+| Model | Mục đích | AI Enhancement |
+|---|---|---|
+| **Basel III IRB** | Capital reserve cho bank | ML cho PD/LGD estimation |
+| **IFRS 9** | Expected Credit Loss (ECL) | LSTM cho macro variables |
+| **CECL (US)** | Current Expected Credit Loss | ML với forward-looking data |
+| **FRTB** | Fundamental Review Trading Book | VaR expected shortfall |
+| **CCAR/DFAST** | Stress test cho bank | Scenario generation với AI |
+
+## Kết hợp Financial Models với AI
+
+```python
+# Ví dụ: AI-Enhanced GARCH với Macro Features
+import pandas as pd
+import numpy as np
+from arch import arch_model
+from sklearn.ensemble import GradientBoostingRegressor
+
+# Traditional GARCH forecast
+garch_model = arch_model(returns, vol="Garch", p=1, q=1)
+garch_fit = garch_model.fit(disp="off")
+garch_vol = garch_fit.forecast(horizon=1).variance.values[-1, 0]
+
+# AI Residual Model: predict (realized - garch)
+features = pd.DataFrame({
+    "garch_vol": garch_vol,
+    "vix": vix_data,
+    "macro_indicator": macro_data,
+    "sentiment": sentiment_score,
+})
+
+gbm = GradientBoostingRegressor(n_estimators=100, max_depth=3)
+gbm.fit(X_train, residuals_train)
+
+# Final forecast = GARCH + AI residual correction
+ai_residual = gbm.predict(features)
+final_vol = garch_vol + ai_residual
+```
+
+<Warning>
+**Lưu ý:**
+- Financial models có **assumptions mạnh** (normal distribution, log returns). Reality phức tạp hơn nhiều (fat tails, regime shifts, black swans).
+- AI **không thay thế** financial theory — nó **augment** models truyền thống.
+- Luôn có **human in the loop** cho quyết định lớn.
+- Model risk management là **bắt buộc** trong production (Model Risk Management — MRM).
+</Warning>
+
+<Tip>
+Bắt đầu với **CAPM + Markowitz** để hiểu nền tảng. Sau đó nâng cấp với **Black-Litterman, GARCH**, rồi mới thêm ML. Đừng học AI trước khi hiểu lý thuyết tài chính — bạn sẽ xây dựng model sai cơ sở.
+</Tip>
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Supervised Learning" icon="chart-line" href="/ai-stock-investment/supervised-learning-finance">
+    Regression, Classification cho credit, pricing
+  </Card>
+  <Card title="Unsupervised Learning" icon="chart-area" href="/ai-stock-investment/unsupervised-learning-finance">
+    Clustering, anomaly detection
+  </Card>
+  <Card title="Reinforcement Learning" icon="gamepad" href="/ai-stock-investment/reinforcement-learning-finance">
+    Trading agent, portfolio optimization
+  </Card>
+</CardGroup>

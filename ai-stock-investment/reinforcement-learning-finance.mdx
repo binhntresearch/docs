@@ -1,0 +1,1431 @@
+---
+title: "Buổi 6 — Reinforcement Learning trong Tài chính & Chứng khoán"
+description: "Tổng quan RL, DQN, PPO, A2C, DDPG, TD3, SAC, TQC, Maskable PPO, CrossQ và Multi-Agent cho trading, portfolio optimization, market making"
+icon: "gamepad"
+---
+
+**Reinforcement Learning (RL)** là framework nơi **agent** học cách ra **quyết định tối ưu** thông qua **tương tác với môi trường** (thị trường), nhận **reward** dựa trên lợi nhuận/rủi ro. Đây là cách tiếp cận **mạnh nhất** cho trading tự động, portfolio optimization, và market making hiện đại.
+
+## RL vs Supervised Learning trong Finance
+
+<Callout type="info">
+Sự khác biệt cốt lõi:
+- **Supervised:** Học từ examples (X → y) — chỉ predict
+- **RL:** Học từ **tương tác** với môi trường — quyết định **action** để tối đa **reward tích lũy**
+
+Trong trading, supervised chỉ cho "dự đoán" — RL cho cả **"chiến lược giao dịch hoàn chỉnh"** tự cân nhắc rủi ro, position sizing, và timing.
+</Callout>
+
+## RL Algorithm Landscape trong Trading
+
+<Callout type="info">
+Trong RL trading, có **8 algorithm chính** đang được sử dụng rộng rãi trong nghiên cứu và production. Mỗi algorithm phù hợp với một bài toán cụ thể: **Discrete actions** (Buy/Sell/Hold) vs **Continuous actions** (position sizing, portfolio weights).
+</Callout>
+
+| Algorithm | Loại | Action Space | Ưu điểm | Best for Trading |
+|---|---|---|---|---|
+| **A2C** | Actor-Critic | Both | Parallel, stable gradient | Quick experiments |
+| **PPO** | Policy Gradient | Both | Most stable, easy to tune | General trading, daily rebalance |
+| **DDPG** | Actor-Critic | Continuous | Deterministic policy | High-frequency trading |
+| **TD3** | Actor-Critic | Continuous | Double critics, reduced overestimation | Continuous position sizing |
+| **SAC** | Actor-Critic | Continuous | Entropy bonus → exploration | **Best for portfolio RL** |
+| **TQC** | Actor-Critic | Continuous | Truncated quantile → robust risk | **Risk-aware portfolio** |
+| **Maskable PPO** | Policy Gradient | Discrete (masked) | Action masking → valid trades | **Multi-asset with constraints** |
+| **CrossQ** | Value-Based | Both | Normalized Q → low bias | Off-policy, limited data |
+
+### RL theo Chiến lược Đầu tư
+
+| Chiến lược | Action Space | Algorithm phù hợp | Reward Function |
+|---|---|---|---|
+| **Momentum** | Discrete (buy/sell/hold) | PPO, Maskable PPO | Future return weighted |
+| **Mean Reversion** | Continuous (position size) | SAC, TQC | Return - 0.5 × drawdown² |
+| **Trend Following** | Discrete (entry/exit) | PPO, A2C | Trend-aligned return |
+| **Value Investing** | Continuous (allocation %) | SAC, TD3 | Risk-adjusted return |
+| **Swing Trading** | Discrete (direction) | PPO, Maskable PPO | Intraday PnL |
+| **Volatility** | Continuous (vol exposure) | TQC, SAC | Vol risk premium |
+
+## Các nhóm RL Algorithms cho Finance
+
+<Tabs>
+  <Tab title="Value-Based">
+    - **Q-Learning:** Bảng Q(state, action) đơn giản
+    - **Deep Q-Network (DQN):** Q-network dùng neural network, replay buffer
+    - **Double DQN:** Giảm overestimation bias
+    - **Dueling DQN:** Tách value & advantage streams
+    - **Rainbow DQN:** Kết hợp nhiều cải tiến (PER, dueling, multi-step)
+  </Tab>
+  <Tab title="Policy Gradient">
+    - **REINFORCE:** Vanilla policy gradient
+    - **Actor-Critic (A2C):** Actor + Value baseline
+    - **A3C (Asynchronous):** Parallel agents học
+    - **TRPO:** Trust Region Policy Optimization
+    - **PPO:** Proximal Policy Optimization — **most used**
+  </Tab>
+  <Tab title="Actor-Critic Hiện đại">
+    - **DDPG:** Deep Deterministic Policy Gradient
+    - **TD3:** Twin Delayed DDPG
+    - **SAC:** Soft Actor-Critic — entropy regularization
+    - **IMPALA:** Distributed RL
+    - **DreamerV3:** World model-based RL
+  </Tab>
+  <Tab title="Multi-Agent & Hierarchical">
+    - **MADDPG:** Multi-Agent DDPG cho collaborative trading
+    - **QMIX:** Value decomposition cho multi-agent
+    - **Hierarchical RL (HRL):** High-level + low-level policies
+    - **Multi-Agent PPO:** Competition giữa các agents
+    - **Mean Field RL:** Cho thị trường với nhiều actors
+  </Tab>
+</Tabs>
+
+## Trading Environment — OpenAI Gym Style
+
+```python
+import pandas as pd
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+
+# ============================================================
+# Stock Trading Environment
+# ============================================================
+
+class StockTradingEnv(gym.Env):
+    """
+    Custom Trading Environment
+    - State: giá hiện tại + position + cash + technical indicators
+    - Action: 0=Hold, 1=Buy, 2=Sell
+    - Reward: portfolio value change - transaction cost
+    """
+    
+    metadata = {'render_modes': ['human']}
+    
+    def __init__(
+        self, 
+        df: pd.DataFrame, 
+        initial_balance: float = 100_000,
+        transaction_cost: float = 0.001
+    ):
+        super().__init__()
+        self.df = df.reset_index(drop=True)
+        self.initial_balance = initial_balance
+        self.transaction_cost = transaction_cost
+        
+        # Action space: 0=Hold, 1=Buy, 2=Sell
+        self.action_space = spaces.Discrete(3)
+        
+        # Observation space: OHLCV + position + cash ratio
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf,
+            shape=(len(df.columns) + 2,),
+            dtype=np.float32
+        )
+        
+        self.reset()
+    
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        self.current_step = 0
+        self.balance = self.initial_balance
+        self.shares_held = 0
+        self.net_worth = self.initial_balance
+        self.max_net_worth = self.initial_balance
+        self.history = []
+        return self._get_observation(), {}
+    
+    def _get_observation(self):
+        """Trả về state hiện tại"""
+        obs = self.df.iloc[self.current_step].values
+        position_info = np.array([
+            self.shares_held / 100 if self.shares_held > 0 else 0,
+            self.balance / self.initial_balance
+        ])
+        return np.concatenate([obs, position_info]).astype(np.float32)
+    
+    def step(self, action):
+        """Thực hiện action và trả về reward"""
+        current_price = self.df.iloc[self.current_step]['Close']
+        
+        # Execute action
+        if action == 1:  # Buy
+            max_shares = self.balance // current_price
+            self.shares_held = max_shares  # all-in
+            self.balance -= max_shares * current_price * (1 + self.transaction_cost)
+        
+        elif action == 2:  # Sell
+            self.balance += self.shares_held * current_price * (1 - self.transaction_cost)
+            self.shares_held = 0
+        
+        # Move to next step
+        self.current_step += 1
+        
+        if self.current_step >= len(self.df) - 1:
+            done = True
+        else:
+            done = False
+        
+        # Compute new net worth
+        next_price = self.df.iloc[self.current_step]['Close']
+        self.net_worth = self.balance + self.shares_held * next_price
+        self.max_net_worth = max(self.max_net_worth, self.net_worth)
+        
+        # Reward = net worth change - drawdown penalty
+        reward = (self.net_worth - self.initial_balance) / self.initial_balance
+        reward -= 0.5 * ((self.max_net_worth - self.net_worth) / self.max_net_worth)
+        
+        # History
+        self.history.append({
+            'step': self.current_step,
+            'net_worth': self.net_worth,
+            'action': action
+        })
+        
+        info = {
+            'net_worth': self.net_worth,
+            'max_net_worth': self.max_net_worth,
+            'drawdown': (self.max_net_worth - self.net_worth) / self.max_net_worth
+        }
+        
+        return self._get_observation(), reward, done, False, info
+    
+    def render(self, mode='human'):
+        print(f"Step: {self.current_step}, Net Worth: ${self.net_worth:,.2f}")
+```
+
+## 1. DQN Agent cho Single-Stock Trading
+
+<Callout type="info">
+**DQN (Deep Q-Network)** là approach kinh điển cho RL trading. Agent học Q-value của mỗi action từ state hiện tại, sử dụng **replay buffer** và **target network** ổn định.
+</Callout>
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+import random
+from collections import deque, namedtuple
+import yfinance as yf
+
+# ============================================================
+# DQN Trading Agent
+# ============================================================
+
+Experience = namedtuple('Experience', 
+                        ['state', 'action', 'reward', 'next_state', 'done'])
+
+class ReplayBuffer:
+    def __init__(self, capacity=100_000):
+        self.buffer = deque(maxlen=capacity)
+    
+    def push(self, *args):
+        self.buffer.append(Experience(*args))
+    
+    def sample(self, batch_size):
+        return random.sample(self.buffer, batch_size)
+    
+    def __len__(self):
+        return len(self.buffer)
+
+
+class QNetwork(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+    
+    def forward(self, x):
+        return self.net(x)
+
+
+class DQNTradingAgent:
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int = 3,  # Hold, Buy, Sell
+        hidden_dim: int = 128,
+        lr: float = 1e-4,
+        gamma: float = 0.99,
+        epsilon_start: float = 1.0,
+        epsilon_end: float = 0.01,
+        epsilon_decay: int = 1000,
+        buffer_size: int = 100_000,
+        batch_size: int = 64,
+        target_update: int = 10
+    ):
+        self.action_dim = action_dim
+        self.gamma = gamma
+        self.batch_size = batch_size
+        self.target_update = target_update
+        
+        # Epsilon-greedy
+        self.epsilon_start = epsilon_start
+        self.epsilon_end = epsilon_end
+        self.epsilon_decay = epsilon_decay
+        self.steps = 0
+        
+        # Networks
+        self.q_network = QNetwork(state_dim, action_dim, hidden_dim)
+        self.target_network = QNetwork(state_dim, action_dim, hidden_dim)
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.target_network.eval()
+        
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=lr)
+        self.buffer = ReplayBuffer(buffer_size)
+    
+    def get_epsilon(self):
+        return self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
+            np.exp(-self.steps / self.epsilon_decay)
+    
+    def select_action(self, state):
+        self.steps += 1
+        epsilon = self.get_epsilon()
+        
+        if random.random() < epsilon:
+            return random.randrange(self.action_dim)
+        
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state)
+            q_values = self.q_network(state_t)
+            return q_values.argmax().item()
+    
+    def train_step(self):
+        if len(self.buffer) < self.batch_size:
+            return None
+        
+        # Sample batch
+        experiences = self.buffer.sample(self.batch_size)
+        batch = Experience(*zip(*experiences))
+        
+        states = torch.FloatTensor(np.array(batch.state))
+        actions = torch.LongTensor(batch.action)
+        rewards = torch.FloatTensor(batch.reward)
+        next_states = torch.FloatTensor(np.array(batch.next_state))
+        dones = torch.FloatTensor(batch.done)
+        
+        # Current Q values
+        q_values = self.q_network(states).gather(1, actions.unsqueeze(1)).squeeze()
+        
+        # Target Q values (Double DQN)
+        with torch.no_grad():
+            next_actions = self.q_network(next_states).argmax(dim=1)
+            next_q = self.target_network(next_states).gather(
+                1, next_actions.unsqueeze(1)
+            ).squeeze()
+            target_q = rewards + self.gamma * next_q * (1 - dones)
+        
+        # Loss
+        loss = nn.MSELoss()(q_values, target_q)
+        
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), 1.0)
+        self.optimizer.step()
+        
+        # Update target network
+        if self.steps % self.target_update == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
+        
+        return loss.item()
+
+
+# ============================================================
+# Training Loop
+# ============================================================
+
+# Download data
+df = yf.download("AAPL", start="2015-01-01", end="2025-01-01")
+df['Returns'] = df['Close'].pct_change()
+df['Volatility'] = df['Returns'].rolling(20).std()
+df = df[['Close', 'Volume', 'Returns', 'Volatility']].dropna()
+
+# Create env
+env = StockTradingEnv(df, initial_balance=100_000)
+state_dim = env.observation_space.shape[0]
+
+agent = DQNTradingAgent(state_dim=state_dim)
+
+# Train
+EPISODES = 100
+REWARDS = []
+
+for episode in range(EPISODES):
+    state, _ = env.reset()
+    total_reward = 0
+    done = False
+    
+    while not done:
+        action = agent.select_action(state)
+        next_state, reward, done, _, info = env.step(action)
+        agent.buffer.push(state, action, reward, next_state, done)
+        loss = agent.train_step()
+        state = next_state
+        total_reward += reward
+    
+    REWARDS.append(total_reward)
+    
+    if (episode + 1) % 10 == 0:
+        avg_reward = np.mean(REWARDS[-10:])
+        print(
+            f"Episode {episode+1}/{EPISODES} | "
+            f"Avg Reward: {avg_reward:.4f} | "
+            f"Net Worth: ${info['net_worth']:,.2f} | "
+            f"Drawdown: {info['drawdown']:.2%}"
+        )
+```
+
+## 2. PPO — Stable Policy Gradient
+
+<Callout type="info">
+**PPO (Proximal Policy Optimization)** là **algorithm phổ biến nhất** trong RL hiện đại — ổn định, dễ tune, và hoạt động tốt cho trading. Sử dụng **clipped objective** để tránh policy collapse.
+</Callout>
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.distributions import Categorical
+import numpy as np
+
+# ============================================================
+# PPO với Actor-Critic Network
+# ============================================================
+
+class ActorCritic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
+        super().__init__()
+        
+        # Shared feature extractor
+        self.shared = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh()
+        )
+        
+        # Actor (policy)
+        self.actor = nn.Linear(hidden_dim, action_dim)
+        
+        # Critic (value function)
+        self.critic = nn.Linear(hidden_dim, 1)
+    
+    def forward(self, state):
+        features = self.shared(state)
+        action_logits = self.actor(features)
+        state_value = self.critic(features)
+        return action_logits, state_value
+
+
+class PPOTradingAgent:
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int = 3,
+        hidden_dim: int = 128,
+        lr: float = 3e-4,
+        gamma: float = 0.99,
+        eps_clip: float = 0.2,
+        K_epochs: int = 4,
+        entropy_coef: float = 0.01
+    ):
+        self.gamma = gamma
+        self.eps_clip = eps_clip
+        self.K_epochs = K_epochs
+        self.entropy_coef = entropy_coef
+        
+        self.policy = ActorCritic(state_dim, action_dim, hidden_dim)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
+        
+        # Old policy for ratio computation
+        self.policy_old = ActorCritic(state_dim, action_dim, hidden_dim)
+        self.policy_old.load_state_dict(self.policy.state_dict())
+    
+    def select_action(self, state):
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state)
+            action_logits, _ = self.policy_old(state_t)
+            dist = Categorical(logits=action_logits)
+            action = dist.sample()
+            return action.item()
+    
+    def update(self, memory):
+        """Update policy với PPO clipped objective"""
+        # Get rewards-to-go
+        rewards = memory.rewards
+        discounted_rewards = []
+        G = 0
+        for r in reversed(rewards):
+            G = r + self.gamma * G
+            discounted_rewards.insert(0, G)
+        
+        discounted_rewards = torch.FloatTensor(discounted_rewards)
+        discounted_rewards = (discounted_rewards - discounted_rewards.mean()) / \
+                            (discounted_rewards.std() + 1e-5)
+        
+        # Convert to tensors
+        old_states = torch.FloatTensor(np.array(memory.states))
+        old_actions = torch.LongTensor(memory.actions)
+        old_logprobs = torch.FloatTensor(memory.logprobs)
+        
+        # PPO update
+        for _ in range(self.K_epochs):
+            action_logits, state_values = self.policy(old_states)
+            dist = Categorical(logits=action_logits)
+            
+            action_logprobs = dist.log_prob(old_actions)
+            dist_entropy = dist.entropy()
+            state_values = state_values.squeeze()
+            
+            # Ratios
+            ratios = torch.exp(action_logprobs - old_logprobs.detach())
+            
+            # Surrogate losses
+            advantages = discounted_rewards - state_values.detach()
+            surr1 = ratios * advantages
+            surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+            
+            # Total loss
+            loss = -torch.min(surr1, surr2).mean() + \
+                   0.5 * nn.MSELoss()(state_values, discounted_rewards) - \
+                   self.entropy_coef * dist_entropy.mean()
+            
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 0.5)
+            self.optimizer.step()
+        
+        # Copy new weights to old policy
+        self.policy_old.load_state_dict(self.policy.state_dict())
+
+
+# ============================================================
+# Training Loop với PPO
+# ============================================================
+
+class Memory:
+    def __init__(self):
+        self.states = []
+        self.actions = []
+        self.logprobs = []
+        self.rewards = []
+    
+    def clear(self):
+        self.states = []
+        self.actions = []
+        self.logprobs = []
+        self.rewards = []
+
+
+env = StockTradingEnv(df, initial_balance=100_000)
+agent = PPOTradingAgent(state_dim=env.observation_space.shape[0])
+
+MAX_EPISODES = 200
+UPDATE_TIMESTEP = 2000
+
+memory = Memory()
+timestep = 0
+
+for episode in range(MAX_EPISODES):
+    state, _ = env.reset()
+    total_reward = 0
+    done = False
+    
+    while not done:
+        timestep += 1
+        
+        # Select action
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state)
+            action_logits, _ = agent.policy_old(state_t)
+            dist = Categorical(logits=action_logits)
+            action = dist.sample()
+            logprob = dist.log_prob(action)
+        
+        # Environment step
+        next_state, reward, done, _, info = env.step(action.item())
+        
+        # Store
+        memory.states.append(state)
+        memory.actions.append(action.item())
+        memory.logprobs.append(logprob.item())
+        memory.rewards.append(reward)
+        
+        state = next_state
+        total_reward += reward
+        
+        # Update PPO
+        if timestep % UPDATE_TIMESTEP == 0:
+            agent.update(memory)
+            memory.clear()
+    
+    if (episode + 1) % 20 == 0:
+        print(
+            f"Episode {episode+1} | Reward: {total_reward:.2f} | "
+            f"Net Worth: ${info['net_worth']:,.2f}"
+        )
+```
+
+## 3. Multi-Agent Trading — Competition giữa các Agents
+
+```python
+# ============================================================
+# Multi-Agent PPO cho Portfolio Management
+# ============================================================
+
+class MultiAgentTradingEnv:
+    """
+    Môi trường với N agents, mỗi agent giao dịch 1 cổ phiếu.
+    Reward phụ thuộc vào correlation giữa các agents.
+    """
+    
+    def __init__(self, stock_data: dict, n_agents: int):
+        self.stock_data = stock_data  # {'AAPL': df, 'MSFT': df, ...}
+        self.n_agents = n_agents
+        self.current_step = 0
+        self.reset()
+    
+    def reset(self):
+        self.current_step = 0
+        self.agents_state = {
+            i: {"balance": 100_000, "shares": 0, "history": []}
+            for i in range(self.n_agents)
+        }
+        return self._get_all_obs()
+    
+    def _get_all_obs(self):
+        return {
+            i: self._get_obs(i) for i in range(self.n_agents)
+        }
+
+
+class MultiAgentPPO:
+    """
+    Mỗi agent có PPO riêng, chia sẻ thông tin market
+    """
+    
+    def __init__(self, n_agents, state_dim, action_dim):
+        self.agents = [
+            PPOTradingAgent(state_dim, action_dim) 
+            for _ in range(n_agents)
+        ]
+    
+    def train_episode(self, env):
+        states = env.reset()
+        total_rewards = [0] * env.n_agents
+        
+        done = False
+        while not done:
+            actions = [
+                self.agents[i].select_action(states[i])
+                for i in range(env.n_agents)
+            ]
+            
+            next_states, rewards, done, _ = env.step(actions)
+            
+            for i in range(env.n_agents):
+                self.agents[i].buffer.push(
+                    states[i], actions[i], rewards[i],
+                    next_states[i], done
+                )
+            
+            states = next_states
+            total_rewards = [
+                total_rewards[i] + rewards[i] 
+                for i in range(env.n_agents)
+            ]
+        
+        # Update each agent
+        for agent in self.agents:
+            agent.update_episode()
+        
+        return total_rewards
+```
+
+## 4. SAC — Cho Continuous Action Space
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+# ============================================================
+# SAC: Continuous Action (Position Sizing)
+# ============================================================
+
+class GaussianPolicy(nn.Module):
+    """Stochastic policy với tanh squashing"""
+    
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super().__init__()
+        self.shared = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU()
+        )
+        self.mean = nn.Linear(hidden_dim, action_dim)
+        self.log_std = nn.Linear(hidden_dim, action_dim)
+    
+    def forward(self, state):
+        x = self.shared(state)
+        mean = self.mean(x)
+        log_std = self.log_std(x).clamp(-20, 2)
+        std = log_std.exp()
+        return mean, std
+    
+    def sample(self, state):
+        mean, std = self.forward(state)
+        normal = torch.distributions.Normal(mean, std)
+        action = normal.rsample()  # reparameterization
+        return torch.tanh(action)  # bounded
+
+
+class SACAgent:
+    """
+    Soft Actor-Critic — entropy regularization
+    Cho continuous action (position size -1 to +1)
+    """
+    
+    def __init__(
+        self, state_dim, action_dim=1,
+        lr=3e-4, gamma=0.99, tau=0.005, alpha=0.2
+    ):
+        self.gamma = gamma
+        self.tau = tau
+        self.alpha = alpha  # entropy coefficient
+        
+        # Networks
+        self.policy = GaussianPolicy(state_dim, action_dim)
+        self.q1 = QNetwork(state_dim, action_dim)
+        self.q2 = QNetwork(state_dim, action_dim)
+        self.target_q1 = QNetwork(state_dim, action_dim)
+        self.target_q2 = QNetwork(state_dim, action_dim)
+        
+        # Copy weights
+        self.target_q1.load_state_dict(self.q1.state_dict())
+        self.target_q2.load_state_dict(self.q2.state_dict())
+        
+        self.policy_optim = torch.optim.Adam(self.policy.parameters(), lr=lr)
+        self.q1_optim = torch.optim.Adam(self.q1.parameters(), lr=lr)
+        self.q2_optim = torch.optim.Adam(self.q2.parameters(), lr=lr)
+    
+    def select_action(self, state):
+        """Action = continuous position size (-1 to +1)"""
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state)
+            action = self.policy.sample(state_t)
+            return action.item()
+    
+    def soft_update(self, target, source):
+        for tp, sp in zip(target.parameters(), source.parameters()):
+            tp.data.copy_(self.tau * sp.data + (1 - self.tau) * tp.data)
+```
+
+## 5. TQC — Truncated Quantile Critics
+
+<Callout type="info">
+**TQC (Truncated Quantile Critics)** là version nâng cấp của SAC với **robustness tốt hơn**. Thay vì dùng 2 Q-networks, TQC dùng nhiều **quantile critics** rồi **truncate outliers** — giúp giảm overestimation bias mạnh hơn cả TD3 và SAC.
+</Callout>
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class QuantileQNetwork(nn.Module):
+    """TQC: Multiple quantile Q-estimates thay vì single Q-value"""
+
+    def __init__(self, state_dim, action_dim, n_quantiles=25, hidden_dim=256):
+        super().__init__()
+        self.n_quantiles = n_quantiles
+        self.net = nn.Sequential(
+            nn.Linear(state_dim + action_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, n_quantiles)  # Output: n quantiles
+        )
+
+    def forward(self, state, action):
+        x = torch.cat([state, action], dim=-1)
+        return self.net(x)  # Shape: (batch, n_quantiles)
+
+
+class TQCAgent:
+    """
+    Truncated Quantile Critics
+    - N quantile critics thay vì 2 Q-networks
+    - Truncate top quantiles → lower bound estimate (robust)
+    """
+
+    def __init__(
+        self, state_dim, action_dim=1,
+        n_quantiles=25, top_quantiles_to_drop=3,
+        lr=3e-4, gamma=0.99, tau=0.005, alpha=0.2
+    ):
+        self.n_quantiles = n_quantiles
+        self.top_quantiles_to_drop = top_quantiles_to_drop
+        self.gamma = gamma
+        self.tau = tau
+        self.alpha = alpha
+
+        # Policy (same as SAC)
+        self.policy = GaussianPolicy(state_dim, action_dim)
+
+        # Quantile critics
+        self.q1 = QuantileQNetwork(state_dim, action_dim, n_quantiles)
+        self.q2 = QuantileQNetwork(state_dim, action_dim, n_quantiles)
+        self.target_q1 = QuantileQNetwork(state_dim, action_dim, n_quantiles)
+        self.target_q2 = QuantileQNetwork(state_dim, action_dim, n_quantiles)
+
+        self.target_q1.load_state_dict(self.q1.state_dict())
+        self.target_q2.load_state_dict(self.q2.state_dict())
+
+        self.policy_optim = torch.optim.Adam(self.policy.parameters(), lr=lr)
+        self.q1_optim = torch.optim.Adam(self.q1.parameters(), lr=lr)
+        self.q2_optim = torch.optim.Adam(self.q2.parameters(), lr=lr)
+
+    def select_action(self, state):
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state)
+            action = self.policy.sample(state_t)
+            return action.item()
+
+    def _truncated_mean(self, quantiles):
+        """
+        Truncate top quantiles để giảm overestimation
+        Returns lower-bound value estimate
+        """
+        sorted_q, _ = quantiles.sort(dim=-1)
+        n_drop = self.top_quantiles_to_drop
+        if n_drop > 0:
+            sorted_q = sorted_q[..., n_drop:-n_drop]  # Drop top & bottom
+        return sorted_q.mean(dim=-1)
+
+    def critic_loss(self, batch):
+        """TQC critic: MSE trên truncated mean quantiles"""
+        states, actions, rewards, next_states, dones = batch
+
+        # Current quantile estimates
+        q1_quantiles = self.q1(states, actions)
+        q2_quantiles = self.q2(states, actions)
+
+        with torch.no_grad():
+            next_actions = self.policy.sample(next_states)
+            next_q1 = self.target_q1(next_states, next_actions)
+            next_q2 = self.target_q2(next_states, next_actions)
+
+            # Take elementwise min of target quantile sets
+            next_q = torch.min(next_q1, next_q2)
+
+            # TRUNCATE: drop top quantiles
+            target = rewards.unsqueeze(-1) + self.gamma * next_q * (1 - dones.unsqueeze(-1))
+
+        # Quantile Huber loss
+        loss_q1 = self._quantile_huber_loss(q1_quantiles, target)
+        loss_q2 = self._quantile_huber_loss(q2_quantiles, target)
+
+        return loss_q1, loss_q2
+
+    def _quantile_huber_loss(self, predictions, targets):
+        """Quantile Huber Loss cho distributional RL"""
+        # Simplified version
+        return F.mse_loss(predictions, targets)
+
+    def soft_update(self):
+        for tp, sp in zip(self.target_q1.parameters(), self.q1.parameters()):
+            tp.data.copy_(self.tau * sp.data + (1 - self.tau) * tp.data)
+        for tp, sp in zip(self.target_q2.parameters(), self.q2.parameters()):
+            tp.data.copy_(self.tau * sp.data + (1 - self.tau) * tp.data)
+```
+
+## 6. Maskable PPO — Action Masking cho Multi-Asset Trading
+
+<Callout type="info">
+**Maskable PPO** là PPO nâng cấp với **action masking** — có thể "khóa" một số action không hợp lệ tại một state nhất định. Trong trading, điều này cực kỳ hữu ích để enforce constraints như: không bán khi chưa mua, position limit, sector limits.
+</Callout>
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Categorical
+
+class MaskablePPO(nn.Module):
+    """
+    PPO với Action Masking
+    - Môi trường trading có nhiều asset
+    - Action mask: 0-7 = [Cash, AAPL, MSFT, GOOGL, NVDA, META, AMZN, TSLA]
+    - Không thể mua AAPL nếu đang hold AAPL
+    - Position limits enforced per-asset
+    """
+
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super().__init__()
+        self.shared = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh()
+        )
+        self.actor = nn.Linear(hidden_dim, action_dim)
+        self.critic = nn.Linear(hidden_dim, 1)
+
+    def forward(self, state, action_mask=None):
+        features = self.shared(state)
+        logits = self.actor(features)
+
+        if action_mask is not None:
+            # Mask invalid actions: set logits to -inf
+            logits = logits.masked_fill(action_mask == 0, float('-inf'))
+
+        dist = Categorical(logits=logits)
+        value = self.critic(features)
+        return dist, value
+
+
+def generate_trading_mask(current_portfolio: dict, max_positions: int = 3,
+                          max_per_stock: int = 100) -> torch.Tensor:
+    """
+    Tạo action mask dựa trên portfolio hiện tại:
+    - Không thể mua stock đang hold max position
+    - Không thể bán stock không có trong portfolio
+    - Giới hạn số positions cùng lúc
+    """
+    n_assets = len(current_portfolio)
+    mask = torch.zeros(n_assets + 1)  # +1 cho Cash (always valid)
+    mask[0] = 1  # Cash (hold) luôn hợp lệ
+
+    active_positions = sum(1 for v in current_portfolio.values() if v > 0)
+
+    for i, (stock, shares) in enumerate(current_portfolio.items()):
+        idx = i + 1
+        if shares > 0:
+            mask[idx] = 1  # Có thể bán (nhưng không thể mua thêm nếu max)
+            if shares >= max_per_stock:
+                mask[idx] = 0  # Đã max position → không thể mua thêm
+        elif active_positions < max_positions:
+            mask[idx] = 1  # Còn slot → có thể mua
+
+    return mask
+
+
+# Training loop với Maskable PPO
+state_dim = 100
+action_dim = 8  # Cash + 7 stocks
+model = MaskablePPO(state_dim, action_dim)
+optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+
+# Example usage
+current_portfolio = {
+    'AAPL': 50, 'MSFT': 0, 'GOOGL': 100,
+    'NVDA': 0, 'META': 0, 'AMZN': 0, 'TSLA': 0
+}
+action_mask = generate_trading_mask(current_portfolio, max_positions=3)
+
+state = torch.randn(1, state_dim)
+dist, value = model(state, action_mask=action_mask)
+
+# Action valid chỉ trong scope mask
+action = dist.sample()
+log_prob = dist.log_prob(action)
+print(f"Action: {action.item()}, Log Prob: {log_prob.item()}")
+```
+
+## 7. CrossQ — Cross-Q Normalized Value Learning
+
+<Callout type="info">
+**CrossQ (Cross-Q Learning)** là value-based algorithm mới với **batch normalization trên Q-estimates** — giúp giảm bias đáng kể so với DQN truyền thống. Đặc biệt hiệu quả khi cần **sample efficiency** tốt hơn trong trading.
+</Callout>
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class CrossQNetwork(nn.Module):
+    """
+    CrossQ: Batch-normalized Q-network
+    Dùng batch normalization trên hidden states
+    để giảm bias trong Q-value estimation
+    """
+
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),   # CrossQ: batch norm
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),   # CrossQ: batch norm
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class CrossQAgent:
+    """
+    CrossQ: Batch-normalized Q-learning
+    - Batch normalization stabilizes training
+    - Better sample efficiency than DQN
+    - Reduced overestimation bias
+    """
+
+    def __init__(self, state_dim, action_dim=3,
+                 lr=1e-3, gamma=0.99, batch_size=64):
+        self.gamma = gamma
+        self.batch_size = batch_size
+        self.action_dim = action_dim
+
+        self.q_net = CrossQNetwork(state_dim, action_dim)
+        self.target_net = CrossQNetwork(state_dim, action_dim)
+        self.target_net.load_state_dict(self.q_net.state_dict())
+
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
+
+    def select_action(self, state, epsilon=0.01):
+        import random
+        if random.random() < epsilon:
+            return random.randrange(self.action_dim)
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state).unsqueeze(0)
+            q_values = self.q_net(state_t)
+            return q_values.argmax(dim=1).item()
+
+    def update(self, replay_buffer):
+        """CrossQ update with batch normalization"""
+        if len(replay_buffer) < self.batch_size:
+            return
+
+        batch = replay_buffer.sample(self.batch_size)
+        states, actions, rewards, next_states, dones = batch
+
+        states = torch.FloatTensor(states)
+        actions = torch.LongTensor(actions)
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(next_states)
+        dones = torch.FloatTensor(dones)
+
+        # Current Q estimates (with batch norm)
+        current_q = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze()
+
+        # Target Q (no batch norm on target)
+        with torch.no_grad():
+            next_q = self.target_net(next_states).max(dim=1)[0]
+            target_q = rewards + self.gamma * next_q * (1 - dones)
+
+        loss = nn.MSELoss()(current_q, target_q)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return loss.item()
+```
+
+## Phân tích chi tiết từng Algorithm
+
+### 1. DQN (Deep Q-Network)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | Dùng **neural network** để approx Q-function Q(s,a) — dự đoán giá trị kỳ vọng của mỗi action từ state hiện tại. Agent chọn action có Q cao nhất (greedy) hoặc random (epsilon-greedy). **Replay buffer** lưu experiences, **target network** ổn định training |
+| **Bài toán** | **Discrete trading actions** — Buy (1), Sell (2), Hold (0). Single-stock trading signals, entry/exit timing, simple portfolio rebalancing |
+| **Ưu điểm** | ✅ **Kinh điển** — dễ hiểu, dễ implement. ✅ **Replay buffer** — sample efficiency tốt hơn policy gradient. ✅ **Off-policy** — có thể reuse old data. ✅ **Target network** giảm instability. ✅ Foundation cho Double DQN, Dueling DQN, Rainbow |
+| **Nhược điểm** | ❌ **Chỉ discrete actions** — không continuous position sizing. ❌ **Overestimation bias** — Q-values bị estimated cao hơn thực tế. ❌ **Sample inefficiency** so với PPO/SAC trên cùng data. ❌ **Sensitive với hyperparameters** (epsilon decay, learning rate). ❌ **Catastrophic forgetting** khi data mới đè lên old patterns |
+| **Khi nào dùng** | 🟢 **Bắt đầu học RL trading** — simplest entry point. 🟢 Action space **nhỏ và discrete** (Buy/Sell/Hold). 🟢 Single-stock trading. 🟢 Dataset lớn (replay buffer cần nhiều data). 🟢 Nền tảng để hiểu Double DQN, Rainbow |
+
+```python
+# Core DQN update
+q_values = q_network(states).gather(1, actions)
+with torch.no_grad():
+    next_actions = q_network(next_states).argmax(dim=1)
+    next_q = target_network(next_states).gather(1, next_actions)
+    target = rewards + gamma * next_q * (1 - dones)
+loss = F.mse_loss(q_values, target)
+```
+
+---
+
+### 2. A2C (Advantage Actor-Critic)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Two networks**: Actor (policy π(a|s)) chọn actions, Critic (value V(s)) đánh giá state. Actor update bằng **advantage function** A(s,a) = R - V(s) — measure "action này tốt hơn trung bình bao nhiêu". **Synchronous** updates từ nhiều parallel environments |
+| **Bài toán** | **Discrete & Continuous trading** — faster experiments, parallel market simulation, multi-stock screening. Phù hợp khi cần train nhanh trên nhiều market scenarios cùng lúc |
+| **Ưu điểm** | ✅ **Parallel training** — nhanh hơn A3C (synchronous). ✅ **Lower variance** so với REINFORCE (dùng baseline V(s)). ✅ **Simpler** hơn PPO (không clipped objective). ✅ **On-policy** — stable gradient updates. ✅ Works với both discrete & continuous actions |
+| **Nhược điểm** | ❌ **Lower sample efficiency** — on-policy cần fresh data. ❌ **Variance still higher** so với PPO. ❌ **No clipping** — policy có thể collapse. ❌ **Synchronous** — slower than A3C trên distributed systems. ❌ **Sensitive với learning rate** |
+| **Khi nào dùng** | 🟢 **Quick experiments** — muốn train nhanh, ít code. 🟢 **Parallel environments** (multi-market simulation). 🟢 Đã hiểu DQN và muốn upgrade sang actor-critic. 🟢 Action space **nhỏ** (2-5 actions). 🟢 Before moving to PPO |
+
+```python
+# A2C: Actor (policy) + Critic (value)
+class ActorCritic(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
+        self.shared = nn.Sequential(
+            nn.Linear(state_dim, 256), nn.Tanh(),
+            nn.Linear(256, 256), nn.Tanh()
+        )
+        self.actor = nn.Linear(256, action_dim)   # Policy
+        self.critic = nn.Linear(256, 1)            # Value
+
+    def forward(self, state):
+        features = self.shared(state)
+        return self.actor(features), self.critic(features)
+
+# Advantage = R - V(s) (reduces variance)
+advantage = rewards - values.detach()
+policy_loss = -(log_probs * advantage).mean()
+value_loss = F.mse_loss(values, rewards)
+```
+
+---
+
+### 3. PPO (Proximal Policy Optimization)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Clipped surrogate objective** — giới hạn mức thay đổi policy giữa updates: L = min(r·A, clip(r, 1-ε, 1+ε)·A) trong đó r = π_new/π_old (probability ratio). Ngăn policy thay đổi quá nhanh → **cực kỳ stable**. Actor-Critic architecture với shared feature extractor |
+| **Bài toán** | **General trading** — daily rebalancing, portfolio management, multi-stock trading, any RL trading problem. **Most popular** algorithm trong RL finance hiện tại |
+| **Ưu điểm** | ✅ **Most stable** RL algorithm — ít collapse nhất. ✅ **Easy to tune** — ít hyperparameters quan trọng. ✅ **Both discrete & continuous** actions. ✅ **Entropy bonus** khuyến khích exploration. ✅ **Large community** — nhiều tutorials, implementations. ✅ **Gold standard** trong RL research & production |
+| **Nhược điểm** | ❌ **On-policy** — phải collect fresh data mỗi update. ❌ **Sample efficiency** thấp hơn SAC/TD3 (off-policy). ❌ **Conservative** — có thể học chậm hơn trong noisy environments. ❌ **Clipping hyperparameter** (ε=0.2) cần adjust theo problem. ❌ **Not optimal** cho very large action spaces |
+| **Khi nào dùng** | 🟢 **Default choice** cho mọi RL trading problem. 🟢 Khi cần **stability** hơn là speed. 🟢 **Daily/weekly** trading strategies. 🟢 Multi-stock portfolio management. 🟢 Production deployment cần reliable |
+
+```python
+# PPO clipped objective
+ratios = torch.exp(new_logprobs - old_logprobs)
+surr1 = ratios * advantages
+surr2 = torch.clamp(ratios, 1 - eps_clip, 1 + eps_clip) * advantages
+policy_loss = -torch.min(surr1, surr2).mean()
+
+# Entropy bonus (encourage exploration)
+entropy_loss = -dist.entropy().mean()
+total_loss = policy_loss + 0.5 * value_loss + 0.01 * entropy_loss
+```
+
+---
+
+### 4. DDPG (Deep Deterministic Policy Gradient)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Deterministic policy** — actor output 1 action cụ thể (không sample). Critic học Q(s,a) để đánh giá. Actor update bằng **policy gradient** qua critic: ∇θ ≈ Q(s, μ_θ(s)). **Target networks** + **replay buffer** ổn định training |
+| **Bài toán** | **High-frequency trading (HFT)** — cần continuous action (order size, timing precision). **Optimal execution** — TWAP/VWAP optimization. **Market making** — continuous bid/ask sizing |
+| **Ưu điểm** | ✅ **Continuous actions** — position sizing chính xác. ✅ **Deterministic** — không có sampling noise. ✅ **Sample efficient** hơn policy gradient (replay buffer). ✅ Works tốt cho **well-defined dynamics** |
+| **Nhược điểm** | ❌ **High overestimation bias** — Q-values bị estimated quá cao. ❌ **Low stability** — easily diverges. ❌ **Sensitive với hyperparameters**. ❌ **Exploration** khó (deterministic policy → cần add noise). ❌ **Overfitting** đến replay buffer distribution. ❌ **TD3 fixes most of its issues** |
+| **Khi nào dùng** | 🟢 **HFT** cần deterministic actions. 🟢 Well-understood, deterministic environments. 🟢 **Nên upgrade lên TD3** nếu dùng production. 🟢 Bước chuyển tiếp từ DQN sang continuous actions |
+
+```python
+# DDPG: deterministic actor + Q-critic
+class DeterministicActor(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, 256), nn.ReLU(),
+            nn.Linear(256, action_dim), nn.Tanh()  # bounded action
+        )
+    def forward(self, state):
+        return self.net(state)  # deterministic action
+
+# Critic update
+q_pred = critic(state, actor(state))
+q_target = rewards + gamma * target_critic(next_state, target_actor(next_state))
+critic_loss = F.mse_loss(q_pred, q_target.detach())
+
+# Actor update (maximize Q)
+actor_loss = -critic(state, actor(state)).mean()
+```
+
+---
+
+### 5. TD3 (Twin Delayed DDPG)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **3 cải tiến** so với DDPG: (1) **Twin Critics** — dùng 2 Q-networks, lấy min để giảm overestimation. (2) **Delayed Policy Update** — actor update chậm hơn critic (mỗi 2 steps). (3) **Target Policy Smoothing** — thêm noise vào target actions để regularization |
+| **Bài toán** | **Continuous position sizing** — xác định % portfolio phân bổ cho mỗi cổ phiếu. **Risk-adjusted allocation** — tối ưu Sharpe ratio. **Dynamic hedging** — continuous hedge ratio |
+| **Ưu điểm** | ✅ **Reduced overestimation** — twin critics + min operator. ✅ **More stable** than DDPG (delayed update + smoothing). ✅ **Easy upgrade** from DDPG — almost same code. ✅ **Better sample efficiency** than PPO. ✅ **Well-tested** in finance literature |
+| **Nhược điểm** | ❌ **Continuous only** — không discrete actions. ❌ **3 extra hyperparameters** (policy delay, target noise, noise clip). ❌ **Still sensitive** to reward scaling. ❌ **Deterministic policy** — exploration limited. ❌ **Less stable** than PPO/SAC |
+| **Khi nào dùng** | 🟢 **Upgrade from DDPG** — fix most DDPG issues. 🟢 Continuous action space (position sizing). 🟢 Moderate-sized datasets. 🟢 Cần better stability than DDPG. 🟢 Not enough data for SAC |
+
+```python
+# TD3: Twin critics + delayed update + target smoothing
+class TD3Agent:
+    def __init__(self, state_dim, action_dim):
+        self.actor = DeterministicActor(state_dim, action_dim)
+        self.critic1 = QNetwork(state_dim, action_dim)
+        self.critic2 = QNetwork(state_dim, action_dim)
+        self.target_actor = DeterministicActor(state_dim, action_dim)
+        self.target_critic1 = QNetwork(state_dim, action_dim)
+        self.target_critic2 = QNetwork(state_dim, action_dim)
+        self.policy_delay = 2  # Update actor every 2 steps
+
+    def critic_loss(self, batch):
+        # Twin critics: take MINIMUM
+        q1 = self.critic1(states, actions)
+        q2 = self.critic2(states, actions)
+        target = rewards + gamma * torch.min(
+            self.target_critic1(next_states, target_actions),
+            self.target_critic2(next_states, target_actions)
+        )
+        return F.mse_loss(q1, target) + F.mse_loss(q2, target)
+
+    # Target policy smoothing: add noise to target actions
+    target_actions = self.target_actor(next_states)
+    noise = torch.randn_like(target_actions).clamp(-0.2, 0.2)
+    target_actions = (target_actions + noise).clamp(-1, 1)
+```
+
+---
+
+### 6. SAC (Soft Actor-Critic)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Maximum entropy RL** — tối ưu cả **reward** lẫn **entropy** (exploration). Objective: J = E[Σ(r + α·H(π))]. α là temperature parameter kiểm soát exploration vs exploitation. Actor maximizes Q + entropy → policy diverse hơn, explore nhiều hơn |
+| **Bài toán** | **Portfolio RL** — dynamic asset allocation với exploration. **Multi-asset trading** — cần explore nhiều strategies. **Risk management** — diverse actions giảm concentration risk |
+| **Ưu điểm** | ✅ **Best exploration** — entropy bonus encourages diverse strategies. ✅ **Sample efficient** — off-policy + replay buffer. ✅ **Automatic temperature tuning** (alpha). ✅ **Handles multi-modal distributions** (nhiều optimal strategies). ✅ **Most stable** continuous-action algorithm |
+| **Nhược điểm** | ❌ **Complex** — cần tune temperature α. ❌ **3 networks** (actor + 2 critics) → memory intensive. ❌ **Entropy can be harmful** nếu reward function poorly designed. ❌ **Continuous only** (có SAC-discrete variant nhưng less common). ❌ **Slow inference** (sample from distribution) |
+| **Khi nào dùng** | 🟢 **Best choice** cho continuous action trading. 🟢 Portfolio allocation với nhiều assets. 🟢 Cần **robust exploration**. 🟢 Market có **multi-modal** behavior. 🟢 Production trading cần reliable performance |
+
+```python
+# SAC: maximize Q(s,a) + α·H(π)
+# Entropy bonus
+log_probs = dist.log_prob(actions)
+entropy = -log_probs.mean()
+
+# SAC actor loss
+actor_loss = (log_probs - q1_pred).mean()  # J = Q + α·H
+
+# Alpha (temperature) auto-tuning
+alpha_loss = -(log_alpha * (log_probs + target_entropy).detach()).mean()
+alpha = log_alpha.exp()
+
+# Twin Q-networks (same as TD3)
+q_target = torch.min(q1_target, q2_target)
+```
+
+---
+
+### 7. TQC (Truncated Quantile Critics)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Distributional RL** — thay vì estimate expected Q-value, TQC estimate **phân phối Q** qua nhiều **quantile functions** (25 quantiles). Sau đó **truncate top quantiles** → lấy lower-bound estimate → **giảm overestimation** mạnh hơn cả TD3/SAC. Kết hợp SAC's entropy bonus |
+| **Bài toán** | **Risk-aware portfolio trading** — cần estimate không chỉ expected return mà cả **tail risk**. **Options trading** — pricing phụ thuộc vào toàn bộ return distribution. **Portfolio optimization** với CVaR constraints |
+| **Ưu điểm** | ✅ **Lowest overestimation bias** trong tất cả RL algorithms. ✅ **Captures full return distribution** (không chỉ mean). ✅ **Risk-sensitive** — truncate top quantiles = conservative estimate. ✅ **Most stable** — ít diverge nhất. ✅ SAC's entropy bonus + distributional robustness |
+| **Nhược điểm** | ❌ **Most complex** — nhiều network parameters (25 quantiles × 2 critics). ❌ **Slow training** — compute quantile loss. ❌ **Continuous only**. ❌ **Overkill** cho simple trading problems. ❌ **Less community support** — fewer tutorials |
+| **Khi nào dùng** | 🟢 **Risk-aware trading** là priority. 🟢 Cần **conservative estimates** (quản lý rủi ro). 🟢 **Options/futures** trading (distributional). 🟢 Dataset **noisy** cần robustness. 🟢 Production trading với **strict risk limits** |
+
+```python
+# TQC: distributional Q with truncation
+class QuantileQNetwork(nn.Module):
+    def __init__(self, state_dim, action_dim, n_quantiles=25):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim + action_dim, 256), nn.ReLU(),
+            nn.Linear(256, n_quantiles)  # Output: 25 quantiles
+        )
+    def forward(self, state, action):
+        return self.net(torch.cat([state, action], dim=-1))
+
+# Truncated mean: drop top quantiles for conservative estimate
+def truncated_mean(quantiles, n_drop=3):
+    sorted_q, _ = quantiles.sort(dim=-1)
+    return sorted_q[..., n_drop:-n_drop].mean(dim=-1)
+
+# Q-value = truncated mean (lower bound, conservative)
+q1_truncated = truncated_mean(q1_quantiles)
+q2_truncated = truncated_mean(q2_quantiles)
+q_target = torch.min(q1_truncated, q2_truncated)
+```
+
+---
+
+### 8. Maskable PPO
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **PPO + Action Masking** — tại mỗi state, tạo **binary mask** đánh dấu actions nào hợp lệ. Logits của invalid actions = -inf → probability = 0 → agent không bao giờ chọn action vi phạm constraints. Đảm bảo **mọi action đều hợp lệ** business rules |
+| **Bài toán** | **Multi-asset trading với constraints** — position limits, sector caps, regulatory requirements. **Portfolio rebalancing** — không thể sell asset không có. **Compliance** — margin requirements, leverage limits |
+| **Ưu điểm** | ✅ **Enforces hard constraints** — agent không thể vi phạm business rules. ✅ **PPO stability** + **constraint satisfaction**. ✅ **No wasted exploration** — actions invalid không bao giờ tried. ✅ **Flexible masks** — có thể update online. ✅ Perfect cho **regulated trading** |
+| **Nhược điểm** | ❌ **Complex mask generation** — cần business logic cho mỗi constraint. ❌ **On-policy** — same limitations as PPO. ❌ **Mask errors** → agent học sai. ❌ **Not for continuous actions** (chưa native support). ❌ **Higher code complexity** |
+| **Khi nào dùng** | 🟢 Trading với **position/sector limits**. 🟢 **Regulated markets** (Basel, margin requirements). 🟢 Multi-asset portfolio với **hard constraints**. 🟢 PPO nhưng cần **guarantee valid actions**. 🟢 Real production trading systems |
+
+```python
+# Maskable PPO: mask invalid actions
+class MaskablePPO(nn.Module):
+    def forward(self, state, action_mask=None):
+        features = self.shared(state)
+        logits = self.actor(features)
+
+        if action_mask is not None:
+            logits = logits.masked_fill(action_mask == 0, float('-inf'))
+
+        dist = Categorical(logits=logits)  # Only valid actions
+        return dist, self.critic(features)
+
+# Generate mask: which actions are valid?
+def generate_mask(portfolio, max_positions=5):
+    mask = torch.ones(n_assets + 1)  # +1 for cash
+    active = sum(1 for v in portfolio.values() if v > 0)
+    for i, (stock, shares) in enumerate(portfolio.items()):
+        if shares >= max_per_stock:
+            mask[i+1] = 0  # Can't buy more
+        if active >= max_positions and shares == 0:
+            mask[i+1] = 0  # Can't open new position
+    return mask
+```
+
+---
+
+### 9. CrossQ (Cross-Q Learning)
+
+| Thuộc tính | Chi tiết |
+|---|---|
+| **Cốt lõi** | **Batch-normalized Q-learning** — thêm **Batch Normalization layers** vào Q-network. Batch norm trên hidden states → reduces **internal covariate shift** → stabilize training. Kết quả: **lower bias** so với DQN, **better sample efficiency** |
+| **Bài toán** | **Off-policy trading** với **limited data** (sparse market events). **Quick adaptation** khi market regime thay đổi. **Low-data environments** — crypto, frontier markets, exotic instruments |
+| **Ưu điểm** | ✅ **Better sample efficiency** than DQN — learn faster từ ít data hơn. ✅ **Reduced overestimation bias** qua batch normalization. ✅ **Simple implementation** — chỉ thêm BatchNorm1d vào DQN. ✅ **Fast inference** — single forward pass. ✅ **Handles sparse data** tốt |
+| **Nhược điểm** | ❌ **Batch norm sensitivity** — batch size nhỏ → statistics unreliable. ❌ **Still discrete actions** (chưa native continuous support). ❌ **Less community support** — newer algorithm. ❌ **Training instability** nếu batch quá nhỏ. ❌ **Not as stable** as PPO/SAC trên large datasets |
+| **Khi nào dùng** | 🟢 **Limited training data** — sparse market events. 🟢 Cần **faster convergence** từ ít samples. 🟢 **Off-policy** setting (reuse old data). 🟢 Upgrade từ DQN cần better performance. 🟢 Frontier/crypto markets với data ít |
+
+```python
+class CrossQNetwork(nn.Module):
+    """DQN + Batch Normalization"""
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),  # CrossQ key innovation
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+    def forward(self, x):
+        return self.net(x)
+```
+
+## Practical Tips cho RL Trading
+
+<Warning>
+**Bẫy phổ biến khi áp dụng RL trong finance:**
+
+- **Overfitting to backtest:** RL agent exploit data → fail in live market
+- **Reward hacking:** Tìm ra loophole trong reward function (vd: giữ cash để tránh penalty)
+- **Non-stationarity:** Market dynamics thay đổi → agent cần re-train thường xuyên
+- **Transaction costs:** Bị quên → chi phí ăn hết lợi nhuận
+- **Slippage:** Giá thực ≠ giá signal → lệnh không fill đúng
+- **Sample inefficiency:** Cần >10⁶ episodes để converge — impractical với real data
+- **No interpretability:** Khó debug khi agent fail
+</Warning>
+
+## Best Practices
+
+<Tip>
+**Framework đề xuất:**
+
+1. **Start với baselines** — Buy & Hold, Moving Average Crossover
+2. **Sử dụng realistic simulator** — slippage, latency, partial fills
+3. **Train trên diverse data** — multiple regimes, markets, timeframes
+4. **Walk-forward validation** — re-train periodically, không backtest trên data đã train
+5. **Reward shaping carefully** — penalty drawdown, reward risk-adjusted returns
+6. **Risk management first** — position limits, stop-loss, VaR constraints
+7. **Ensemble methods** — combine nhiều models để giảm variance
+8. **Paper trade trước** — test live với tiền ảo ít nhất 3-6 tháng
+</Tip>
+
+## So sánh tất cả RL Algorithms cho Trading
+
+| Algorithm | Action Space | Sample Efficiency | Stability | Overestimation | Best For |
+|---|---|---|---|---|---|
+| **DQN** | ❌ Discrete | Low | Medium | High | Learning RL basics, simple signals |
+| **A2C** | ✅ Both | Low | Medium | Medium | Quick parallel experiments |
+| **PPO** | ✅ Both | Medium | ✅ High | Low | **General trading, daily rebalance** |
+| **Maskable PPO** | ✅ Both | Medium | High | Low | **Multi-asset + hard constraints** |
+| **DDPG** | ✅ Continuous | Medium | Low | High | HFT (legacy — upgrade to TD3) |
+| **TD3** | ✅ Continuous | Medium | Medium | Low | **Continuous position sizing** |
+| **SAC** | ✅ Continuous | ✅ High | ✅ High | Low | **Portfolio RL, exploration** |
+| **TQC** | ✅ Continuous | ✅ High | ✅ Highest | ✅ Lowest | **Risk-aware trading, tail risk** |
+| **CrossQ** | ✅ Both | High | High | Low | **Limited data, off-policy** |
+
+## Use Cases hàng đầu của RL trong Finance
+
+<CardGroup>
+  <Card title="Algorithmic Trading" icon="chart-line">
+    Auto-trade cổ phiếu, forex, crypto theo RL strategy
+  </Card>
+  <Card title="Portfolio Optimization" icon="chart-pie">
+    Dynamic asset allocation với SAC
+  </Card>
+  <Card title="Market Making" icon="scale-balanced">
+    Place bid/ask để capture spread
+  </Card>
+  <Card title="Hedging" icon="shield-halved">
+    Auto-hedge position với derivatives
+  </Card>
+  <Card title="Order Execution" icon="gauge-high">
+    Optimal execution strategy (TWAP, VWAP)
+  </Card>
+  <Card title="Multi-Agent Markets" icon="users">
+    Mô phỏng market với nhiều agents
+  </Card>
+</CardGroup>
+
+<Warning>
+**Disclaimer quan trọng:**
+RL trading là nghiên cứu **rất active**, nhưng deployment production **rất khó khăn**. Most research papers overstate performance do:
+- Look-ahead bias
+- Insufficient transaction costs
+- Single market overfitting
+- Backtest-only evaluation
+
+Luôn combine RL với **domain expertise** và **strong risk management**.
+</Warning>
+
+<Tip>
+**Recommended learning path:**
+1. Học basics RL (DQN, PPO) qua OpenAI Gym tutorials
+2. Làm quen với **Stable Baselines3** library
+3. Build custom trading environment
+4. Bắt đầu với **simple DQN** trên 1 stock
+5. Nâng cấp lên **PPO/SAC** cho multi-stock
+6. Add **multi-agent** cho portfolio
+7. Tích hợp **risk management** và **constraints**
+</Tip>
+
+## Tools & Libraries
+
+| Category | Tools | Algorithm Support |
+|---|---|---|
+| **RL Frameworks** | Stable Baselines3 | PPO, A2C, DQN, SAC, TD3, DDPG |
+| | Ray RLlib | A2C, PPO, SAC, MADDPG, all above |
+| | CleanRL | PPO, SAC, DQN, TD3 (single-file implementations) |
+| | TF-Agents | DQN, PPO, SAC (TensorFlow) |
+| **Trading-specific** | FinRL | DQN, PPO, A2C, SAC, TD3, DDPG (finance optimized) |
+| **Backtesting** | backtrader, vectorbt, zipline-reloaded |
+| **Trading APIs** | Alpaca, Interactive Brokers, Binance, CCXT |
+| **Visualization** | TensorBoard, Weights & Biases |
+| **Deployment** | Ray Serve, Triton Inference Server |
+
+## Bước tiếp theo
+
+<CardGroup>
+  <Card title="Portfolio Optimization" icon="chart-pie" href="/ai-stock-investment/portfolio-optimization">
+    Modern portfolio theory + AI
+  </Card>
+  <Card title="Timeseries Forecasting" icon="chart-line" href="/ai-stock-investment/timeseries-forecasting">
+    ARIMA, Prophet, LSTM
+  </Card>
+  <Card title="Sentiment Analysis" icon="newspaper" href="/ai-stock-investment/sentiment-analysis">
+    FinBERT, LLM analysis
+  </Card>
+</CardGroup>
